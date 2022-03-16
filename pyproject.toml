@@ -1,0 +1,6 @@
+[tool.pyright]
+strict = "*"
+
+[tool.black]
+line-length = 100
+include = "disnake/ext/components"
