@@ -17,12 +17,12 @@ To install the extension, run the following command in your command prompt:
 
 ``` sh
 # Linux/macOS
-python3 -m pip install -U disnake
+python3 -m pip install -U git+https://github.com/Chromosomologist/disnake-ext-components
 
 # Windows
-py -3 -m pip install -U disnake
+py -3 -m pip install -U git+https://github.com/Chromosomologist/disnake-ext-components
 ```
-
+I will hopefully get it on PyPI soon-ish, but for now you'll have to install from github (which requires git to be installed on your pc).  
 It will be installed to your existing [disnake](https://github.com/DisnakeDev/disnake) installation as an extension. From there, it can be imported as:
 
 ```py
