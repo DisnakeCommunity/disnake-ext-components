@@ -1,6 +1,15 @@
 [tool.pyright]
-strict = "*"
+include = ["disnake_ext_components"]
+# typeCheckingMode = "strict"  # suffering for another day
+# reportImportCycles = "none"
 
 [tool.black]
 line-length = 100
-include = "disnake/ext/components"
+
+[tool.isort]
+profile = "black"
+skip_gitignore = true
+
+[tool.mypy]
+namespace_packages = true
+files = ["disnake_ext_components/*.py"]

@@ -1,4 +1,6 @@
 __pycache__
 .vscode
 .mypy_cache
-env
+*env*/
+test.py
+*.ipynb

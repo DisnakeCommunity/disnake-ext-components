@@ -1,29 +1,23 @@
 import re
-import setuptools
 
+import setuptools
 
 with open("requirements.txt", encoding="utf-8") as f:
     requirements = f.read().splitlines()
 
 
-with open("disnake/ext/components/__init__.py", encoding="utf-8") as f:
-    match = re.search(
-        r'^__version__\s*=\s*[\'"]([^\'"]*)[\'"]', 
-        f.read(),
-        re.M
-    )
-    if match:
+with open("disnake_ext_components/__init__.py", encoding="utf-8") as f:
+    if match := re.search(r'^__version__\s*=\s*[\'"]([^\'"]*)[\'"]', f.read(), re.M):
         version = match.group(1)
     else:
         raise RuntimeError("Version has not been set.")
-
 
 setuptools.setup(
     name="disnake-ext-components",
     author="Chromosomologist",
     url="https://github.com/Chromosomologist/disnake-ext-components",
     version=version,
-    packages=["disnake.ext.components"],
+    package_dir={"disnake.ext.components": "disnake_ext_components"},
     license="MIT",
     description="A component listener wrapper for disnake",
     install_requires=requirements,
@@ -42,5 +36,5 @@ setuptools.setup(
         "Topic :: Software Development :: Libraries :: Python Modules",
         "Topic :: Utilities",
         "Typing :: Typed",
-    ]
+    ],
 )
