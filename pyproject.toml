@@ -1,7 +1,23 @@
 [tool.pyright]
 include = ["disnake_ext_components"]
-# typeCheckingMode = "strict"  # suffering for another day
-# reportImportCycles = "none"
+typeCheckingMode = "basic"
+strictParameterNoneValue = false
+reportInvalidStringEscapeSequence = false
+reportPropertyTypeMismatch = true
+reportDuplicateImport = true
+reportUntypedFunctionDecorator = true
+reportUntypedClassDecorator = true
+reportUntypedBaseClass = true
+reportInvalidTypeVarUse = true
+reportUnnecessaryCast = true
+reportSelfClsParameterName = true
+reportUnsupportedDunderAll = true
+reportUnusedImport = true
+reportUnusedVariable = true
+reportUntypedNamedTuple = true
+reportUnnecessaryComparison = true
+# reportUnnecessaryTypeIgnoreComment = true
+reportUnknownLambdaType = true
 
 [tool.black]
 line-length = 100

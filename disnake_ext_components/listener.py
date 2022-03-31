@@ -17,7 +17,7 @@ ComponentListenerFunc = t.Callable[..., t.Awaitable[t.Any]]
 ListenerT = t.TypeVar("ListenerT", bound="ComponentListener")
 
 
-def id_spec_from_signature(name: str, signature: inspect.Signature) -> str:
+def id_spec_from_signature(name: str, sep: str, signature: inspect.Signature) -> str:
     """Analyze a function signature to create a format string for creating new custom_ids.
 
     Parameters
@@ -28,9 +28,7 @@ def id_spec_from_signature(name: str, signature: inspect.Signature) -> str:
         The function signature of the listener function.
     """
     return (
-        name
-        + "{sep}"
-        + "{sep}".join(f"{{{param.name}}}" for param in extract_listener_params(signature))
+        name + sep + sep.join(f"{{{param.name}}}" for param in extract_listener_params(signature))
     )
 
 
@@ -77,7 +75,7 @@ class ComponentListener(functools.partial):
 
     # These are just to conform to dpy listener spec
     __name__: str
-    __cog_listener__: t.Literal[True] = True
+    __cog_listener__: t.Final[t.Literal[True]] = True
     __cog_listener_names__: t.List[str] = [types_.ListenerType.MESSAGE_INTERACTION]
 
     id_spec: str
@@ -93,6 +91,12 @@ class ComponentListener(functools.partial):
     sep: t.Optional[str]
     """The symbol(s) used to separate individual components of the `custom_id`. Defaults to ':'.
     Only applicable if custom regex has not been set. If it has, this will be `None` instead.
+    """
+
+    params: t.List[params.ParamInfo]
+    """A list that contains processed listener function parameters with `self` and the
+    `disnake.MessageInteraction` parameter stripped off. These parameters contain extra information
+    about their regex pattern(s) and converter(s).
     """
 
     def __new__(cls: t.Type[ListenerT], func: t.Callable[..., t.Any], **kwargs: t.Any) -> ListenerT:
@@ -116,22 +120,22 @@ class ComponentListener(functools.partial):
             self.sep = None
         else:
             self.regex = None
-            self.id_spec = id_spec_from_signature(self.__name__, self._signature)
+            self.id_spec = id_spec_from_signature(self.__name__, sep, self._signature)
             self.sep = sep
 
         self.params = [
             params.ParamInfo.from_param(param) for param in extract_listener_params(self._signature)
         ]
 
-    def __get__(self, instance, _):
+    def __get__(self: ListenerT, instance: t.Any, _) -> ListenerT:
         """Abuse descriptor functionality to inject instance of the owner class as first arg."""
         # Inject instance of the owner class as the partial's first arg.
         # If need be, we could add support for classmethods by checking the
         # type of self.func and injecting the owner class instead where appropriate.
-        self.__setstate__((self.func, (instance,), {}, self.__dict__))
+        self.__setstate__((self.func, (instance,), {}, self.__dict__))  # type: ignore
         return self
 
-    def __call__(self, inter: disnake.MessageInteraction, *args) -> t.Any:  # type: ignore
+    def __call__(self, inter: disnake.MessageInteraction, *args: t.Any) -> t.Any:  # type: ignore
         """Run all parameter converters, and if everything correctly converted, run the listener
         callback with the converted arguments.
 
@@ -171,10 +175,11 @@ class ComponentListener(functools.partial):
         elif self.regex:
             # The user entered custom regex, we fullmatch the whole custom_id, then convert
             # individual parameters. For now we still enforce named groups, but this may change.
-            if not (match := self.regex.fullmatch(custom_id)):
+            if not (_match := self.regex.fullmatch(custom_id)):
                 return
+            match = _match  # Helps the wrapper understand that this cannot be None.
 
-            async def wrapper():
+            async def wrapper() -> t.Any:
                 converted = [
                     await param.convert(arg, inter=inter, skip_validation=True)
                     for param, arg in zip(self.params, match.groupdict().values())
@@ -185,7 +190,7 @@ class ComponentListener(functools.partial):
             # We use the 'fully-automatic' spec where we just try to match each parameter
             # separately and then try to convert it. Further control is currently entirely
             # out of the hands of the user, but that could later be added through options.
-            async def wrapper():
+            async def wrapper() -> t.Any:
                 converted = [
                     await param.convert(arg, inter=inter)
                     for param, arg in zip(self.params, in_params)
@@ -194,7 +199,7 @@ class ComponentListener(functools.partial):
 
         return wrapper()
 
-    def build_custom_id(self, *args: t.Any, **kwargs: t.Any):
+    def build_custom_id(self, *args: t.Any, **kwargs: t.Any) -> str:
         """Build a custom_id by passing values for the listener's parameters. This way, assuming
         the values entered are valid according to the listener's typehints, the custom_id is
         guaranteed to be matched by the listener.
@@ -218,8 +223,7 @@ class ComponentListener(functools.partial):
         if args:
             # Change args into kwargs such that they're accepted by str.format
             args_as_kwargs = {
-                param.name: arg
-                for param, arg in zip(extract_listener_params(self._signature), args)
+                paraminfo.param.name: arg for paraminfo, arg in zip(self.params, args)
             }
 
             if overlap := kwargs.keys() & args_as_kwargs:
@@ -245,7 +249,7 @@ class ComponentListener(functools.partial):
 def component_listener(
     *,
     type: types_.ListenerType = types_.ListenerType.MESSAGE_INTERACTION,
-    regex: t.Union[str, re.Pattern, None] = None,
+    regex: t.Union[str, re.Pattern[str], None] = None,
     sep: str = ":",
 ) -> t.Callable[[ComponentListenerFunc], ComponentListener]:
     """Create a new :class:`ComponentListener` from a decorated function. This function must

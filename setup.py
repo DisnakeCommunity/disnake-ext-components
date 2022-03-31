@@ -20,8 +20,12 @@ setuptools.setup(
     package_dir={"disnake.ext.components": "disnake_ext_components"},
     license="MIT",
     description="A component listener wrapper for disnake",
+    long_description=open("readme.md", encoding="utf-8").read(),
+    long_description_content_type="text/markdown",
     install_requires=requirements,
     python_requires=">=3.8.0",
+    include_package_data=True,
+    package_data={"disnake.ext.components": ["py.typed"]},
     classifiers=[
         "Development Status :: 4 - Beta",
         "License :: OSI Approved :: MIT License",

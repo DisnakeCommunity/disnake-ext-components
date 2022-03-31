@@ -128,6 +128,29 @@ def parse_param(param: inspect.Parameter) -> t.Mapping[re.Pattern[str], Converte
         raise TypeError(f"Cannot create a suitable regex pattern for parameter {param.name}.")
 
 
+def is_optional(param: inspect.Parameter) -> bool:
+    """Check whether or not a parameter is optional. A parameter is deemed optional when it has a
+    default set, or it is annotated as `typing.Optional[...]` or `typing.Union[None, ...]`.
+
+    Parameters
+    ----------
+    param: :class:`inspect.Parameter`
+        The parameter of which to check whether it is optional.
+
+    Returns
+    -------
+    bool:
+        True if the parameter is optional, False otherwise.
+    """
+    if param.default is not inspect.Parameter.empty:
+        return True
+
+    if args := t.get_args(param.annotation):
+        return bool(_NoneTypes.intersection(args))
+
+    return False
+
+
 class ParamInfo:
     """Helper class that stores information about a listener parameter. Mainly instantiated
     through `ParamInfo.from_param`. Contains the conversion strategy used to convert input
@@ -143,7 +166,14 @@ class ParamInfo:
     """
 
     default: t.Any
-    """The default value of the parameter, used if all conversions fail."""
+    """The default value of the parameter, used if all conversions fail. If this is
+    `inspect.Parameter.empty`, this parameter is considered default-less.
+    """
+
+    optional: bool
+    """Whether or not this parameter is optional. If the parameter is default-less and optional,
+    the parameter will instead default to `None`.
+    """
 
     def __init__(
         self,
@@ -154,6 +184,7 @@ class ParamInfo:
         self.param = param
         self.converter_mapping = converter_mapping
         self.default = param.default
+        self.optional = is_optional(param)
 
     @classmethod
     def from_param(cls, param: inspect.Parameter) -> ParamInfo:
@@ -237,9 +268,9 @@ class ParamInfo:
                 errors.append(exc)
 
         # Conversions failed, return default or raise
-        if self.default is inspect.Parameter.empty:
-            raise exceptions.ConversionError(
-                f"Failed to convert parameter {self.param.name}", self.param, errors
-            )
+        if self.optional:
+            return None if self.default is inspect.Parameter.empty else self.default
 
-        return self.default
+        raise exceptions.ConversionError(
+            f"Failed to convert parameter {self.param.name}", self.param, errors
+        )

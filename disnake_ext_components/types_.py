@@ -1,13 +1,6 @@
 import enum
-import typing as t
 
 __all__ = ["ListenerType"]
-
-# class ComponentListenerFunc(t.Protocol):
-#     #__name__: t.Optional[str]
-
-#     def __call__(_, self: t.Any, inter: t.Any, *args: t.Any) -> t.Coroutine[t.Any, t.Any, t.Any]:
-#         ...
 
 
 class ListenerType(str, enum.Enum):
