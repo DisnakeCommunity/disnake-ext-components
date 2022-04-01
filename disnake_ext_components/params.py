@@ -30,7 +30,7 @@ ConverterSig = t.Union[
 
 
 ID = re.compile(r"\d{15,20}")
-REGEX_MAP: t.Dict[type, re.Pattern[str]] = {
+REGEX_MAP: t.Dict[type, re.Pattern] = {
     # fmt: off
     str:                      re.compile(r".*"),
     int:                      re.compile(r"\d+"),
@@ -88,7 +88,7 @@ CONVERTER_MAP: t.Mapping[type, ConverterSig] = {
 }
 
 
-def parse_param(param: inspect.Parameter) -> t.Mapping[re.Pattern[str], ConverterSig]:
+def parse_param(param: inspect.Parameter) -> t.Mapping[re.Pattern, ConverterSig]:
     """Parse a conversion strategy from a function parameter. This is a mapping of
     regex patterns to converter functions.
 
@@ -160,7 +160,7 @@ class ParamInfo:
     param: inspect.Parameter
     """The listener parameter this :class:`ParamInfo` expands on."""
 
-    converter_mapping: t.Mapping[re.Pattern[str], ConverterSig]
+    converter_mapping: t.Mapping[re.Pattern, ConverterSig]
     """A mapping of a regex pattern to a converter function. In param conversion,
     the converter is only called when the input argument matches the regex pattern.
     """
@@ -179,7 +179,7 @@ class ParamInfo:
         self,
         param: inspect.Parameter,
         *,
-        converter_mapping: t.Mapping[re.Pattern[str], ConverterSig],
+        converter_mapping: t.Mapping[re.Pattern, ConverterSig],
     ) -> None:
         self.param = param
         self.converter_mapping = converter_mapping
@@ -198,7 +198,7 @@ class ParamInfo:
         return cls(param, converter_mapping=parse_param(param))
 
     @property
-    def regex(self) -> t.Tuple[re.Pattern[str], ...]:
+    def regex(self) -> t.Tuple[re.Pattern, ...]:
         """A tuple of all regex patterns used for input argument conversion."""
         return tuple(self.converter_mapping)
 
@@ -240,7 +240,7 @@ class ParamInfo:
             The successfully converted input argument.
         """
 
-        match_cache: t.Set[re.Pattern[str]] = set()  # Prevent matching the same regex again.
+        match_cache: t.Set[re.Pattern] = set()  # Prevent matching the same regex again.
         errors: t.List[t.Union[commands.BadArgument, ValueError]] = []
 
         # Try converters

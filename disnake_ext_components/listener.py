@@ -32,7 +32,7 @@ def id_spec_from_signature(name: str, sep: str, signature: inspect.Signature) ->
     )
 
 
-def id_spec_from_regex(regex: re.Pattern[str]) -> str:
+def id_spec_from_regex(regex: re.Pattern) -> str:
     """Analyze a regex pattern for a component custom_id to create a format string for creating
     new custom_ids.
 
@@ -83,7 +83,7 @@ class ComponentListener(functools.partial):
     `~.build_custom_id`.
     """
 
-    regex: t.Optional[re.Pattern[str]]
+    regex: t.Optional[re.Pattern]
     """The user-defined regex pattern against which incoming `custom_id`s are matched.
     `None` if the user did not define custom regex, in which case parsing is done automatically.
     """
@@ -109,7 +109,7 @@ class ComponentListener(functools.partial):
         func: ComponentListenerFunc,
         *,
         type: types_.ListenerType = types_.ListenerType.MESSAGE_INTERACTION,
-        regex: t.Union[str, re.Pattern[str], None] = None,
+        regex: t.Union[str, re.Pattern, None] = None,
         sep: str = ":",
     ) -> None:
         self.__cog_listener_names__ = [type]
@@ -249,7 +249,7 @@ class ComponentListener(functools.partial):
 def component_listener(
     *,
     type: types_.ListenerType = types_.ListenerType.MESSAGE_INTERACTION,
-    regex: t.Union[str, re.Pattern[str], None] = None,
+    regex: t.Union[str, re.Pattern, None] = None,
     sep: str = ":",
 ) -> t.Callable[[ComponentListenerFunc], ComponentListener]:
     """Create a new :class:`ComponentListener` from a decorated function. This function must
@@ -313,9 +313,9 @@ def extract_listener_params(signature: inspect.Signature) -> t.Iterator[inspect.
 
 
 def ensure_compiled(
-    pattern: t.Union[str, re.Pattern[str]],
+    pattern: t.Union[str, re.Pattern],
     flags: re.RegexFlag = re.UNICODE,  # seems to be the default of re.compile
-) -> re.Pattern[str]:
+) -> re.Pattern:
     """Ensure a regex pattern is compiled.
 
     Parameters

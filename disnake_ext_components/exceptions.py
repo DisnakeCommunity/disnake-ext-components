@@ -21,13 +21,13 @@ class ParserError(commands.BadArgument, ValueError):
 class MatchFailure(ParserError):
     """Raised when a converter's regex failed to match."""
 
-    regex: re.Pattern[str]
+    regex: re.Pattern
 
     def __init__(
         self,
         message: str,
         parameter: inspect.Parameter,
-        regex: re.Pattern[str],
+        regex: re.Pattern,
     ) -> None:
         super().__init__(message, parameter)
         self.regex = regex
