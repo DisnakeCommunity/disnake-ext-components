@@ -7,6 +7,7 @@ import typing as t
 
 import disnake
 from disnake.ext import commands
+from disnake.ext.commands import converter as dpy_converter
 from disnake.ext.commands import params
 
 from . import exceptions
@@ -33,7 +34,7 @@ ID = re.compile(r"\d{15,20}")
 REGEX_MAP: t.Dict[type, re.Pattern] = {
     # fmt: off
     str:                      re.compile(r".*"),
-    int:                      re.compile(r"\d+"),
+    int:                      re.compile(r"-?\d+"),
     float:                    re.compile(r"[-+]?(?:\d*\.\d+|\d+)"),
     bool:                     re.compile(r"true|false|t|f|yes|no|y|n|1|0|enable|disable|on|off", re.I),
     disnake.User:             ID,
@@ -72,18 +73,18 @@ CONVERTER_MAP: t.Mapping[type, ConverterSig] = {
     str:                      async_converter(str),
     int:                      async_converter(int),
     float:                    async_converter(float),
-    bool:                     async_converter(lambda b: b in ["true", "t", "yes", "y", "1", "enable", "on"]),
-    disnake.User:             commands.UserConverter().convert,
-    disnake.Member:           commands.MemberConverter().convert,
-    disnake.Role:             commands.RoleConverter().convert,
-    disnake.Thread:           commands.ThreadConverter().convert,
-    disnake.TextChannel:      commands.TextChannelConverter().convert,
-    disnake.VoiceChannel:     commands.VoiceChannelConverter().convert,
-    disnake.CategoryChannel:  commands.CategoryChannelConverter().convert,
-    disnake.abc.GuildChannel: commands.GuildChannelConverter().convert,
-    disnake.Guild:            commands.GuildConverter().convert,
-    disnake.Message:          commands.MessageConverter().convert,
-    disnake.Emoji:            commands.EmojiConverter().convert,
+    bool:                     async_converter(dpy_converter._convert_to_bool),
+    disnake.User:             dpy_converter.UserConverter().convert,
+    disnake.Member:           dpy_converter.MemberConverter().convert,
+    disnake.Role:             dpy_converter.RoleConverter().convert,
+    disnake.Thread:           dpy_converter.ThreadConverter().convert,
+    disnake.TextChannel:      dpy_converter.TextChannelConverter().convert,
+    disnake.VoiceChannel:     dpy_converter.VoiceChannelConverter().convert,
+    disnake.CategoryChannel:  dpy_converter.CategoryChannelConverter().convert,
+    disnake.abc.GuildChannel: dpy_converter.GuildChannelConverter().convert,
+    disnake.Guild:            dpy_converter.GuildConverter().convert,
+    disnake.Message:          dpy_converter.MessageConverter().convert,
+    disnake.Emoji:            dpy_converter.EmojiConverter().convert,
     # fmt: on
 }
 
@@ -111,7 +112,7 @@ def parse_param(param: inspect.Parameter) -> t.Mapping[re.Pattern, ConverterSig]
     List[:class:`re.Pattern`]:
         A list of patterns against which the `custom_id` component will be matched.
     """
-    if not (annotation := param.annotation):
+    if (annotation := param.annotation) is inspect.Parameter.empty:
         return {REGEX_MAP[str]: CONVERTER_MAP[str]}
 
     args = t.get_args(annotation)
@@ -119,7 +120,7 @@ def parse_param(param: inspect.Parameter) -> t.Mapping[re.Pattern, ConverterSig]
         return {REGEX_MAP[annotation]: CONVERTER_MAP[annotation]}
 
     elif origin in _UnionTypes:
-        return {REGEX_MAP[tp]: CONVERTER_MAP[tp] for tp in args}
+        return {REGEX_MAP[tp]: CONVERTER_MAP[tp] for tp in args if tp not in _NoneTypes}
 
     elif origin is t.Literal:
         return {re.compile(re.escape(str(arg))): CONVERTER_MAP[type(arg)] for arg in args}

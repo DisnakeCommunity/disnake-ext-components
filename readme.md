@@ -3,7 +3,7 @@ disnake-ext-components
 
 
 **NOTE!**
-Proper functionality is currently reliant on a [specific disnake PR](https://github.com/DisnakeDev/disnake/pull/437). If you wish to use this module, you'll have to manually make the (very minor) change in this PR to fix the unloading of custom listeners.
+Proper functionality is currently reliant on a [specific disnake PR](https://github.com/DisnakeDev/disnake/pull/437). If you wish to use this module, you'll have to manually make the (very minor) change in this PR to fix the unloading of custom listeners, or install disnake from that PR.
 ---
 
 ---
