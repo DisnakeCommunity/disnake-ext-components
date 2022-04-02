@@ -135,7 +135,7 @@ class ComponentListener(functools.partial):
         self.__setstate__((self.func, (instance,), {}, self.__dict__))  # type: ignore
         return self
 
-    def __call__(self, inter: disnake.MessageInteraction, *args: t.Any) -> t.Any:  # type: ignore
+    async def __call__(self, inter: disnake.MessageInteraction, *args: t.Any) -> t.Any:  # type: ignore
         """Run all parameter converters, and if everything correctly converted, run the listener
         callback with the converted arguments.
 
@@ -160,23 +160,21 @@ class ComponentListener(functools.partial):
         if (custom_id := inter.component.custom_id) is None:
             return
 
-        in_name, *in_params = custom_id.split(self.sep)
-        if in_name != self.__name__:
-            return
-
         # Predefined here because super() fails to infer the correct arguments inside a wrapper
         _call = super().__call__
+        in_name, *in_params = custom_id.split(self.sep)
 
         if args:
             # The user manually called the listener so we skip any checks and just run.
             # Inter may thus not actually be an inter, but I feel like that's on the user.
-            return _call(inter, *args)
+            return await _call(inter, *args)
 
         elif self.regex:
             # The user entered custom regex, we fullmatch the whole custom_id, then convert
             # individual parameters. For now we still enforce named groups, but this may change.
             if not (_match := self.regex.fullmatch(custom_id)):
                 return
+
             match = _match  # Helps the wrapper understand that this cannot be None.
 
             async def wrapper() -> t.Any:
@@ -190,6 +188,9 @@ class ComponentListener(functools.partial):
             # We use the 'fully-automatic' spec where we just try to match each parameter
             # separately and then try to convert it. Further control is currently entirely
             # out of the hands of the user, but that could later be added through options.
+            if in_name != self.__name__:
+                return  # Names don't match, so we can immediately stop parsing.
+
             async def wrapper() -> t.Any:
                 converted = [
                     await param.convert(arg, inter=inter)
@@ -197,7 +198,7 @@ class ComponentListener(functools.partial):
                 ]
                 return await _call(inter, *converted)
 
-        return wrapper()
+        return await wrapper()
 
     def build_custom_id(self, *args: t.Any, **kwargs: t.Any) -> str:
         """Build a custom_id by passing values for the listener's parameters. This way, assuming
