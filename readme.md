@@ -3,7 +3,7 @@ disnake-ext-components
 
 
 **NOTE!**
-Proper functionality is currently reliant on a [specific disnake PR](https://github.com/DisnakeDev/disnake/pull/437). If you wish to use this module, you'll have to manually make the (very minor) change in this PR to fix the unloading of custom listeners, or install disnake from that PR.
+Proper functionality is currently reliant on a [bugfix](https://github.com/DisnakeDev/disnake/pull/444) that will be implemented in the upcoming version of disnake. If you wish to use this module, you'll have to install disnake from master (`pip install git+https://github.com/DisnakeDev/disnake.git`), or manually make the changes in your local installation. This will last until disnake is updated to version 2.5.0.
 ---
 
 ---
