@@ -6,6 +6,7 @@ import re
 import typing as t
 
 import disnake
+from disnake.ext import commands
 from disnake.ext.commands import params as cmd_params
 
 from . import params, types_
@@ -221,6 +222,7 @@ class ComponentListener(functools.partial):
             A custom_id matching the spec of this listener.
         """
 
+        # TODO: deserialize non-int/str/float/bool into str (e.g. Guild -> str(Guild.id))
         if args:
             # Change args into kwargs such that they're accepted by str.format
             args_as_kwargs = {
@@ -252,6 +254,7 @@ def component_listener(
     type: types_.ListenerType = types_.ListenerType.MESSAGE_INTERACTION,
     regex: t.Union[str, re.Pattern, None] = None,
     sep: str = ":",
+    bot: t.Optional[commands.Bot] = None,
 ) -> t.Callable[[ComponentListenerFunc], ComponentListener]:
     """Create a new :class:`ComponentListener` from a decorated function. This function must
     contain a parameter annotated as :class:`disnake.MessageInteraction`. By default, this will
@@ -269,12 +272,21 @@ def component_listener(
         The separator to use between `custom_id` parts. Defaults to ":". This is generally fine,
         however, if this character is meant to appear elsewhere in the `custom_id`, this should
         be changed to avoid conflicts.
+    bot: :class:`commands.Bot`
+        The bot to attach the listener to. This is only used as a shorthand to register the
+        listener if it is defined outside of a cog. Alternatively, the usual `bot.listen` decorator
+        or `bot.add_listener` method will work fine, too; provided the correct name is set.
     """
 
     def wrapper(
         func: ComponentListenerFunc,
     ) -> ComponentListener:
-        return ComponentListener(func, type=type, regex=regex, sep=sep)
+        listener = ComponentListener(func, type=type, regex=regex, sep=sep)
+
+        if bot is not None:
+            bot.add_listener(listener, type)
+
+        return listener
 
     return wrapper
 
