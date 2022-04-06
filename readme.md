@@ -41,7 +41,6 @@ Example
 -------
 
 ### Inside a cog
-At the moment, these listeners are only functional as replacements for `commands.Cog.listener`.
 ```py
 import disnake
 from disnake.ext import commands, components
@@ -53,19 +52,17 @@ class MyCog(commands.Cog):
         self.bot = bot
 
     @components.component_listener()
-    async def register_user(self, inter: disnake.MessageInteraction, uid: int):
-        # first ensure the user who clicked the button has the uid stored in its custom_id
-        if inter.author.uid != int(uid):
-            return
-        await inter.response.send_message(f"{inter.author.mention} successfully registered!")
+    async def secret_listener(self, inter: disnake.MessageInteraction, secret: str, author: disnake.Member):
+        await inter.response.send_message(f"You found {author.mention}'s secret message: '{secret}'!")
 
-    @commands.command()
-    async def register(self, ctx: commands.Context):
+    @commands.slash_command()
+    async def make_secret(self, inter: disnake.CommandInteraction, secret: str):
+        """Store a secret message in a button!"""
         await ctx.send(
-            "Press this button to confirm your registration:",
+            "Press this button to reveal the secret!",
             components=disnake.ui.Button(
-                label="Register!",
-                custom_id=self.register_user.create_custom_id(uid=ctx.author.id),
+                label="Reveal secret...",
+                custom_id=self.register_user.create_custom_id(secret=secret, author=inter.author.id),
             )
         )
 
@@ -75,11 +72,40 @@ def setup(bot: commands.Bot):
 ```
 > This example is complete and should run as-is when loaded into a bot.
 
-For more examples, see the examples folder.
+### Outside a cog
+```py
+import disnake
+from disnake.ext import commands, components
+
+
+bot = disnake.Bot("..")
+
+@components.component_listener(bot=bot)
+async def secret_listener(inter: disnake.MessageInteraction, secret: str, author: disnake.Member):
+    await inter.response.send_message(f"You found {author.mention}'s secret message: '{secret}'!")
+
+@commands.slash_command()
+async def make_secret(inter: disnake.CommandInteraction, secret: str):
+    """Store a secret message in a button!"""
+    await ctx.send(
+        "Press this button to reveal the secret!",
+        components=disnake.ui.Button(
+            label="Reveal secret...",
+            custom_id=register_user.create_custom_id(secret=secret, author=inter.author.id),
+        )
+    )
+```
+> This example is complete and should run as-is.
+
+For more examples, see [the examples folder](https://github.com/Chromosomologist/disnake-ext-components/tree/master/examples).
 
 To-Do
 -----
-Currently, only listeners inside `commands.Cog`s are supported. I plan to add support for listeners outside of cogs, too, so they can be used as a replacement to `commands.Bot.listen()`. For the foreseeable future, however, using cogs will be required.
+- CI,
+- Contribution guidelines.
+- Support passing objects to `ComponentListener.build_custom_id` instead of str/int/float/bool only,
+- Wait for disnake 2.5.0 release and publish to PyPI,
+- Support `commands.inject`/`commands.Injection`,
 
 Contributing
 ------------
