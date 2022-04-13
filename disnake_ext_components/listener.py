@@ -47,6 +47,7 @@ def id_spec_from_regex(regex: re.Pattern) -> str:
 
 class ComponentListener(functools.partial):
     """An advanced component listener that supports syntax similar to disnake slash commands.
+
     Features:
     - Automated `custom_id` matching through regex,
     - Automated type-conversion similar to slash commands,
@@ -61,7 +62,6 @@ class ComponentListener(functools.partial):
         The function that is to be turned into a decorator. Will honor the full signature of the
         function: any parameters are used to store/parse state to/from `custom_id`s, and any
         annotations are used to convert incoming `custom_id` :class:`str`s to the desired type.
-
         As of right now, this only supports :class:`commands.Cog` listeners.
     regex: Union[:class:`str`, :class:`re.Pattern`, None]
         If provided, this will override the default behavior of automatically generating matching
@@ -100,6 +100,9 @@ class ComponentListener(functools.partial):
     about their regex pattern(s) and converter(s).
     """
 
+    param_names: t.List[str]
+    """A list of names of the processed listener function parameters."""
+
     def __new__(cls: t.Type[ListenerT], func: t.Callable[..., t.Any], **kwargs: t.Any) -> ListenerT:
         self = super().__new__(cls, func)
         self.__name__ = func.__name__
@@ -124,9 +127,9 @@ class ComponentListener(functools.partial):
             self.id_spec = id_spec_from_signature(self.__name__, sep, self._signature)
             self.sep = sep
 
-        self.params = [
-            params.ParamInfo.from_param(param) for param in extract_listener_params(self._signature)
-        ]
+        listener_params = extract_listener_params(self._signature)
+        self.params = [params.ParamInfo.from_param(param) for param in listener_params]
+        self.param_names = [paraminfo.param.name for paraminfo in self.params]
 
     def __get__(self: ListenerT, instance: t.Any, _) -> ListenerT:
         """Abuse descriptor functionality to inject instance of the owner class as first arg."""
@@ -148,7 +151,6 @@ class ComponentListener(functools.partial):
             Any arguments passed to the listener. Only really relevant when the listener is
             called manually. In all other cases, args will be empty, and parsing will instead
             be done based on the custom_id of the interaction.
-
             Note that arguments passed manually will be assumed correct, and will not be converted.
 
         Returns
@@ -158,48 +160,61 @@ class ComponentListener(functools.partial):
             be returned here. In all other cases, this will return `None`.
         """
 
-        if (custom_id := inter.component.custom_id) is None:
-            return
-
-        # Predefined here because super() fails to infer the correct arguments inside a wrapper
-        _call = super().__call__
-        in_name, *in_params = custom_id.split(self.sep)
-
         if args:
             # The user manually called the listener so we skip any checks and just run.
             # Inter may thus not actually be an inter, but I feel like that's on the user.
-            return await _call(inter, *args)
+            return await super().__call__(inter, *args)
 
-        elif self.regex:
-            # The user entered custom regex, we fullmatch the whole custom_id, then convert
-            # individual parameters. For now we still enforce named groups, but this may change.
-            if not (_match := self.regex.fullmatch(custom_id)):
-                return
+        if (custom_id := inter.component.custom_id) is None:
+            return
 
-            match = _match  # Helps the wrapper understand that this cannot be None.
+        try:
+            in_params = self.parse_custom_id(custom_id)
+        except ValueError:
+            return
 
-            async def wrapper() -> t.Any:
-                converted = [
-                    await param.convert(arg, inter=inter, skip_validation=True)
-                    for param, arg in zip(self.params, match.groupdict().values())
-                ]
-                return await _call(inter, *converted)
+        converted: t.List[t.Any] = []
+        for param, arg in zip(self.params, in_params):
+            converted.append(
+                await param.convert(
+                    arg,
+                    inter=inter,
+                    converted=converted,
+                    skip_validation=bool(self.regex),
+                )
+            )
 
-        else:
-            # We use the 'fully-automatic' spec where we just try to match each parameter
-            # separately and then try to convert it. Further control is currently entirely
-            # out of the hands of the user, but that could later be added through options.
-            if in_name != self.__name__:
-                return  # Names don't match, so we can immediately stop parsing.
+        return await super().__call__(inter, *converted)
 
-            async def wrapper() -> t.Any:
-                converted = [
-                    await param.convert(arg, inter=inter)
-                    for param, arg in zip(self.params, in_params)
-                ]
-                return await _call(inter, *converted)
+    def parse_custom_id(self, custom_id: str) -> t.Tuple[str, ...]:
+        """Parse an incoming custom_id into its name and raw parameter values.
 
-        return await wrapper()
+        Parameters
+        ----------
+        custom_id: :class:`str`
+            The custom_id that is to be parsed.
+
+        Raises
+        ------
+        ValueError:
+            The custom_id is not valid for this listener.
+
+        Returns
+        -------
+        Tuple[:class:`str`, ...]:
+            The raw parameter values extracted from the custom_id.
+        """
+
+        if self.regex:
+            if not (match := self.regex.fullmatch(custom_id)):
+                raise ValueError(f"Regex pattern {self.regex} did not match custom_id {custom_id}.")
+            return tuple(match.groupdict().values())
+
+        name, *params = custom_id.split(self.sep)
+        if name != self.__name__:
+            raise ValueError(f"Listener name {self.__name__} did not match custom_id {custom_id}.")
+
+        return tuple(params)
 
     def build_custom_id(self, *args: t.Any, **kwargs: t.Any) -> str:
         """Build a custom_id by passing values for the listener's parameters. This way, assuming
@@ -209,7 +224,7 @@ class ComponentListener(functools.partial):
         Note: No actual validation is done on the values entered.
 
         Parameters
-        -----------
+        ----------
         *args: :class:`Any`
             This method takes the same arguments as the decorated listener function itself, and
             will be used to build a `custom_id` conform to the spec of the listener.
@@ -221,29 +236,25 @@ class ComponentListener(functools.partial):
         :class:`str`
             A custom_id matching the spec of this listener.
         """
-
-        # TODO: deserialize non-int/str/float/bool into str (e.g. Guild -> str(Guild.id))
         if args:
             # Change args into kwargs such that they're accepted by str.format
-            args_as_kwargs = {
-                paraminfo.param.name: arg for paraminfo, arg in zip(self.params, args)
-            }
+            args_as_kwargs = dict(zip(self.param_names, args))
 
             if overlap := kwargs.keys() & args_as_kwargs:
-                # Emulate standard python behaviour by disallowing duplicate names for args/kwargs
+                # Emulate standard python behaviour by disallowing duplicate names for args/kwargs.
                 first = next(iter(overlap))
                 raise TypeError(f"'build_custom_id' got multiple values for argument '{first}'")
 
-            kwargs.update(args_as_kwargs)
+            kwargs.update(args_as_kwargs)  # This is safe as we ensured there is no overlap.
+
+        kwargs = {k: getattr(v, "id", v) for k, v in kwargs.items()}  # Disnake classes to ids.
 
         if self.regex:
             return self.id_spec.format(**kwargs)
-
         return self.id_spec.format(sep=self.sep, **kwargs)
 
     def error(self) -> t.NoReturn:
         """Register an error handler for this listener.
-
         Note: Not yet implemented.
         """
         raise NotImplementedError()

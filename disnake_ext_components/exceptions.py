@@ -2,12 +2,10 @@ import inspect
 import re
 import typing as t
 
-from disnake.ext import commands
-
 __all__ = ["ParserError", "MatchFailure", "ConversionError"]
 
 
-class ParserError(commands.BadArgument, ValueError):
+class ParserError(ValueError):
     """Base exception for errors related to listener param parsing."""
 
     message: str
@@ -46,14 +44,14 @@ class ConversionError(ParserError):
         The parameter for which conversion failed.
     """
 
-    errors: t.Collection[t.Union[ValueError, commands.BadArgument]]
+    errors: t.Tuple[ValueError, ...]
     parameter: inspect.Parameter
 
     def __init__(
         self,
         message: str,
         parameter: inspect.Parameter,
-        exceptions: t.Iterable[t.Union[ValueError, commands.BadArgument]],
+        errors: t.Iterable[ValueError],
     ) -> None:
         super().__init__(message, parameter)
-        self.exceptions = tuple(exceptions)
+        self.errors = tuple(errors)

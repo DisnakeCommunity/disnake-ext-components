@@ -6,11 +6,9 @@ import sys
 import typing as t
 
 import disnake
-from disnake.ext import commands
-from disnake.ext.commands import converter as dpy_converter
 from disnake.ext.commands import params
 
-from . import exceptions
+from . import converter, exceptions
 
 if sys.version_info >= (3, 10):
     import types
@@ -23,14 +21,9 @@ else:
     _NoneTypes = {None, type(None)}
 
 
-# TODO: Maybe rework converters, will leave as-is for now until I think of something better
-ConverterSig = t.Union[
-    t.Callable[..., t.Awaitable[t.Any]],
-    t.Callable[..., t.Any],
-]
-
-
 ID = re.compile(r"\d{15,20}")
+
+# flake8: noqa: E241
 REGEX_MAP: t.Dict[type, re.Pattern] = {
     # fmt: off
     str:                      re.compile(r".*"),
@@ -52,106 +45,6 @@ REGEX_MAP: t.Dict[type, re.Pattern] = {
 }
 
 
-def async_converter(converter: t.Callable[[str], t.Any]) -> ConverterSig:
-    """Transform a simple callable into an async converter. Though this is independent of the
-    interaction, it is still provided in the signature to keep converters consistent.
-    """
-
-    async def convert(inter: disnake.MessageInteraction, argument: str) -> t.Any:
-        try:
-            return converter(argument)
-        except Exception as exc:
-            raise commands.BadArgument(
-                f"Failed to convert input '{argument}' to type '{converter.__name__}'"
-            ) from exc
-
-    return convert
-
-
-CONVERTER_MAP: t.Mapping[type, ConverterSig] = {
-    # fmt: off
-    str:                      async_converter(str),
-    int:                      async_converter(int),
-    float:                    async_converter(float),
-    bool:                     async_converter(dpy_converter._convert_to_bool),
-    disnake.User:             dpy_converter.UserConverter().convert,
-    disnake.Member:           dpy_converter.MemberConverter().convert,
-    disnake.Role:             dpy_converter.RoleConverter().convert,
-    disnake.Thread:           dpy_converter.ThreadConverter().convert,
-    disnake.TextChannel:      dpy_converter.TextChannelConverter().convert,
-    disnake.VoiceChannel:     dpy_converter.VoiceChannelConverter().convert,
-    disnake.CategoryChannel:  dpy_converter.CategoryChannelConverter().convert,
-    disnake.abc.GuildChannel: dpy_converter.GuildChannelConverter().convert,
-    disnake.Guild:            dpy_converter.GuildConverter().convert,
-    disnake.Message:          dpy_converter.MessageConverter().convert,
-    disnake.Emoji:            dpy_converter.EmojiConverter().convert,
-    # fmt: on
-}
-
-
-def parse_param(param: inspect.Parameter) -> t.Mapping[re.Pattern, ConverterSig]:
-    """Parse a conversion strategy from a function parameter. This is a mapping of
-    regex patterns to converter functions.
-
-    Parameters
-    ----------
-    param: :class:`inspect.Parameter`
-        The parameter for which the converters are to be parsed.
-
-    Raises
-    ------
-    TypeError:
-        The parameter is annotated such that it failed to parse.
-        Currently valid options include str/int/float/bool, most disnake types,
-        Optionals and Unions of these types, and Literals.
-    KeyError:
-        A parameter is annotated with a type for which no converter exists.
-
-    Returns
-    -------
-    List[:class:`re.Pattern`]:
-        A list of patterns against which the `custom_id` component will be matched.
-    """
-    if (annotation := param.annotation) is inspect.Parameter.empty:
-        return {REGEX_MAP[str]: CONVERTER_MAP[str]}
-
-    args = t.get_args(annotation)
-    if not (origin := t.get_origin(annotation)):
-        return {REGEX_MAP[annotation]: CONVERTER_MAP[annotation]}
-
-    elif origin in _UnionTypes:
-        return {REGEX_MAP[tp]: CONVERTER_MAP[tp] for tp in args if tp not in _NoneTypes}
-
-    elif origin is t.Literal:
-        return {re.compile(re.escape(str(arg))): CONVERTER_MAP[type(arg)] for arg in args}
-
-    else:
-        raise TypeError(f"Cannot create a suitable regex pattern for parameter {param.name}.")
-
-
-def is_optional(param: inspect.Parameter) -> bool:
-    """Check whether or not a parameter is optional. A parameter is deemed optional when it has a
-    default set, or it is annotated as `typing.Optional[...]` or `typing.Union[None, ...]`.
-
-    Parameters
-    ----------
-    param: :class:`inspect.Parameter`
-        The parameter of which to check whether it is optional.
-
-    Returns
-    -------
-    bool:
-        True if the parameter is optional, False otherwise.
-    """
-    if param.default is not inspect.Parameter.empty:
-        return True
-
-    if args := t.get_args(param.annotation):
-        return bool(_NoneTypes.intersection(args))
-
-    return False
-
-
 class ParamInfo:
     """Helper class that stores information about a listener parameter. Mainly instantiated
     through `ParamInfo.from_param`. Contains the conversion strategy used to convert input
@@ -161,34 +54,29 @@ class ParamInfo:
     param: inspect.Parameter
     """The listener parameter this :class:`ParamInfo` expands on."""
 
-    converter_mapping: t.Mapping[re.Pattern, ConverterSig]
-    """A mapping of a regex pattern to a converter function. In param conversion,
+    converters: t.List[converter.ConverterSig]
+    """A list of converter functions used to convert the parameters. In param conversion,
     the converter is only called when the input argument matches the regex pattern.
     """
 
-    default: t.Any
-    """The default value of the parameter, used if all conversions fail. If this is
-    `inspect.Parameter.empty`, this parameter is considered default-less.
-    """
-
-    optional: bool
-    """Whether or not this parameter is optional. If the parameter is default-less and optional,
-    the parameter will instead default to `None`.
+    regex: t.List[re.Pattern]
+    """A list of all regex patterns used for input parameter conversion. In case regex matching
+    is not necessary, this list will be empty.
     """
 
     def __init__(
         self,
         param: inspect.Parameter,
         *,
-        converter_mapping: t.Mapping[re.Pattern, ConverterSig],
+        converters: t.Optional[t.List[converter.ConverterSig]] = None,
+        regex: t.Optional[t.List[converter.ConverterSig]] = None,
     ) -> None:
         self.param = param
-        self.converter_mapping = converter_mapping
-        self.default = param.default
-        self.optional = is_optional(param)
+        self.converters = [] if converters is None else converters
+        self.regex = [] if regex is None else regex
 
     @classmethod
-    def from_param(cls, param: inspect.Parameter) -> ParamInfo:
+    def from_param(cls, param: inspect.Parameter, validate: bool = True) -> ParamInfo:
         """Build a :class:`ParamInfo` from a given parameter.
 
         Parameters
@@ -196,25 +84,112 @@ class ParamInfo:
         param: :class:`inspect.Parameter`
             The parameter from which to build the :class:`ParamInfo`.
         """
-        return cls(param, converter_mapping=parse_param(param))
+        self = cls(param)
 
-    @property
-    def regex(self) -> t.Tuple[re.Pattern, ...]:
-        """A tuple of all regex patterns used for input argument conversion."""
-        return tuple(self.converter_mapping)
+        regex, converters = self.parse_annotation()
+        self.converters.extend(converters)
+        if validate:
+            self.regex.extend(regex)
 
-    @property
-    def converters(self) -> t.Tuple[ConverterSig, ...]:
-        """A tuple of all converter functions used for input argument conversion."""
-        return tuple(self.converter_mapping.values())
+        return self
 
-    async def convert(
+    def parse_annotation(
         self,
-        argument: str,
-        *,
-        skip_validation: bool = False,
-        **kwargs: t.Any,
-    ) -> t.Any:
+        annotation: t.Any = ...,
+    ) -> t.Tuple[t.List[re.Pattern], t.List[converter.ConverterSig]]:
+        """Parse a conversion strategy from a function parameter annotation. This includes a list
+        of :class:`re.Pattern`s and a list of converter functions. These will be sequentially
+        traversed for argument conversion.
+
+        Parameters
+        ----------
+        annotation: :class:`inspect.Parameter`
+            The parameter for which the converters are to be parsed.
+
+        Raises
+        ------
+        TypeError:
+            The parameter is annotated such that it failed to parse.
+            Valid annotations incluce :class:`str` / :class:`int` / :class:`float` / :class:`bool`,
+            most disnake types, :class:`typing.Optional`s and :class:`typing.Union`s of these
+            types, and :class:`typing.Literal`s.
+        KeyError:
+            A parameter is annotated with a type for which no converter exists.
+
+        Returns
+        -------
+        Tuple[List[:class:`re.Pattern`], List[:class:`ConverterSig`]]:
+            A tuple containing:
+            - a list of patterns against which the `custom_id` component will be matched,
+            - a list of converter functions used to convert input to a different type.
+        """
+        if annotation is Ellipsis:
+            annotation = self.param.annotation
+
+        if annotation is inspect.Parameter.empty:
+            annotation = str
+
+        if not (origin := t.get_origin(annotation)):
+            return [REGEX_MAP[annotation]], [converter.CONVERTER_MAP[annotation]]
+
+        elif origin in _UnionTypes:
+            return self._parse_union(annotation)
+
+        elif origin is t.Literal:
+            return self._parse_literal(annotation)
+
+        elif origin is params.Injection:
+            raise NotImplementedError("Injections are not yet implemented. Soon:tm:")
+
+        raise TypeError(f"{type!r} is not a valid type annotation for a listener.")
+
+    def _parse_union(
+        self, annotation: t.Any
+    ) -> t.Tuple[t.List[re.Pattern], t.List[converter.ConverterSig]]:
+
+        if t.get_origin(annotation) in _UnionTypes:
+            regex, conv = [], []
+            for arg in t.get_args(annotation):
+                if arg in _NoneTypes:
+                    if self.param.default is inspect.Parameter.empty:
+                        self.param = self.param.replace(default=None)
+                    continue
+
+                arg_regex, arg_conv = self.parse_annotation(arg)
+                regex += arg_regex
+                conv += arg_conv
+            return regex, conv
+
+        raise TypeError(f"{annotation!r} is not a valid typing.Union.")
+
+    def _parse_literal(
+        self, annotation: t.Any
+    ) -> t.Tuple[t.List[re.Pattern], t.List[converter.ConverterSig]]:
+
+        if t.get_origin(annotation) is t.Literal:
+            regex, conv = [], []
+            for arg in t.get_args(annotation):
+                regex.append(re.compile(re.escape(str(arg))))
+                conv.append(converter.CONVERTER_MAP[type(arg)])
+            return regex, conv
+
+        raise TypeError(f"{annotation!r} is not a valid typing.Literal.")
+
+    @property
+    def default(self) -> t.Any:
+        """The default value of the parameter, used if all conversions fail. If this is
+        `inspect.Parameter.empty`, this parameter is considered default-less.
+        """
+        return self.param.default
+
+    @property
+    def optional(self) -> bool:
+        """Whether or not this parameter is optional. If the parameter is default-less and optional,
+        the parameter will instead default to `None`.
+        """
+        return self.default is not inspect.Parameter.empty
+
+    async def convert(self, argument: str, **kwargs: t.Any) -> t.Any:
         """Try to convert an input argument for this command into any of its annotated types.
         Conversion results are returned as soon as the first converter passes. To this end, the
         order in which types were annotated in e.g. a :class:`typing.Union` is preserved.
@@ -223,8 +198,8 @@ class ParamInfo:
         ----------
         argument: :class:`str`
             The input argument that is to be converted.
-        skip_validation: :class:`bool`
-            Whether or not to skip regex matching before attempting a converter.
+        validate: :class:`bool`
+            Whether or not to run a regex match before attempting a converter. Defaults to `True`.
         **kwargs: :class:`typing.Any`
             Any other external values that are to be forwarded to the converter. In case extra
             parameters are passed that the converter doesn't support, these are silently ignored.
@@ -240,16 +215,42 @@ class ParamInfo:
         :class:`typing.Any`:
             The successfully converted input argument.
         """
+        method = self._convert_and_validate if self.regex else self._convert_raw
+        converted, errors = await method(argument, **kwargs)
 
+        if not errors or self.optional:
+            return converted
+
+        raise exceptions.ConversionError(
+            f"Failed to convert parameter {self.param.name}", self.param, errors
+        )
+
+    async def _convert_raw(
+        self, argument: str, **kwargs: t.Any
+    ) -> t.Tuple[t.Any, t.List[ValueError]]:
+        """For internal use only. Run converters on an argument without regex validation."""
+        errors: t.List[ValueError] = []
+
+        for converter in self.converters:
+            try:
+                return await self._actual_conversion(argument, converter, **kwargs)
+            except ValueError as exc:
+                errors.append(exc)
+
+        return self.default, errors
+
+    async def _convert_and_validate(
+        self, argument: str, **kwargs: t.Any
+    ) -> t.Tuple[t.Any, t.List[ValueError]]:
+        """For internal use only. Run converters on an argument after validating that the argument
+        can be of the correct type using regex.
+        """
         match_cache: t.Set[re.Pattern] = set()  # Prevent matching the same regex again.
-        errors: t.List[t.Union[commands.BadArgument, ValueError]] = []
+        errors: t.List[ValueError] = []
 
-        # Try converters
-        for regex, converter in self.converter_mapping.items():
-            if not skip_validation:
-                if regex in match_cache:
-                    pass
-                elif regex.fullmatch(argument):
+        for regex, converter in zip(self.regex, self.converters):
+            if regex not in match_cache:
+                if regex.fullmatch(argument):
                     match_cache.add(regex)
                 else:
                     errors.append(
@@ -260,18 +261,32 @@ class ParamInfo:
                     continue
 
             try:
-                converter_signature = params.signature(converter).parameters
-                return await converter(
-                    argument=argument,
-                    **{key: value for key, value in kwargs.items() if key in converter_signature},
-                )
-            except (commands.BadArgument, ValueError) as exc:
+                return await self._actual_conversion(argument, converter, **kwargs)
+            except ValueError as exc:
                 errors.append(exc)
 
-        # Conversions failed, return default or raise
-        if self.optional:
-            return None if self.default is inspect.Parameter.empty else self.default
+        return self.default, errors
 
-        raise exceptions.ConversionError(
-            f"Failed to convert parameter {self.param.name}", self.param, errors
+    async def _actual_conversion(
+        self,
+        argument: str,
+        converter: converter.ConverterSig,
+        **kwargs: t.Any,
+    ) -> t.Tuple[t.Any, t.List[ValueError]]:
+        """For internal use only. Actually run a converter on an argument and return the result.
+        Raises whatever the converter function may raise. Generally speaking, this should only be
+        :class:`ValueError`s.
+        """
+        print(converter)
+        converter_signature = params.signature(
+            converter.__new__ if isinstance(converter, type) else converter
+        ).parameters
+
+        converted = converter(
+            argument,
+            **{key: value for key, value in kwargs.items() if key in converter_signature},
         )
+
+        if inspect.isawaitable(converted):
+            return await converted, []
+        return converted, []

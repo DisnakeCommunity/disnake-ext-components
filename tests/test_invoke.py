@@ -48,7 +48,7 @@ async def test_invoke_default_fail(default_listener, inter):
     with pytest.raises(components.exceptions.ConversionError) as exc_info:
         await default_listener(inter)
 
-    assert isinstance(exc_info.value.exceptions[0], components.exceptions.MatchFailure)
+    assert isinstance(exc_info.value.errors[0], components.exceptions.MatchFailure)
 
 
 async def test_invoke_regex_pass(regex_listener, inter):
@@ -75,4 +75,4 @@ async def test_invoke_regex_fail(regex_listener, inter):
     with pytest.raises(components.exceptions.ConversionError) as exc_info:
         await regex_listener(inter)
 
-    assert isinstance(exc_info.value.exceptions[0], commands.BadArgument)
+    assert isinstance(exc_info.value.errors[0], ValueError)

@@ -7,9 +7,10 @@ listeners somewhat less cumbersome.
 :license: MIT, see LICENSE for more details.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 
+from .converter import *
 from .exceptions import *
 from .listener import *
 from .types_ import *
