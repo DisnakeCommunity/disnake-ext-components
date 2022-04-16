@@ -62,7 +62,7 @@ class MyCog(commands.Cog):
             "Press this button to reveal the secret!",
             components=disnake.ui.Button(
                 label="Reveal secret...",
-                custom_id=self.secret_listener.create_custom_id(secret=secret, author=inter.author.id),
+                custom_id=self.secret_listener.create_custom_id(secret=secret, author=inter.author),
             )
         )
 
@@ -91,7 +91,7 @@ async def make_secret(inter: disnake.CommandInteraction, secret: str):
         "Press this button to reveal the secret!",
         components=disnake.ui.Button(
             label="Reveal secret...",
-            custom_id=register_user.create_custom_id(secret=secret, author=inter.author.id),
+            custom_id=register_user.create_custom_id(secret=secret, author=inter.author),
         )
     )
 ```
