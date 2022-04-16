@@ -11,10 +11,10 @@ from disnake.ext.commands import params
 from . import converter, exceptions
 
 if sys.version_info >= (3, 10):
-    import types
+    from types import NoneType, UnionType
 
-    _UnionTypes = {t.Union, types.UnionType}
-    _NoneTypes = {None, types.NoneType}
+    _UnionTypes = {t.Union, UnionType}
+    _NoneTypes = {None, NoneType}
 
 else:
     _UnionTypes = {t.Union}
@@ -24,7 +24,7 @@ else:
 ID = re.compile(r"\d{15,20}")
 
 # flake8: noqa: E241
-REGEX_MAP: t.Dict[type, re.Pattern] = {
+REGEX_MAP: t.Dict[type, t.Pattern[str]] = {
     # fmt: off
     str:                      re.compile(r".*"),
     int:                      re.compile(r"-?\d+"),
@@ -40,7 +40,7 @@ REGEX_MAP: t.Dict[type, re.Pattern] = {
     disnake.abc.GuildChannel: ID,
     disnake.Guild:            ID,
     disnake.Message:          ID,
-    disnake.Emoji:            ID,
+    # disnake.Emoji:            ID,  # temporarily(?) disabled
     # fmt: on
 }
 
@@ -59,7 +59,7 @@ class ParamInfo:
     the converter is only called when the input argument matches the regex pattern.
     """
 
-    regex: t.List[re.Pattern]
+    regex: t.List[t.Pattern[str]]
     """A list of all regex patterns used for input parameter conversion. In case regex matching
     is not necessary, this list will be empty.
     """
@@ -96,7 +96,7 @@ class ParamInfo:
     def parse_annotation(
         self,
         annotation: t.Any = ...,
-    ) -> t.Tuple[t.List[re.Pattern], t.List[converter.ConverterSig]]:
+    ) -> t.Tuple[t.List[t.Pattern[str]], t.List[converter.ConverterSig]]:
         """Parse a conversion strategy from a function parameter annotation. This includes a list
         of :class:`re.Pattern`s and a list of converter functions. These will be sequentially
         traversed for argument conversion.
@@ -145,10 +145,14 @@ class ParamInfo:
 
     def _parse_union(
         self, annotation: t.Any
-    ) -> t.Tuple[t.List[re.Pattern], t.List[converter.ConverterSig]]:
-
+    ) -> t.Tuple[t.List[t.Pattern[str]], t.List[converter.ConverterSig]]:
+        """Parse a :class:`typing.Union` annotation into the corresponding regex patterns and
+        converter functions. Automatically removes any ``None``s from the union and sets
+        :attr:`ParamInfo.default` to ``None`` if it is not yet set.
+        """
         if t.get_origin(annotation) in _UnionTypes:
-            regex, conv = [], []
+            regex: t.List[t.Pattern[str]] = []
+            conv: t.List[converter.ConverterSig] = []
             for arg in t.get_args(annotation):
                 if arg in _NoneTypes:
                     if self.param.default is inspect.Parameter.empty:
@@ -164,10 +168,13 @@ class ParamInfo:
 
     def _parse_literal(
         self, annotation: t.Any
-    ) -> t.Tuple[t.List[re.Pattern], t.List[converter.ConverterSig]]:
-
+    ) -> t.Tuple[t.List[t.Pattern[str]], t.List[converter.ConverterSig]]:
+        """Parse a :class:`typing.Literal` annotation into the corresponding regex patterns and
+        converter functions.
+        """
         if t.get_origin(annotation) is t.Literal:
-            regex, conv = [], []
+            regex: t.List[t.Pattern[str]] = []
+            conv: t.List[converter.ConverterSig] = []
             for arg in t.get_args(annotation):
                 regex.append(re.compile(re.escape(str(arg))))
                 conv.append(converter.CONVERTER_MAP[type(arg)])
@@ -245,7 +252,7 @@ class ParamInfo:
         """For internal use only. Run converters on an argument after validating that the argument
         can be of the correct type using regex.
         """
-        match_cache: t.Set[re.Pattern] = set()  # Prevent matching the same regex again.
+        match_cache: t.Set[t.Pattern[str]] = set()  # Prevent matching the same regex again.
         errors: t.List[ValueError] = []
 
         for regex, converter in zip(self.regex, self.converters):
@@ -277,8 +284,7 @@ class ParamInfo:
         Raises whatever the converter function may raise. Generally speaking, this should only be
         :class:`ValueError`s.
         """
-        print(converter)
-        converter_signature = params.signature(
+        converter_signature = params.signature(  # pyright: ignore
             converter.__new__ if isinstance(converter, type) else converter
         ).parameters
 

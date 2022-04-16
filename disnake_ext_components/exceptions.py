@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 import inspect
-import re
 import typing as t
 
 __all__ = ["ParserError", "MatchFailure", "ConversionError"]
@@ -19,13 +20,13 @@ class ParserError(ValueError):
 class MatchFailure(ParserError):
     """Raised when a converter's regex failed to match."""
 
-    regex: re.Pattern
+    regex: t.Pattern[str]
 
     def __init__(
         self,
         message: str,
         parameter: inspect.Parameter,
-        regex: re.Pattern,
+        regex: t.Pattern[str],
     ) -> None:
         super().__init__(message, parameter)
         self.regex = regex

@@ -1,8 +1,9 @@
+from __future__ import annotations
+
 import typing as t
 
 import disnake
 from disnake.ext import commands
-from disnake.ext.commands import converter as dpy_converter
 
 __all__ = ["ALLOW_CONVERTER_FETCHING", "CONVERTER_MAP"]
 
@@ -113,7 +114,7 @@ async def guild_converter(argument: str, inter: disnake.MessageInteraction) -> d
 async def message_converter(
     argument: str,
     inter: disnake.MessageInteraction,
-    converted: t.List[t.Any] = None,
+    converted: t.Optional[t.List[t.Any]] = None,
 ) -> disnake.Message:
     """Convert a message id to a :class:`disnake.Message` in the context of the provided
     :class:`disnake.MessageInteraction`.
@@ -163,7 +164,7 @@ async def message_converter(
 async def member_converter(
     argument: str,
     inter: disnake.MessageInteraction,
-    converted: t.List[t.Any] = None,
+    converted: t.Optional[t.List[t.Any]] = None,
 ) -> disnake.Member:
     """Convert a member id to a :class:`disnake.Member` in the context of the provided
     :class:`disnake.MessageInteraction`. This converter only works in the context of a guild.
@@ -209,7 +210,7 @@ async def member_converter(
 async def role_converter(
     argument: str,
     inter: disnake.MessageInteraction,
-    converted: t.List[t.Any] = None,
+    converted: t.Optional[t.List[t.Any]] = None,
 ) -> disnake.Role:
     """Convert a role id to a :class:`disnake.Role` in the context of the provided
     :class:`disnake.MessageInteraction`. This converter only works in the context of a guild.
@@ -259,7 +260,7 @@ CONVERTER_MAP: t.Mapping[type, ConverterSig] = {
     str:                      str,
     int:                      int,
     float:                    float,
-    bool:                     dpy_converter._convert_to_bool,
+    bool:                     commands.converter._convert_to_bool,
     disnake.User:             user_converter,
     disnake.Member:           member_converter,
     disnake.Role:             role_converter,
@@ -270,6 +271,6 @@ CONVERTER_MAP: t.Mapping[type, ConverterSig] = {
     disnake.abc.GuildChannel: make_channel_converter(disnake.abc.GuildChannel),
     disnake.Guild:            guild_converter,
     disnake.Message:          message_converter,
-    # disnake.Emoji:            dpy_converter.EmojiConverter().convert,
+    # disnake.Emoji:            dpy_converter.EmojiConverter().convert,  # temporarily(?) disabled.
     # fmt: on
 }

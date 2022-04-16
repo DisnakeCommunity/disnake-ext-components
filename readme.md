@@ -103,7 +103,6 @@ To-Do
 -----
 - CI,
 - Contribution guidelines.
-- Support passing objects to `ComponentListener.build_custom_id` instead of str/int/float/bool only,
 - Wait for disnake 2.5.0 release and publish to PyPI,
 - Support `commands.inject`/`commands.Injection`,
 

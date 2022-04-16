@@ -1,21 +1,32 @@
 from __future__ import annotations
 
-import functools
 import inspect
 import re
+import sys
 import typing as t
 
 import disnake
 from disnake.ext import commands
-from disnake.ext.commands import params as cmd_params
 
 from . import params, types_
 
 __all__ = ["component_listener", "ComponentListener"]
 
 
-ComponentListenerFunc = t.Callable[..., t.Awaitable[t.Any]]
-ListenerT = t.TypeVar("ListenerT", bound="ComponentListener")
+if sys.version_info >= (3, 10):
+    from typing import Concatenate, ParamSpec
+
+else:
+    from typing_extensions import Concatenate, ParamSpec
+
+AwaitableT = t.TypeVar("AwaitableT", bound=t.Awaitable[t.Any])
+T = t.TypeVar("T")
+P = ParamSpec("P")
+
+ListenerT = t.TypeVar("ListenerT", bound="ComponentListener[t.Any, t.Any]")
+
+CogT = t.TypeVar("CogT", bound=commands.Cog)
+ListenerSpec = Concatenate[CogT, disnake.MessageInteraction, P]
 
 
 def id_spec_from_signature(name: str, sep: str, signature: inspect.Signature) -> str:
@@ -33,7 +44,7 @@ def id_spec_from_signature(name: str, sep: str, signature: inspect.Signature) ->
     )
 
 
-def id_spec_from_regex(regex: re.Pattern) -> str:
+def id_spec_from_regex(regex: t.Pattern[str]) -> str:
     """Analyze a regex pattern for a component custom_id to create a format string for creating
     new custom_ids.
 
@@ -45,7 +56,7 @@ def id_spec_from_regex(regex: re.Pattern) -> str:
     return re.sub(r"\(\?P<(.+?)>.*?\)", lambda m: f"{{{m[1]}}}", regex.pattern)
 
 
-class ComponentListener(functools.partial):
+class ComponentListener(types_.partial[t.Awaitable[T]], t.Generic[P, T]):
     """An advanced component listener that supports syntax similar to disnake slash commands.
 
     Features:
@@ -84,7 +95,7 @@ class ComponentListener(functools.partial):
     `~.build_custom_id`.
     """
 
-    regex: t.Optional[re.Pattern]
+    regex: t.Optional[t.Pattern[str]]
     """The user-defined regex pattern against which incoming `custom_id`s are matched.
     `None` if the user did not define custom regex, in which case parsing is done automatically.
     """
@@ -103,21 +114,25 @@ class ComponentListener(functools.partial):
     param_names: t.List[str]
     """A list of names of the processed listener function parameters."""
 
-    def __new__(cls: t.Type[ListenerT], func: t.Callable[..., t.Any], **kwargs: t.Any) -> ListenerT:
+    def __new__(
+        cls: t.Type[ListenerT],
+        func: t.Callable[ListenerSpec[t.Any, P], t.Awaitable[T]],
+        **kwargs: t.Any,
+    ) -> ListenerT:
         self = super().__new__(cls, func)
         self.__name__ = func.__name__
         return self
 
     def __init__(
         self,
-        func: ComponentListenerFunc,
+        func: t.Callable[ListenerSpec[t.Any, P], t.Awaitable[T]],
         *,
         type: types_.ListenerType = types_.ListenerType.MESSAGE_INTERACTION,
-        regex: t.Union[str, re.Pattern, None] = None,
+        regex: t.Union[str, t.Pattern[str], None] = None,
         sep: str = ":",
     ) -> None:
         self.__cog_listener_names__ = [type]
-        self._signature = cmd_params.signature(func)
+        self._signature = commands.params.signature(func)  # pyright: ignore
         if regex:
             self.regex = ensure_compiled(regex)
             self.id_spec = id_spec_from_regex(self.regex)
@@ -139,7 +154,12 @@ class ComponentListener(functools.partial):
         self.__setstate__((self.func, (instance,), {}, self.__dict__))  # type: ignore
         return self
 
-    async def __call__(self, inter: disnake.MessageInteraction, *args: t.Any) -> t.Any:  # type: ignore
+    async def __call__(  # pyright: ignore
+        self,
+        inter: disnake.MessageInteraction,
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> t.Optional[T]:  # Has to be able to short-circuit, so we'll have to accept mistyping this.
         """Run all parameter converters, and if everything correctly converted, run the listener
         callback with the converted arguments.
 
@@ -159,22 +179,22 @@ class ComponentListener(functools.partial):
             If the decorated listener function is made to return anything, it will similarly
             be returned here. In all other cases, this will return `None`.
         """
-
         if args:
             # The user manually called the listener so we skip any checks and just run.
             # Inter may thus not actually be an inter, but I feel like that's on the user.
-            return await super().__call__(inter, *args)
+            x = super().__call__(inter, *args, **kwargs)
+            return await x
 
         if (custom_id := inter.component.custom_id) is None:
             return
 
         try:
-            in_params = self.parse_custom_id(custom_id)
+            custom_id_params = self.parse_custom_id(custom_id)
         except ValueError:
             return
 
         converted: t.List[t.Any] = []
-        for param, arg in zip(self.params, in_params):
+        for param, arg in zip(self.params, custom_id_params):
             converted.append(
                 await param.convert(
                     arg,
@@ -204,19 +224,20 @@ class ComponentListener(functools.partial):
         Tuple[:class:`str`, ...]:
             The raw parameter values extracted from the custom_id.
         """
-
         if self.regex:
-            if not (match := self.regex.fullmatch(custom_id)):
+            match = self.regex.fullmatch(custom_id)
+            if not match or len(params := match.groupdict()) != len(self.params):
                 raise ValueError(f"Regex pattern {self.regex} did not match custom_id {custom_id}.")
-            return tuple(match.groupdict().values())
+
+            return tuple(params.values())
 
         name, *params = custom_id.split(self.sep)
-        if name != self.__name__:
-            raise ValueError(f"Listener name {self.__name__} did not match custom_id {custom_id}.")
+        if name != self.__name__ or len(params) != len(self.params):
+            raise ValueError(f"Listener spec {self.id_spec} did not match custom_id {custom_id}.")
 
         return tuple(params)
 
-    def build_custom_id(self, *args: t.Any, **kwargs: t.Any) -> str:
+    def build_custom_id(self, *args: P.args, **kwargs: P.kwargs) -> str:
         """Build a custom_id by passing values for the listener's parameters. This way, assuming
         the values entered are valid according to the listener's typehints, the custom_id is
         guaranteed to be matched by the listener.
@@ -247,7 +268,8 @@ class ComponentListener(functools.partial):
 
             kwargs.update(args_as_kwargs)  # This is safe as we ensured there is no overlap.
 
-        kwargs = {k: getattr(v, "id", v) for k, v in kwargs.items()}  # Disnake classes to ids.
+        # "Deserialize" discord types with id to their id (int)
+        kwargs = {k: getattr(v, "id", v) for k, v in kwargs.items()}  # pyright: ignore
 
         if self.regex:
             return self.id_spec.format(**kwargs)
@@ -263,10 +285,10 @@ class ComponentListener(functools.partial):
 def component_listener(
     *,
     type: types_.ListenerType = types_.ListenerType.MESSAGE_INTERACTION,
-    regex: t.Union[str, re.Pattern, None] = None,
+    regex: t.Union[str, t.Pattern[str], None] = None,
     sep: str = ":",
     bot: t.Optional[commands.Bot] = None,
-) -> t.Callable[[ComponentListenerFunc], ComponentListener]:
+) -> t.Callable[[t.Callable[ListenerSpec[CogT, P], AwaitableT]], ComponentListener[P, AwaitableT]]:
     """Create a new :class:`ComponentListener` from a decorated function. This function must
     contain a parameter annotated as :class:`disnake.MessageInteraction`. By default, this will
     create a component listener that can handle stateful `custom_id`s and aid in their creation.
@@ -290,8 +312,8 @@ def component_listener(
     """
 
     def wrapper(
-        func: ComponentListenerFunc,
-    ) -> ComponentListener:
+        func: t.Callable[ListenerSpec[CogT, P], AwaitableT],
+    ) -> ComponentListener[P, AwaitableT]:
         listener = ComponentListener(func, type=type, regex=regex, sep=sep)
 
         if bot is not None:
@@ -337,9 +359,9 @@ def extract_listener_params(signature: inspect.Signature) -> t.Iterator[inspect.
 
 
 def ensure_compiled(
-    pattern: t.Union[str, re.Pattern],
+    pattern: t.Union[str, t.Pattern[str]],
     flags: re.RegexFlag = re.UNICODE,  # seems to be the default of re.compile
-) -> re.Pattern:
+) -> t.Pattern[str]:
     """Ensure a regex pattern is compiled.
 
     Parameters

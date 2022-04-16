@@ -27,12 +27,12 @@ class ListenerCog(commands.Cog):
         ),
     )
 
-    def make_buttons(self, page: int, author_id: int) -> t.List[disnake.ui.Button]:
+    def make_buttons(self, page: int, author: disnake.User) -> t.List[disnake.ui.Button[t.Any]]:
         """Create paginator buttons for a given page and author."""
         return [
             disnake.ui.Button(
                 label=label,
-                custom_id=self.hey_listen.build_custom_id(page, where, author_id),
+                custom_id=self.hey_listen.build_custom_id(page, where, author),
                 # ^ Builds a new custom_id based on the auto-generated spec of the listener.
                 #   Uses the same parameters as the listeners to format the spec.
                 #   If you are at any point curious as to what this spec looks like, you can
@@ -52,14 +52,14 @@ class ListenerCog(commands.Cog):
         inter: disnake.MessageInteraction,
         page: int,
         where: t.Literal["prev", "next", "stop"],
-        author_id: int,
+        author: disnake.User,
     ):
         """The actual listener. Only responds to `custom_id`s that match the regex:
         ```py
         r"hey_listen:(\\d+):(prev|next|stop):(\\d+)"
         ```
         - Capture group 1, `(\\d+)`, corresponds to parameter `page: int`,
-        - Capture group 2, `(prev|next|stop)`, corresponds to parameter `Literal["prev", "next", "stop"]`,
+        - Capture group 2, `(prev|next|stop)`, corresponds to parameter `where: Literal["prev", "next", "stop"]`,
         - Capture group 3, `(\\d+)`, corresponds to parameter `author_id: int`.
 
         The regex is auto-generated, and requires zero user-input. However, it is possible to provide
@@ -67,7 +67,7 @@ class ListenerCog(commands.Cog):
 
         Types are automatically cast to the types used to annotate the parameters.
         """
-        if inter.author.id != author_id:  # Ensure only the author can control the buttons.
+        if inter.author != author:  # Ensure only the author can control the buttons.
             return
 
         if where == "stop":  # Delete the message if the author wants to stop using the paginator.
@@ -79,13 +79,16 @@ class ListenerCog(commands.Cog):
 
         await inter.response.edit_message(  # Update page and buttons.
             embed=self.PAGES[page],
-            components=self.make_buttons(page, author_id),
+            components=self.make_buttons(page, author),
         )
 
     @commands.command()
-    async def start(self, ctx: commands.Context):
+    async def start(self, ctx: commands.Context[commands.Bot]):
         """Start the paginator by sending the first page with corresponding buttons."""
-        await ctx.send(embed=self.PAGES[0], components=self.make_buttons(0, ctx.author.id))
+        # We need the user object to keep this type-safe.
+        user = author._user if isinstance(author := ctx.author, disnake.Member) else author
+
+        await ctx.send(embed=self.PAGES[0], components=self.make_buttons(0, user))
 
 
 def setup(bot: commands.Bot):
