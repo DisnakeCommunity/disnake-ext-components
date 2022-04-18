@@ -17,5 +17,6 @@ namespace_packages = true
 files = ["disnake_ext_components/*.py"]
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
+required_plugins = ["pytest-asyncio"]
+asyncio_mode = "strict"
 testpaths = ["tests"]

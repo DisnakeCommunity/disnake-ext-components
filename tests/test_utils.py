@@ -1,9 +1,11 @@
 import disnake
 import pytest
-from disnake.ext import commands, components
+import disnake_ext_components as components
+from disnake.ext import commands
 
 
-async def test_incorrect_litener():
+@pytest.mark.asyncio
+async def test_incorrect_listener():
     """Test decorating a listener without annotated disnake.MessageInteraction."""
 
     with pytest.raises(TypeError):
@@ -14,12 +16,13 @@ async def test_incorrect_litener():
                 pass
 
 
-async def test_id_builder_pass(inter):
+@pytest.mark.asyncio
+async def test_id_builder_pass(inter: disnake.MessageInteraction):
     """Test ComponentListener.build_custom_id."""
 
     class A(commands.Cog):
         @components.component_listener()
-        async def listener(
+        async def listener_(
             self,
             inter: disnake.MessageInteraction,
             a: int,
@@ -29,11 +32,11 @@ async def test_id_builder_pass(inter):
         ):
             return a, b, c, d
 
-    actual = A().listener
+    actual = A().listener_
 
     abcd = (1, "b", True, 1.12)
     custom_id = actual.build_custom_id(*abcd)
-    assert custom_id == "listener:1:b:True:1.12"
+    assert custom_id == "listener_:1:b:True:1.12"
 
     inter.component.custom_id = custom_id
     assert await actual(inter) == abcd
@@ -44,7 +47,7 @@ def test_id_builder_overlap():
 
     class A(commands.Cog):
         @components.component_listener()
-        async def listener(
+        async def listener_(
             self,
             inter: disnake.MessageInteraction,
             a: int,
@@ -52,9 +55,9 @@ def test_id_builder_overlap():
         ):
             return a, b
 
-    actual = A().listener
+    actual = A().listener_
 
-    assert actual.build_custom_id(1, "a") == "listener:1:a"
+    assert actual.build_custom_id(1, "a") == "listener_:1:a"
 
     with pytest.raises(TypeError):
         actual.build_custom_id(1, a="1")
@@ -65,7 +68,7 @@ def test_id_builder_regex():
 
     class A(commands.Cog):
         @components.component_listener(regex=r"blah(?P<a>.+)/(?P<b>/+)")
-        async def listener(
+        async def listener_(
             self,
             inter: disnake.MessageInteraction,
             a: int,
@@ -73,7 +76,7 @@ def test_id_builder_regex():
         ):
             return a, b
 
-    actual = A().listener
+    actual = A().listener_
 
     assert actual.id_spec == "blah{a}/{b}"
     assert actual.build_custom_id(1, "a") == "blah1/a"

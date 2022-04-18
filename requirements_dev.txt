@@ -1,0 +1,9 @@
+git+https://github.com/DisnakeDev/disnake@master#egg=disnake
+typing-extensions
+
+black
+isort
+
+pytest
+pytest-asyncio
+pyright

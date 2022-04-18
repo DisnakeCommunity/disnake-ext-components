@@ -1,6 +1,7 @@
 import disnake
 import pytest
-from disnake.ext import commands, components
+import disnake_ext_components as components
+from disnake.ext import commands
 
 
 @pytest.fixture
@@ -23,6 +24,7 @@ def regex_listener():
     return A().regex_listener
 
 
+@pytest.mark.asyncio
 async def test_invoke_default_pass(default_listener, inter):
     """Test a default listener with correct invocations."""
 
@@ -34,6 +36,7 @@ async def test_invoke_default_pass(default_listener, inter):
     assert await default_listener(inter) == 123
 
 
+@pytest.mark.asyncio
 async def test_invoke_default_ignore(default_listener, inter):
     """Test a default listener invocation that is ignored becuase of a name mismatch."""
 
@@ -41,6 +44,7 @@ async def test_invoke_default_ignore(default_listener, inter):
     assert await default_listener(inter) is None
 
 
+@pytest.mark.asyncio
 async def test_invoke_default_fail(default_listener, inter):
     """Test a default listener invocation that fails during param conversion."""
 
@@ -51,6 +55,7 @@ async def test_invoke_default_fail(default_listener, inter):
     assert isinstance(exc_info.value.errors[0], components.exceptions.MatchFailure)
 
 
+@pytest.mark.asyncio
 async def test_invoke_regex_pass(regex_listener, inter):
     """Test a custom regex listener with correct invocations."""
 
@@ -62,12 +67,14 @@ async def test_invoke_regex_pass(regex_listener, inter):
     assert await regex_listener(inter) == 123
 
 
+@pytest.mark.asyncio
 async def test_invoke_regex_ignore(regex_listener, inter):
     """Test a custom regex listener invocation that is ignored because of a name mismatch."""
     inter.component.custom_id = "__custom_regex:123"
     assert await regex_listener(inter) is None
 
 
+@pytest.mark.asyncio
 async def test_invoke_regex_fail(regex_listener, inter):
     """Test a custom regex listener invocation that fails during param conversion."""
 

@@ -2,9 +2,11 @@ import typing as t
 
 import disnake
 import pytest
-from disnake.ext import commands, components
+import disnake_ext_components as components
+from disnake.ext import commands
 
 
+@pytest.mark.asyncio
 async def test_int():
     """Test a listener with int params."""
 
@@ -31,6 +33,7 @@ async def test_int():
     assert await params[1].convert("1.23", inter=None) == 3
 
 
+@pytest.mark.asyncio
 async def test_bool():
     """Test a listener with bool param."""
 
@@ -51,6 +54,7 @@ async def test_bool():
         await param.convert("1.23", inter=None)
 
 
+@pytest.mark.asyncio
 async def test_unannotated():
     """Test a listener with unannotated param."""
 
@@ -66,6 +70,7 @@ async def test_unannotated():
     assert await param.convert("pretty please", inter=None) == "pretty please"
 
 
+@pytest.mark.asyncio
 async def test_union():
     """Test a listener with union param."""
 
@@ -86,6 +91,7 @@ async def test_union():
         await param.convert("abc", inter=None)
 
 
+@pytest.mark.asyncio
 async def test_optional():
     """Test a listener with optional param."""
 
@@ -103,6 +109,7 @@ async def test_optional():
     assert await param.convert("true", inter=None) is None
 
 
+@pytest.mark.asyncio
 async def test_literal():
     """Test a listener with literal param."""
 
