@@ -46,7 +46,7 @@ class ListenerCog(commands.Cog):
             )
         ]
 
-    @components.component_listener()
+    @components.button_listener()
     async def hey_listen(
         self,
         inter: disnake.MessageInteraction,

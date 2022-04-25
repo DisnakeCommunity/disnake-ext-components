@@ -8,7 +8,7 @@ import typing as t
 import disnake
 from disnake.ext.commands import params
 
-from . import converter, exceptions
+from . import converter, exceptions, types_
 
 if sys.version_info >= (3, 10):
     from types import NoneType, UnionType
@@ -19,6 +19,10 @@ if sys.version_info >= (3, 10):
 else:
     _UnionTypes = {t.Union}
     _NoneTypes = {None, type(None)}
+
+
+T = t.TypeVar("T")
+ArgT = t.TypeVar("ArgT", bound=t.Union[t.List[str], str])
 
 
 ID = re.compile(r"\d{15,20}")
@@ -129,7 +133,10 @@ class ParamInfo:
         if annotation is inspect.Parameter.empty:
             annotation = str
 
-        if not (origin := t.get_origin(annotation)):
+        if isinstance(annotation, types_.Converted):
+            return self._parse_converted(annotation)
+
+        if not (origin := types_.get_origin(annotation)):
             return [REGEX_MAP[annotation]], [converter.CONVERTER_MAP[annotation]]
 
         elif origin in _UnionTypes:
@@ -141,7 +148,12 @@ class ParamInfo:
         elif origin is params.Injection:
             raise NotImplementedError("Injections are not yet implemented. Soon:tm:")
 
-        raise TypeError(f"{type!r} is not a valid type annotation for a listener.")
+        elif issubclass(origin, t.Collection):
+            # Ignore collection and parse first underlying type. Collection parsing is handled
+            # by input to :meth:`self.convert` instead.
+            return self.parse_annotation(args[0] if (args := types_.get_args(annotation)) else str)
+
+        raise TypeError(f"{annotation!r} is not a valid type annotation for a listener.")
 
     def _parse_union(
         self, annotation: t.Any
@@ -150,10 +162,10 @@ class ParamInfo:
         converter functions. Automatically removes any ``None``s from the union and sets
         :attr:`ParamInfo.default` to ``None`` if it is not yet set.
         """
-        if t.get_origin(annotation) in _UnionTypes:
+        if types_.get_origin(annotation) in _UnionTypes:
             regex: t.List[t.Pattern[str]] = []
             conv: t.List[converter.ConverterSig] = []
-            for arg in t.get_args(annotation):
+            for arg in types_.get_args(annotation):
                 if arg in _NoneTypes:
                     if self.param.default is inspect.Parameter.empty:
                         self.param = self.param.replace(default=None)
@@ -172,15 +184,23 @@ class ParamInfo:
         """Parse a :class:`typing.Literal` annotation into the corresponding regex patterns and
         converter functions.
         """
-        if t.get_origin(annotation) is t.Literal:
+        if types_.get_origin(annotation) is t.Literal:
             regex: t.List[t.Pattern[str]] = []
             conv: t.List[converter.ConverterSig] = []
-            for arg in t.get_args(annotation):
+            for arg in types_.get_args(annotation):
                 regex.append(re.compile(re.escape(str(arg))))
                 conv.append(converter.CONVERTER_MAP[type(arg)])
             return regex, conv
 
         raise TypeError(f"{annotation!r} is not a valid typing.Literal.")
+
+    def _parse_converted(
+        self, annotation: types_.Converted
+    ) -> t.Tuple[t.List[t.Pattern[str]], t.List[converter.ConverterSig]]:
+        """Parse a :class:`.Converted` annotation into the corresponding regex patterns and
+        converter functions.
+        """
+        return [annotation.regex] * len(annotation.converters), list(annotation.converters)
 
     @property
     def default(self) -> t.Any:
@@ -196,7 +216,24 @@ class ParamInfo:
         """
         return self.default is not inspect.Parameter.empty
 
+    @property
+    def name(self) -> str:
+        """The name of the parameter."""
+        return self.param.name
+
+    @t.overload
     async def convert(self, argument: str, **kwargs: t.Any) -> t.Any:
+        ...
+
+    @t.overload
+    async def convert(self, argument: t.List[str], **kwargs: t.Any) -> t.List[t.Any]:
+        ...
+
+    async def convert(
+        self,
+        argument: t.Union[t.List[str], str],
+        **kwargs: t.Any,
+    ) -> t.Union[t.List[t.Any], t.Any]:
         """Try to convert an input argument for this command into any of its annotated types.
         Conversion results are returned as soon as the first converter passes. To this end, the
         order in which types were annotated in e.g. a :class:`typing.Union` is preserved.
@@ -222,6 +259,16 @@ class ParamInfo:
         :class:`typing.Any`:
             The successfully converted input argument.
         """
+        if not isinstance(argument, str):
+            converted = [
+                await self.convert(arg, depth=kwargs.get("depth", 0) + 1, **kwargs)
+                for arg in argument
+            ]
+            # Pyright complains here because typing.Collection is not instantiatable.
+            # This is safe (at least for all builtin collections), as the passed argument is by
+            # definion an instantiated type.
+            return type(argument)(converted)
+
         method = self._convert_and_validate if self.regex else self._convert_raw
         converted, errors = await method(argument, **kwargs)
 

@@ -1,13 +1,14 @@
 import disnake
 import pytest
-import disnake_ext_components as components
 from disnake.ext import commands
+
+import disnake_ext_components as components
 
 
 @pytest.fixture
 def default_listener():
     class A(commands.Cog):
-        @components.component_listener(sep="<>")
+        @components.button_listener(sep="<>")
         async def default_listener(self, inter: disnake.MessageInteraction, int_: int):
             return int_
 
@@ -17,7 +18,7 @@ def default_listener():
 @pytest.fixture
 def regex_listener():
     class A(commands.Cog):
-        @components.component_listener(regex=r"custom_regex:(?P<int_>.+)")
+        @components.button_listener(regex=r"custom_regex:(?P<int_>.+)")
         async def regex_listener(self, inter: disnake.MessageInteraction, int_: int):
             return int_
 

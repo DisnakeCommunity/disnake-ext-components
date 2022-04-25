@@ -1,7 +1,8 @@
 import disnake
 import pytest
-import disnake_ext_components as components
 from disnake.ext import commands
+
+import disnake_ext_components as components
 
 
 @pytest.mark.asyncio
@@ -11,7 +12,7 @@ async def test_incorrect_listener():
     with pytest.raises(TypeError):
 
         class A(commands.Cog):
-            @components.component_listener()
+            @components.button_listener()
             async def incorrect_listener(self, inter, a):
                 pass
 
@@ -21,7 +22,7 @@ async def test_id_builder_pass(inter: disnake.MessageInteraction):
     """Test ComponentListener.build_custom_id."""
 
     class A(commands.Cog):
-        @components.component_listener()
+        @components.button_listener()
         async def listener_(
             self,
             inter: disnake.MessageInteraction,
@@ -46,7 +47,7 @@ def test_id_builder_overlap():
     """Test the failure procedure for passing overlapping args to ComponentListener.build_custom_id."""
 
     class A(commands.Cog):
-        @components.component_listener()
+        @components.button_listener()
         async def listener_(
             self,
             inter: disnake.MessageInteraction,
@@ -67,7 +68,7 @@ def test_id_builder_regex():
     """Test ComponentListener.build_custom_id for listeners with custom regex."""
 
     class A(commands.Cog):
-        @components.component_listener(regex=r"blah(?P<a>.+)/(?P<b>/+)")
+        @components.button_listener(regex=r"blah(?P<a>.+)/(?P<b>/+)")
         async def listener_(
             self,
             inter: disnake.MessageInteraction,

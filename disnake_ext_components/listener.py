@@ -1,16 +1,20 @@
 from __future__ import annotations
 
-import inspect
-import re
+import abc
 import sys
 import typing as t
 
 import disnake
 from disnake.ext import commands
 
-from . import params, types_
+from . import params, types_, utils
 
-__all__ = ["component_listener", "ComponentListener"]
+__all__ = [
+    "button_listener",
+    "ButtonListener",
+    "select_listener",
+    "SelectListener",
+]
 
 
 if sys.version_info >= (3, 10):
@@ -19,76 +23,31 @@ if sys.version_info >= (3, 10):
 else:
     from typing_extensions import Concatenate, ParamSpec
 
-AwaitableT = t.TypeVar("AwaitableT", bound=t.Awaitable[t.Any])
-T = t.TypeVar("T")
+T = t.TypeVar("T")  # listener return type
+VT = t.TypeVar("VT")  # type of select value
 P = ParamSpec("P")
 
-ListenerT = t.TypeVar("ListenerT", bound="ComponentListener[t.Any, t.Any]")
-
+MaybeCollection = t.Union[t.Collection[T], T]
 CogT = t.TypeVar("CogT", bound=commands.Cog)
-ListenerSpec = Concatenate[CogT, disnake.MessageInteraction, P]
+ListenerT = t.TypeVar("ListenerT", bound="_BaseListener[t.Any, t.Any, t.Any]")
+
+InteractionT = t.TypeVar("InteractionT", disnake.MessageInteraction, disnake.ModalInteraction)
+ErrorHandlerT = t.Callable[[CogT, InteractionT, Exception], t.Any]
+
+ButtonListenerSpec = Concatenate[CogT, disnake.MessageInteraction, P]
+SelectListenerSpec = Concatenate[CogT, disnake.MessageInteraction, types_.SelectValue[VT], P]
+# ModalListenerSpec = t.Union[
+#     Concatenate[CogT, InteractionT, types_.ModalValue[t.Any], P],
+#     Concatenate[CogT, InteractionT, types_.ModalValue[t.Any], types_.ModalValue[t.Any], P]
+# ]
 
 
-def id_spec_from_signature(name: str, sep: str, signature: inspect.Signature) -> str:
-    """Analyze a function signature to create a format string for creating new custom_ids.
-
-    Parameters
-    ----------
-    name: :class:`str`
-        The name of the listener function to which the signature belongs.
-    signature: :class:`inspect.Signature`
-        The function signature of the listener function.
-    """
-    return (
-        name + sep + sep.join(f"{{{param.name}}}" for param in extract_listener_params(signature))
-    )
-
-
-def id_spec_from_regex(regex: t.Pattern[str]) -> str:
-    """Analyze a regex pattern for a component custom_id to create a format string for creating
-    new custom_ids.
-
-    Parameters
-    ----------
-    regex: :class:`re.Pattern`
-        The regex pattern that is to be deconstructed.
-    """
-    return re.sub(r"\(\?P<(.+?)>.*?\)", lambda m: f"{{{m[1]}}}", regex.pattern)
-
-
-class ComponentListener(types_.partial[t.Awaitable[T]], t.Generic[P, T]):
-    """An advanced component listener that supports syntax similar to disnake slash commands.
-
-    Features:
-    - Automated `custom_id` matching through regex,
-    - Automated type-conversion similar to slash commands,
-    - Helper methods to build new components with valid `custom_id`s,
-    - Error handling.  (soon:tm:)
-
-    Mainly created using :func:`~component_listener`.
-
-    Parameters
-    ----------
-    func: :class:`types.ComponentListenerFunc`
-        The function that is to be turned into a decorator. Will honor the full signature of the
-        function: any parameters are used to store/parse state to/from `custom_id`s, and any
-        annotations are used to convert incoming `custom_id` :class:`str`s to the desired type.
-        As of right now, this only supports :class:`commands.Cog` listeners.
-    regex: Union[:class:`str`, :class:`re.Pattern`, None]
-        If provided, this will override the default behavior of automatically generating matching
-        regex for the listener, and will use custom regex instead. For the listener to fire, the
-        incoming `custom_id` must pass being `re.fullmatch`ed with this regex.
-    sep: :class:`str`
-        The symbol(s) used to separate individual components of the `custom_id`. Defaults to ':'.
-        Under normal circumstances, this should not lead to conflicts. In case ':' is intentionally
-        part of the `custom_id`s matched by the listener, this should be set to a different value
-        to prevent conflicts.
-    """
+class _BaseListener(types_.partial[t.Awaitable[T]], abc.ABC, t.Generic[P, T, InteractionT]):
 
     # These are just to conform to dpy listener spec
     __name__: str
     __cog_listener__: t.Final[t.Literal[True]] = True
-    __cog_listener_names__: t.List[str] = [types_.ListenerType.MESSAGE_INTERACTION]
+    __cog_listener_names__: t.List[types_.ListenerType]
 
     id_spec: str
     """The spec that inbound `custom_id`s should match. Also used to create new custom ids; see
@@ -111,40 +70,14 @@ class ComponentListener(types_.partial[t.Awaitable[T]], t.Generic[P, T]):
     about their regex pattern(s) and converter(s).
     """
 
-    param_names: t.List[str]
-    """A list of names of the processed listener function parameters."""
-
     def __new__(
         cls: t.Type[ListenerT],
-        func: t.Callable[ListenerSpec[t.Any, P], t.Awaitable[T]],
+        func: t.Callable[..., t.Awaitable[T]],
         **kwargs: t.Any,
     ) -> ListenerT:
         self = super().__new__(cls, func)
         self.__name__ = func.__name__
         return self
-
-    def __init__(
-        self,
-        func: t.Callable[ListenerSpec[t.Any, P], t.Awaitable[T]],
-        *,
-        type: types_.ListenerType = types_.ListenerType.MESSAGE_INTERACTION,
-        regex: t.Union[str, t.Pattern[str], None] = None,
-        sep: str = ":",
-    ) -> None:
-        self.__cog_listener_names__ = [type]
-        self._signature = commands.params.signature(func)  # pyright: ignore
-        if regex:
-            self.regex = ensure_compiled(regex)
-            self.id_spec = id_spec_from_regex(self.regex)
-            self.sep = None
-        else:
-            self.regex = None
-            self.id_spec = id_spec_from_signature(self.__name__, sep, self._signature)
-            self.sep = sep
-
-        listener_params = extract_listener_params(self._signature)
-        self.params = [params.ParamInfo.from_param(param) for param in listener_params]
-        self.param_names = [paraminfo.param.name for paraminfo in self.params]
 
     def __get__(self: ListenerT, instance: t.Any, _) -> ListenerT:
         """Abuse descriptor functionality to inject instance of the owner class as first arg."""
@@ -154,57 +87,13 @@ class ComponentListener(types_.partial[t.Awaitable[T]], t.Generic[P, T]):
         self.__setstate__((self.func, (instance,), {}, self.__dict__))  # type: ignore
         return self
 
-    async def __call__(  # pyright: ignore
-        self,
-        inter: disnake.MessageInteraction,
-        *args: P.args,
-        **kwargs: P.kwargs,
-    ) -> t.Optional[T]:  # Has to be able to short-circuit, so we'll have to accept mistyping this.
-        """Run all parameter converters, and if everything correctly converted, run the listener
-        callback with the converted arguments.
-
-        Parameters
-        ----------
-        inter: :class:`disnake.MessageInteraction`
-            The interaction that intiated the listener.
-        *args: Any
-            Any arguments passed to the listener. Only really relevant when the listener is
-            called manually. In all other cases, args will be empty, and parsing will instead
-            be done based on the custom_id of the interaction.
-            Note that arguments passed manually will be assumed correct, and will not be converted.
-
-        Returns
-        -------
-        Any:
-            If the decorated listener function is made to return anything, it will similarly
-            be returned here. In all other cases, this will return `None`.
+    def error(
+        self, func: t.Callable[[CogT, InteractionT, Exception], t.Any]
+    ) -> t.Callable[[CogT, InteractionT, Exception], t.Any]:
+        """Register an error handler for this listener.
+        Note: Not yet implemented.
         """
-        if args:
-            # The user manually called the listener so we skip any checks and just run.
-            # Inter may thus not actually be an inter, but I feel like that's on the user.
-            x = super().__call__(inter, *args, **kwargs)
-            return await x
-
-        if (custom_id := inter.component.custom_id) is None:
-            return
-
-        try:
-            custom_id_params = self.parse_custom_id(custom_id)
-        except ValueError:
-            return
-
-        converted: t.List[t.Any] = []
-        for param, arg in zip(self.params, custom_id_params):
-            converted.append(
-                await param.convert(
-                    arg,
-                    inter=inter,
-                    converted=converted,
-                    skip_validation=bool(self.regex),
-                )
-            )
-
-        return await super().__call__(inter, *converted)
+        raise NotImplementedError()
 
     def parse_custom_id(self, custom_id: str) -> t.Tuple[str, ...]:
         """Parse an incoming custom_id into its name and raw parameter values.
@@ -259,7 +148,7 @@ class ComponentListener(types_.partial[t.Awaitable[T]], t.Generic[P, T]):
         """
         if args:
             # Change args into kwargs such that they're accepted by str.format
-            args_as_kwargs = dict(zip(self.param_names, args))
+            args_as_kwargs = dict(zip([param.name for param in self.params], args))
 
             if overlap := kwargs.keys() & args_as_kwargs:
                 # Emulate standard python behaviour by disallowing duplicate names for args/kwargs.
@@ -275,32 +164,138 @@ class ComponentListener(types_.partial[t.Awaitable[T]], t.Generic[P, T]):
             return self.id_spec.format(**kwargs)
         return self.id_spec.format(sep=self.sep, **kwargs)
 
-    def error(self) -> t.NoReturn:
-        """Register an error handler for this listener.
-        Note: Not yet implemented.
-        """
-        raise NotImplementedError()
 
+class ButtonListener(_BaseListener[P, T, disnake.MessageInteraction]):
+    """An advanced component listener that supports syntax similar to disnake slash commands.
 
-def component_listener(
-    *,
-    type: types_.ListenerType = types_.ListenerType.MESSAGE_INTERACTION,
-    regex: t.Union[str, t.Pattern[str], None] = None,
-    sep: str = ":",
-    bot: t.Optional[commands.Bot] = None,
-) -> t.Callable[[t.Callable[ListenerSpec[CogT, P], AwaitableT]], ComponentListener[P, AwaitableT]]:
-    """Create a new :class:`ComponentListener` from a decorated function. This function must
-    contain a parameter annotated as :class:`disnake.MessageInteraction`. By default, this will
-    create a component listener that can handle stateful `custom_id`s and aid in their creation.
+    Features:
+    - Automated `custom_id` matching through regex,
+    - Automated type-conversion similar to slash commands,
+    - Helper methods to build new components with valid `custom_id`s,
+    - Error handling.  (soon:tm:)
+
+    Mainly created using :func:`components.button_listener`.
 
     Parameters
     ----------
-    type: :class:`types.ListenerType`
-        The type of interactions this listener should respond to. By default, the listener uses
-        event `message_interaction`, which means it responds to both buttons and selects.
+    func: Callable[[...], Any]
+        The function that is to be used as callback for the listener. A :class:`ButtonListener`
+        requires the first (non-self) parameter to be annotated as `disnake.MessageInteraction`.
+        If the listener is invoked because a matching component is interacted with, the input is
+        converted to match the function's annotations.
+    regex: Union[:class:`str`, :class:`re.Pattern`, None]
+        If provided, this will override the default behavior of automatically generating matching
+        regex for the listener, and will use custom regex instead. For the listener to fire, the
+        incoming `custom_id` must pass being `re.fullmatch`ed with this regex. Use named capture
+        groups to match group names with function parameter names.
+    sep: :class:`str`
+        The symbol(s) used to separate individual components of the `custom_id`. Defaults to ':'.
+        Under normal circumstances, this should not lead to conflicts. In case ':' is intentionally
+        part of the `custom_id`s matched by the listener, this should be set to a different value
+        to prevent conflicts.
+    """
+
+    __cog_listener_names__: t.List[types_.ListenerType] = [types_.ListenerType.BUTTON]
+
+    def __new__(
+        cls: t.Type[ListenerT],
+        func: t.Callable[ButtonListenerSpec[CogT, P], t.Awaitable[T]],
+        **kwargs: t.Any,
+    ) -> ListenerT:
+        return super().__new__(cls, func, **kwargs)
+
+    def __init__(
+        self,
+        func: t.Callable[ButtonListenerSpec[CogT, P], t.Awaitable[T]],
+        *,
+        regex: t.Union[str, t.Pattern[str], None] = None,
+        sep: str = ":",
+    ) -> None:
+        self._signature = commands.params.signature(func)  # pyright: ignore
+        if regex:
+            self.regex = utils.ensure_compiled(regex)
+            self.id_spec = utils.id_spec_from_regex(self.regex)
+            self.sep = None
+        else:
+            self.regex = None
+            self.id_spec = utils.id_spec_from_signature(self.__name__, sep, self._signature)
+            self.sep = sep
+
+        _, listener_params = utils.extract_listener_params(self._signature)
+        self.params = [params.ParamInfo.from_param(param) for param in listener_params]
+
+    async def __call__(  # pyright: ignore
+        self,
+        inter: disnake.MessageInteraction,
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> t.Optional[T]:
+        """Run all parameter converters, and if everything correctly converted, run the listener
+        callback with the converted arguments.
+
+        Parameters
+        ----------
+        inter: :class:`disnake.MessageInteraction`
+            The interaction that intiated the listener.
+        *args: Any
+            Any arguments passed to the listener. Only really relevant when the listener is
+            called manually. In all other cases, args will be empty, and parsing will instead
+            be done based on the custom_id of the interaction.
+            Note that arguments passed manually will be assumed correct, and will not be converted.
+
+        Returns
+        -------
+        Any:
+            If the decorated listener function is made to return anything, it will similarly
+            be returned here. In all other cases, this will return `None`.
+        """
+        if args or kwargs:
+            # The user manually called the listener so we skip any checks and just run.
+            # Inter may thus not actually be an inter, but I feel like that's on the user.
+            x = super().__call__(inter, *args, **kwargs)
+            return await x
+
+        if (custom_id := inter.component.custom_id) is None:
+            return
+
+        try:
+            custom_id_params = self.parse_custom_id(custom_id)
+        except ValueError:
+            return
+
+        converted: t.List[t.Any] = []
+        for param, arg in zip(self.params, custom_id_params):
+            converted.append(
+                await param.convert(
+                    arg,
+                    inter=inter,
+                    converted=converted,
+                    skip_validation=bool(self.regex),
+                )
+            )
+
+        return await super().__call__(inter, *converted)
+
+
+def button_listener(
+    *,
+    regex: t.Union[str, t.Pattern[str], None] = None,
+    sep: str = ":",
+    bot: t.Optional[commands.Bot] = None,
+) -> t.Callable[[t.Callable[ButtonListenerSpec[CogT, P], t.Awaitable[T]]], ButtonListener[P, T]]:
+    """Create a new :class:`ButtonListener` from a decorated function. The :class:`ButtonListener`
+    will take care of regex-matching and persistent data stored in the `custom_id` of the
+    :class:`disnake.ui.Button`.
+
+    - The first parameter of the function (disregarding `self` inside a cog) is the
+    :class:`disnake.MessageInteraction`.
+    - Any remaining parameters are stored in and resolved from the `custom_id`.
+
+    Parameters
+    ----------
     regex: Union[:class:`str`, :class:`re.Pattern`, None]
         Used to set custom regex for the listener to use, instead of the default automatic parsing.
-        Defaults to None, which makes the :class:`ComponentListener` use the default parsing.
+        Defaults to None, which makes the :class:`ButtonListener` use the default automatic parsing.
     sep: :class:`str`
         The separator to use between `custom_id` parts. Defaults to ":". This is generally fine,
         however, if this character is meant to appear elsewhere in the `custom_id`, this should
@@ -309,67 +304,222 @@ def component_listener(
         The bot to attach the listener to. This is only used as a shorthand to register the
         listener if it is defined outside of a cog. Alternatively, the usual `bot.listen` decorator
         or `bot.add_listener` method will work fine, too; provided the correct name is set.
+
+    Returns
+    -------
+    :class:`ButtonListener`
+        The newly created :class:`ButtonListener`.
     """
 
     def wrapper(
-        func: t.Callable[ListenerSpec[CogT, P], AwaitableT],
-    ) -> ComponentListener[P, AwaitableT]:
-        listener = ComponentListener(func, type=type, regex=regex, sep=sep)
+        func: t.Callable[ButtonListenerSpec[CogT, P], t.Awaitable[T]],
+    ) -> ButtonListener[P, T]:
+        listener = ButtonListener(func, regex=regex, sep=sep)
 
         if bot is not None:
-            bot.add_listener(listener, type)
+            bot.add_listener(listener, types_.ListenerType.BUTTON)
 
         return listener
 
     return wrapper
 
 
-def extract_listener_params(signature: inspect.Signature) -> t.Iterator[inspect.Parameter]:
-    """Extract the parameters of the listener function that are used to analyze incoming
-    custom_ids. This function strips `self` if the listener is in a Cog, and the
-    :class:`disnake.MessageInteraction` parameter.
+class SelectListener(_BaseListener[P, T, disnake.MessageInteraction], t.Generic[P, VT, T]):
+    """An advanced component listener that supports syntax similar to disnake slash commands.
+
+    Features:
+    - Automated `custom_id` matching through regex,
+    - Automated type-conversion similar to slash commands,
+    - Helper methods to build new components with valid `custom_id`s,
+    - Error handling.  (soon:tm:)
+
+    Mainly created using :func:`components.select_listener`.
 
     Parameters
     ----------
-    signature: :class:`inspect.Signature`
-        The (full) function signature of the listener function.
+    func: Callable[[...], Any]
+        The function that is to be used as callback for the listener. A :class:`SelectListener`
+        requires the first (non-self) parameter to be annotated as `disnake.MessageInteraction`,
+        and the second as `components.SelectValue`. If the listener is invoked because a matching
+        component is interacted with, the input is converted to match the function's annotations.
+    regex: Union[:class:`str`, :class:`re.Pattern`, None]
+        If provided, this will override the default behavior of automatically generating matching
+        regex for the listener, and will use custom regex instead. For the listener to fire, the
+        incoming `custom_id` must pass being `re.fullmatch`ed with this regex. Use named capture
+        groups to match group names with function parameter names.
+    sep: :class:`str`
+        The symbol(s) used to separate individual components of the `custom_id`. Defaults to ':'.
+        Under normal circumstances, this should not lead to conflicts. In case ':' is intentionally
+        part of the `custom_id`s matched by the listener, this should be set to a different value
+        to prevent conflicts.
+    """
 
-    Raises
-    ------
-    TypeError:
-        The function signature did not contain any parameters annotated as
-        :class:`disnake.MessageInteraction`. This is required to properly split the signature.
+    __cog_listener_names__: t.List[types_.ListenerType] = [types_.ListenerType.SELECT]
+
+    def __new__(
+        cls: t.Type[ListenerT],
+        func: t.Callable[SelectListenerSpec[CogT, MaybeCollection[VT], P], t.Awaitable[T]],
+        **kwargs: t.Any,
+    ) -> ListenerT:
+        return super().__new__(cls, func, **kwargs)
+
+    def __init__(
+        self,
+        func: t.Callable[SelectListenerSpec[CogT, MaybeCollection[VT], P], t.Awaitable[T]],
+        *,
+        regex: t.Union[str, t.Pattern[str], None] = None,
+        sep: str = ":",
+    ) -> None:
+        self._signature = commands.params.signature(func)  # pyright: ignore
+        if regex:
+            self.regex = utils.ensure_compiled(regex)
+            self.id_spec = utils.id_spec_from_regex(self.regex)
+            self.sep = None
+        else:
+            self.regex = None
+            self.id_spec = utils.id_spec_from_signature(self.__name__, sep, self._signature)
+            self.sep = sep
+
+        special_params, listener_params = utils.extract_listener_params(self._signature)
+        self.params = [params.ParamInfo.from_param(param) for param in listener_params]
+
+        if len(special_params) != 1:
+            raise TypeError(
+                f"A `{type(self).__name__}` must have exactly one parameter annotated as `SelectValue`."
+            )
+        self.select_param = params.ParamInfo.from_param(special_params[0])
+
+    def _cast_to_return_type(self, values: t.List[VT]) -> t.Union[t.Collection[VT], VT]:
+        """Cast a value to the desired return type: either converts the collection to the annotation
+        type, or unpacks the value if it is annotated as a non-collection type.
+        """
+        return_type = types_.get_origin(self.select_param.param.annotation)
+
+        if not issubclass(return_type, t.Collection) or issubclass(return_type, (str, bytes)):
+            if len(values) > 1:
+                type_name = getattr(return_type, "__name__", repr(return_type))
+                raise TypeError(
+                    f"Cannot cast multiple values to type `{type_name}`. "
+                    f"Consider annotating the parameter as `typing.List[{type_name}]."
+                )
+            return values[0]
+
+        try:
+            return return_type(values)  # pyright: ignore
+        except Exception as exc:
+            type_name = getattr(return_type, "__name__", repr(return_type))
+            raise TypeError(f"Failed to cast list of select values to type {type_name!r}.") from exc
+
+    async def __call__(  # pyright: ignore
+        self,
+        inter: disnake.MessageInteraction,
+        select_value: VT = disnake.utils.MISSING,
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> t.Optional[T]:
+        """Run all parameter converters, and if everything correctly converted, run the listener
+        callback with the converted arguments.
+
+        Parameters
+        ----------
+        inter: :class:`disnake.MessageInteraction`
+            The interaction that intiated the listener.
+        *args: Any
+            Any arguments passed to the listener. Only really relevant when the listener is
+            called manually. In all other cases, args will be empty, and parsing will instead
+            be done based on the custom_id of the interaction.
+            Note that arguments passed manually will be assumed correct, and will not be converted.
+
+        Returns
+        -------
+        Any:
+            If the decorated listener function is made to return anything, it will similarly
+            be returned here. In all other cases, this will return `None`.
+        """
+        if args or kwargs:
+            # The user manually called the listener so we skip any checks and just run.
+            # Inter may thus not actually be an inter, but I feel like that's on the user.
+            x = super().__call__(inter, select_value, *args, **kwargs)
+            return await x
+
+        if not inter.values or (custom_id := inter.component.custom_id) is None:
+            return
+
+        try:
+            custom_id_params = self.parse_custom_id(custom_id)
+        except ValueError:
+            return
+
+        # First convert custom_id params...
+        converted: t.List[t.Any] = []
+        for param, arg in zip(self.params, custom_id_params):
+            converted.append(
+                await param.convert(
+                    arg,
+                    inter=inter,
+                    converted=converted,
+                    skip_validation=bool(self.regex),
+                )
+            )
+
+        converted_values = await self.select_param.convert(
+            inter.values, inter=inter, converted=converted
+        )
+
+        return await super().__call__(
+            inter, self._cast_to_return_type(converted_values), *converted
+        )
+
+
+def select_listener(
+    *,
+    regex: t.Union[str, t.Pattern[str], None] = None,
+    sep: str = ":",
+    bot: t.Optional[commands.Bot] = None,
+) -> t.Callable[
+    [t.Callable[SelectListenerSpec[CogT, VT, P], t.Awaitable[T]]],
+    SelectListener[P, VT, T],
+]:
+    """Create a new :class:`SelectListener` from a decorated function. The :class:`SelectListener`
+    will take care of regex-matching and persistent data stored in the `custom_id` of the
+    :class:`disnake.ui.Select`.
+
+    - The first parameter of the function (disregarding `self` inside a cog) is the
+    :class:`disnake.MessageInteraction`.
+    - The next parameter will receive the selected values, and should be annotated as
+    :class:`.SelectValue`. This should be narrowed down with an inner type. In case e.g. a list of
+    strings is desired for all the values, the annotation would be
+    `param: components.SelectValue[typing.List[str]]`.
+    - Any remaining parameters are stored in and resolved from the `custom_id`.
+
+    Parameters
+    ----------
+    regex: Union[:class:`str`, :class:`re.Pattern`, None]
+        Used to set custom regex for the listener to use, instead of the default automatic parsing.
+        Defaults to None, which makes the :class:`SelectListener` use the default automatic parsing.
+    sep: :class:`str`
+        The separator to use between `custom_id` parts. Defaults to ":". This is generally fine,
+        however, if this character is meant to appear elsewhere in the `custom_id`, this should
+        be changed to avoid conflicts.
+    bot: :class:`commands.Bot`
+        The bot to attach the listener to. This is only used as a shorthand to register the
+        listener if it is defined outside of a cog. Alternatively, the usual `bot.listen` decorator
+        or `bot.add_listener` method will work fine, too; provided the correct name is set.
 
     Returns
     -------
-    Iterator[:class:`inspect.Parameter`]:
-        An iterator of the parameters used to analyze incoming custom_ids. This includes all
-        parameters on the listener except `self` and the `disnake.MessageInteraction` parameter.
+    :class:`SelectListener`
+        The newly created :class:`SelectListener`.
     """
-    param_iter = iter(signature.parameters.values())
-    for param in param_iter:
-        if param.annotation is disnake.MessageInteraction:
-            break
-    else:
-        raise TypeError(
-            "No interaction parameter (annotated as 'disnake.MessageInteraction') was found.\n"
-            "Please make sure the interaction parameter is properly annotated in the listener."
-        )
-    return param_iter
 
+    def wrapper(
+        func: t.Callable[SelectListenerSpec[CogT, VT, P], t.Awaitable[T]],
+    ) -> SelectListener[P, VT, T]:
+        listener = SelectListener[P, VT, T](func, regex=regex, sep=sep)
 
-def ensure_compiled(
-    pattern: t.Union[str, t.Pattern[str]],
-    flags: re.RegexFlag = re.UNICODE,  # seems to be the default of re.compile
-) -> t.Pattern[str]:
-    """Ensure a regex pattern is compiled.
+        if bot is not None:
+            bot.add_listener(listener, types_.ListenerType.SELECT)
 
-    Parameters
-    ----------
-    pattern: Union[:class:`str`, :class:`re.Pattern`]
-        The pattern that should be force-compiled into a :class:`re.Pattern`. If this already is
-        compiled, it is returned as-is.
-    flags: :class:`re.RegexFlag`
-        Any flags to apply to compilation. By default this has the same behaviour as `re.compile`.
-    """
-    return re.compile(pattern, flags) if isinstance(pattern, str) else pattern
+        return listener
+
+    return wrapper

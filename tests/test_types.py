@@ -2,8 +2,9 @@ import typing as t
 
 import disnake
 import pytest
-import disnake_ext_components as components
 from disnake.ext import commands
+
+import disnake_ext_components as components
 
 
 @pytest.mark.asyncio
@@ -11,7 +12,7 @@ async def test_int():
     """Test a listener with int params."""
 
     class A(commands.Cog):
-        @components.component_listener()
+        @components.button_listener()
         async def int_listener(
             self, inter: disnake.MessageInteraction, int_: int, int_with_default: int = 3
         ):
@@ -38,7 +39,7 @@ async def test_bool():
     """Test a listener with bool param."""
 
     class A(commands.Cog):
-        @components.component_listener(sep=":")
+        @components.button_listener(sep=":")
         async def bool_listener(self, inter: disnake.MessageInteraction, bool_: bool):
             ...
 
@@ -59,7 +60,7 @@ async def test_unannotated():
     """Test a listener with unannotated param."""
 
     class A(commands.Cog):
-        @components.component_listener(sep=":")
+        @components.button_listener(sep=":")
         async def unannotated_listener(
             self, inter: disnake.MessageInteraction, please_use_typehints
         ):
@@ -75,7 +76,7 @@ async def test_union():
     """Test a listener with union param."""
 
     class A(commands.Cog):
-        @components.component_listener(sep=":")
+        @components.button_listener(sep=":")
         async def union_listener(
             self, inter: disnake.MessageInteraction, int_or_bool: t.Union[int, bool]
         ):
@@ -96,7 +97,7 @@ async def test_optional():
     """Test a listener with optional param."""
 
     class A(commands.Cog):
-        @components.component_listener(sep=":")
+        @components.button_listener(sep=":")
         async def optional_listener(
             self, inter: disnake.MessageInteraction, optional: t.Optional[int]
         ):
@@ -114,7 +115,7 @@ async def test_literal():
     """Test a listener with literal param."""
 
     class A(commands.Cog):
-        @components.component_listener(sep=":")
+        @components.button_listener(sep=":")
         async def literal_listener(
             self, inter: disnake.MessageInteraction, literal: t.Literal["sheesh", 123, True]
         ):

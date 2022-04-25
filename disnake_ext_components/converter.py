@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import typing as t
 
 import disnake
@@ -8,6 +9,7 @@ from disnake.ext import commands
 __all__ = ["ALLOW_CONVERTER_FETCHING", "CONVERTER_MAP"]
 
 
+CollectionT = t.TypeVar("CollectionT", bound=t.Collection[t.Any])
 ConverterSig = t.Union[
     t.Callable[..., t.Awaitable[t.Any]],
     t.Callable[..., t.Any],
@@ -33,10 +35,34 @@ class ALLOW_CONVERTER_FETCHING:  # There's probably a better way of doing this..
     """Whether or not to allow converters to fetch a message if getting it from cache fails."""
 
 
+def collection_converter(
+    collection_type: t.Type[CollectionT],
+    inner_converter: ConverterSig,
+) -> t.Callable[[t.Collection[str], disnake.Interaction, t.List[t.Any]], t.Awaitable[CollectionT]]:
+    """Create a converter for a given collection type."""
+
+    async def _convert_collection(
+        argument: t.Collection[str],
+        inter: disnake.Interaction,
+        converted: t.List[t.Any],
+    ) -> CollectionT:
+        newly_converted: t.List[t.Any] = []
+        for arg in argument:
+            value = inner_converter(arg, inter=inter, converted=converted + newly_converted)
+            if inspect.isawaitable(value):
+                value = await value
+
+            newly_converted.append(value)
+
+        return collection_type(newly_converted)  # pyright: ignore
+
+    return _convert_collection
+
+
 def make_channel_converter(type_: t.Type[ChannelT]) -> t.Callable[..., t.Awaitable[ChannelT]]:
     """Create a channel converter for a given channel type."""
 
-    async def _convert_channel(argument: str, inter: disnake.MessageInteraction) -> ChannelT:
+    async def _convert_channel(argument: str, inter: disnake.Interaction) -> ChannelT:
         id = int(argument)
         if not (channel := inter.bot.get_channel(id)) and ALLOW_CONVERTER_FETCHING.CHANNELS:
             channel = await inter.bot.fetch_channel(id)
@@ -49,13 +75,13 @@ def make_channel_converter(type_: t.Type[ChannelT]) -> t.Callable[..., t.Awaitab
     return _convert_channel
 
 
-async def user_converter(argument: str, inter: disnake.MessageInteraction) -> disnake.User:
+async def user_converter(argument: str, inter: disnake.Interaction) -> disnake.User:
     """Convert a user id to a :class:`disnake.User` in the context of the provided
-    :class:`disnake.MessageInteraction`.
+    :class:`disnake.Interaction`.
 
     Parameters
     ----------
-    inter: :class:`disnake.MessageInteraction`
+    inter: :class:`disnake.Interaction`
         The interaction with which to convert the user id.
     argument: :class:`str`
         The user id to be converted.
@@ -80,13 +106,13 @@ async def user_converter(argument: str, inter: disnake.MessageInteraction) -> di
     return user
 
 
-async def guild_converter(argument: str, inter: disnake.MessageInteraction) -> disnake.Guild:
+async def guild_converter(argument: str, inter: disnake.Interaction) -> disnake.Guild:
     """Convert a guild id to a :class:`disnake.Guild` in the context of the provided
-    :class:`disnake.MessageInteraction`.
+    :class:`disnake.Interaction`.
 
     Parameters
     ----------
-    inter: :class:`disnake.MessageInteraction`
+    inter: :class:`disnake.Interaction`
         The interaction with which to convert the guild id.
     argument: :class:`str`
         The guild id to be converted.
@@ -113,18 +139,18 @@ async def guild_converter(argument: str, inter: disnake.MessageInteraction) -> d
 
 async def message_converter(
     argument: str,
-    inter: disnake.MessageInteraction,
+    inter: disnake.Interaction,
     converted: t.Optional[t.List[t.Any]] = None,
 ) -> disnake.Message:
     """Convert a message id to a :class:`disnake.Message` in the context of the provided
-    :class:`disnake.MessageInteraction`.
+    :class:`disnake.Interaction`.
 
     This converter supports lookback: if any channels have been previously converted for the same
     custom_id, it will also take those channels into consideration when searching the message.
 
     Parameters
     ----------
-    inter: :class:`disnake.MessageInteraction`
+    inter: :class:`disnake.Interaction`
         The interaction with which to convert the message id.
     argument: :class:`str`
         The message id to be converted.
@@ -163,18 +189,18 @@ async def message_converter(
 
 async def member_converter(
     argument: str,
-    inter: disnake.MessageInteraction,
+    inter: disnake.Interaction,
     converted: t.Optional[t.List[t.Any]] = None,
 ) -> disnake.Member:
     """Convert a member id to a :class:`disnake.Member` in the context of the provided
-    :class:`disnake.MessageInteraction`. This converter only works in the context of a guild.
+    :class:`disnake.Interaction`. This converter only works in the context of a guild.
 
     This converter supports lookback: if any guilds have been previously converted for the same
     custom_id, it will also take those guilds into consideration when searching the member.
 
     Parameters
     ----------
-    inter: :class:`disnake.MessageInteraction`
+    inter: :class:`disnake.Interaction`
         The interaction with which to convert the member id.
     argument: :class:`str`
         The member id to be converted.
@@ -209,18 +235,18 @@ async def member_converter(
 
 async def role_converter(
     argument: str,
-    inter: disnake.MessageInteraction,
+    inter: disnake.Interaction,
     converted: t.Optional[t.List[t.Any]] = None,
 ) -> disnake.Role:
     """Convert a role id to a :class:`disnake.Role` in the context of the provided
-    :class:`disnake.MessageInteraction`. This converter only works in the context of a guild.
+    :class:`disnake.Interaction`. This converter only works in the context of a guild.
 
     This converter supports lookback: if any guilds have been previously converted for the same
     custom_id, it will also take those guilds into consideration when searching the role.
 
     Parameters
     ----------
-    inter: :class:`disnake.MessageInteraction`
+    inter: :class:`disnake.Interaction`
         The interaction with which to convert the role id.
     argument: :class:`str`
         The role id to be converted.
