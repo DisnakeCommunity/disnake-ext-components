@@ -27,16 +27,23 @@ class ListenerCog(commands.Cog):
         ),
     )
 
-    def make_buttons(self, page: int, author: disnake.User) -> t.List[disnake.ui.Button[t.Any]]:
+    async def make_buttons(
+        self, page: int, author: disnake.User
+    ) -> t.List[disnake.ui.Button[t.Any]]:
         """Create paginator buttons for a given page and author."""
         return [
             disnake.ui.Button(
                 label=label,
-                custom_id=self.hey_listen.build_custom_id(page, where, author),
+                custom_id=await self.hey_listen.build_custom_id(
+                    page=page, where=where, author=author
+                ),
                 # ^ Builds a new custom_id based on the auto-generated spec of the listener.
                 #   Uses the same parameters as the listeners to format the spec.
                 #   If you are at any point curious as to what this spec looks like, you can
                 #   view it through `self.hey_listen.id_spec`.
+                #
+                #   Example custom_id:
+                #   "hey_listen:0:next:0110100001101001
                 style=style,
             )
             for label, where, style in (
@@ -50,6 +57,7 @@ class ListenerCog(commands.Cog):
     async def hey_listen(
         self,
         inter: disnake.MessageInteraction,
+        *,
         page: int,
         where: t.Literal["prev", "next", "stop"],
         author: disnake.User,
@@ -79,7 +87,7 @@ class ListenerCog(commands.Cog):
 
         await inter.response.edit_message(  # Update page and buttons.
             embed=self.PAGES[page],
-            components=self.make_buttons(page, author),
+            components=await self.make_buttons(page, author),
         )
 
     @commands.command()
@@ -88,7 +96,7 @@ class ListenerCog(commands.Cog):
         # We need the user object to keep this type-safe.
         user = author._user if isinstance(author := ctx.author, disnake.Member) else author
 
-        await ctx.send(embed=self.PAGES[0], components=self.make_buttons(0, user))
+        await ctx.send(embed=self.PAGES[0], components=await self.make_buttons(0, user))
 
 
 def setup(bot: commands.Bot):

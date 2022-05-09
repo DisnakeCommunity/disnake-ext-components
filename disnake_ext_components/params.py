@@ -8,7 +8,7 @@ import typing as t
 import disnake
 from disnake.ext.commands import params
 
-from . import converter, exceptions, types_
+from . import converter, exceptions, patterns, types_
 
 if sys.version_info >= (3, 10):
     from types import NoneType, UnionType
@@ -20,30 +20,34 @@ else:
     _UnionTypes = {t.Union}
     _NoneTypes = {None, type(None)}
 
+__all__: t.List[str] = ["SelectValue", "ModalValue", "ParagraphModalValue"]
+
 
 T = t.TypeVar("T")
 ArgT = t.TypeVar("ArgT", bound=t.Union[t.List[str], str])
 
+ConverterData = t.Tuple[
+    t.List[t.Pattern[str]], t.Tuple[t.List[converter.ConverterSig], t.List[converter.ConverterSig]]
+]
+"""Parsed converter data."""
 
-ID = re.compile(r"\d{15,20}")
 
-# flake8: noqa: E241
 REGEX_MAP: t.Dict[type, t.Pattern[str]] = {
     # fmt: off
-    str:                      re.compile(r".*"),
-    int:                      re.compile(r"-?\d+"),
-    float:                    re.compile(r"[-+]?(?:\d*\.\d+|\d+)"),
-    bool:                     re.compile(r"true|false|t|f|yes|no|y|n|1|0|enable|disable|on|off", re.I),
-    disnake.User:             ID,
-    disnake.Member:           ID,
-    disnake.Role:             ID,
-    disnake.Thread:           ID,
-    disnake.TextChannel:      ID,
-    disnake.VoiceChannel:     ID,
-    disnake.CategoryChannel:  ID,
-    disnake.abc.GuildChannel: ID,
-    disnake.Guild:            ID,
-    disnake.Message:          ID,
+    str:                      patterns.STR,
+    int:                      patterns.INT,
+    float:                    patterns.FLOAT,
+    bool:                     patterns.BOOL,
+    disnake.User:             patterns.SNOWFLAKE,
+    disnake.Member:           patterns.SNOWFLAKE,
+    disnake.Role:             patterns.SNOWFLAKE,
+    disnake.Thread:           patterns.SNOWFLAKE,
+    disnake.TextChannel:      patterns.SNOWFLAKE,
+    disnake.VoiceChannel:     patterns.SNOWFLAKE,
+    disnake.CategoryChannel:  patterns.SNOWFLAKE,
+    disnake.abc.GuildChannel: patterns.SNOWFLAKE,
+    disnake.Guild:            patterns.SNOWFLAKE,
+    disnake.Message:          patterns.SNOWFLAKE,
     # disnake.Emoji:            ID,  # temporarily(?) disabled
     # fmt: on
 }
@@ -58,12 +62,17 @@ class ParamInfo:
     param: inspect.Parameter
     """The listener parameter this :class:`ParamInfo` expands on."""
 
-    converters: t.List[converter.ConverterSig]
+    converters_to: t.Tuple[converter.ConverterSig]
     """A list of converter functions used to convert the parameters. In param conversion,
     the converter is only called when the input argument matches the regex pattern.
     """
 
-    regex: t.List[t.Pattern[str]]
+    converters_from: t.Tuple[converter.ConverterSig]
+    """A list of converter functions used to convert the parameters. In param conversion,
+    the converter is only called when the input argument matches the regex pattern.
+    """
+
+    regex: t.Tuple[t.Pattern[str]]
     """A list of all regex patterns used for input parameter conversion. In case regex matching
     is not necessary, this list will be empty.
     """
@@ -72,12 +81,14 @@ class ParamInfo:
         self,
         param: inspect.Parameter,
         *,
-        converters: t.Optional[t.List[converter.ConverterSig]] = None,
-        regex: t.Optional[t.List[converter.ConverterSig]] = None,
+        converters_to: t.Optional[t.Sequence[converter.ConverterSig]] = None,
+        converters_from: t.Optional[t.Sequence[converter.ConverterSig]] = None,
+        regex: t.Optional[t.Sequence[t.Pattern[str]]] = None,
     ) -> None:
         self.param = param
-        self.converters = [] if converters is None else converters
-        self.regex = [] if regex is None else regex
+        self.converters_to = () if converters_to is None else tuple(converters_to)
+        self.converters_from = () if converters_from is None else tuple(converters_from)
+        self.regex = () if regex is None else tuple(regex)
 
     @classmethod
     def from_param(cls, param: inspect.Parameter, validate: bool = True) -> ParamInfo:
@@ -90,17 +101,18 @@ class ParamInfo:
         """
         self = cls(param)
 
-        regex, converters = self.parse_annotation()
-        self.converters.extend(converters)
+        regex, (converters_to, converters_from) = self.parse_annotation()
+        self.converters_to += tuple(converters_to)
+        self.converters_from += tuple(converters_from)
         if validate:
-            self.regex.extend(regex)
+            self.regex += tuple(regex)
 
         return self
 
     def parse_annotation(
         self,
         annotation: t.Any = ...,
-    ) -> t.Tuple[t.List[t.Pattern[str]], t.List[converter.ConverterSig]]:
+    ) -> ConverterData:
         """Parse a conversion strategy from a function parameter annotation. This includes a list
         of :class:`re.Pattern`s and a list of converter functions. These will be sequentially
         traversed for argument conversion.
@@ -137,16 +149,14 @@ class ParamInfo:
             return self._parse_converted(annotation)
 
         if not (origin := types_.get_origin(annotation)):
-            return [REGEX_MAP[annotation]], [converter.CONVERTER_MAP[annotation]]
+            conv_to, conv_from = converter.CONVERTER_MAP[annotation]
+            return [REGEX_MAP[annotation]], ([conv_to], [conv_from])
 
         elif origin in _UnionTypes:
             return self._parse_union(annotation)
 
         elif origin is t.Literal:
             return self._parse_literal(annotation)
-
-        elif origin is params.Injection:
-            raise NotImplementedError("Injections are not yet implemented. Soon:tm:")
 
         elif issubclass(origin, t.Collection):
             # Ignore collection and parse first underlying type. Collection parsing is handled
@@ -155,66 +165,74 @@ class ParamInfo:
 
         raise TypeError(f"{annotation!r} is not a valid type annotation for a listener.")
 
-    def _parse_union(
-        self, annotation: t.Any
-    ) -> t.Tuple[t.List[t.Pattern[str]], t.List[converter.ConverterSig]]:
+    def _parse_union(self, annotation: t.Any) -> ConverterData:
         """Parse a :class:`typing.Union` annotation into the corresponding regex patterns and
         converter functions. Automatically removes any ``None``s from the union and sets
         :attr:`ParamInfo.default` to ``None`` if it is not yet set.
         """
         if types_.get_origin(annotation) in _UnionTypes:
             regex: t.List[t.Pattern[str]] = []
-            conv: t.List[converter.ConverterSig] = []
+            conv_to: t.List[converter.ConverterSig] = []
+            conv_from: t.List[converter.ConverterSig] = []
+
             for arg in types_.get_args(annotation):
                 if arg in _NoneTypes:
                     if self.param.default is inspect.Parameter.empty:
                         self.param = self.param.replace(default=None)
                     continue
 
-                arg_regex, arg_conv = self.parse_annotation(arg)
+                arg_regex, (arg_conv_to, arg_conv_from) = self.parse_annotation(arg)
                 regex += arg_regex
-                conv += arg_conv
-            return regex, conv
+                conv_to += arg_conv_to
+                conv_from += arg_conv_from
+
+            return regex, (conv_to, conv_from)
 
         raise TypeError(f"{annotation!r} is not a valid typing.Union.")
 
-    def _parse_literal(
-        self, annotation: t.Any
-    ) -> t.Tuple[t.List[t.Pattern[str]], t.List[converter.ConverterSig]]:
+    def _parse_literal(self, annotation: t.Any) -> ConverterData:
         """Parse a :class:`typing.Literal` annotation into the corresponding regex patterns and
         converter functions.
         """
         if types_.get_origin(annotation) is t.Literal:
             regex: t.List[t.Pattern[str]] = []
-            conv: t.List[converter.ConverterSig] = []
+            conv_to: t.List[converter.ConverterSig] = []
+            conv_from: t.List[converter.ConverterSig] = []
+
             for arg in types_.get_args(annotation):
                 regex.append(re.compile(re.escape(str(arg))))
-                conv.append(converter.CONVERTER_MAP[type(arg)])
-            return regex, conv
+                arg_conv_to, arg_conv_from = converter.CONVERTER_MAP[type(arg)]
+                conv_to.append(arg_conv_to)
+                conv_from.append(arg_conv_from)
+
+            return regex, (conv_to, conv_from)
 
         raise TypeError(f"{annotation!r} is not a valid typing.Literal.")
 
-    def _parse_converted(
-        self, annotation: types_.Converted
-    ) -> t.Tuple[t.List[t.Pattern[str]], t.List[converter.ConverterSig]]:
+    def _parse_converted(self, annotation: types_.Converted) -> ConverterData:
         """Parse a :class:`.Converted` annotation into the corresponding regex patterns and
         converter functions.
         """
-        return [annotation.regex] * len(annotation.converters), list(annotation.converters)
+        return [annotation.regex], ([annotation.converter_to], [annotation.converter_from])
 
     @property
     def default(self) -> t.Any:
         """The default value of the parameter, used if all conversions fail. If this is
-        `inspect.Parameter.empty`, this parameter is considered default-less.
+        `inspect.Parameter.empty`, this parameter is considered default-less, and thus required.
         """
-        return self.param.default
+        if isinstance(default := self.param.default, _ModalValue):
+            return inspect.Parameter.empty if default.required else default.value
+        elif isinstance(default, _SelectValue):
+            lst: t.List[t.Any] = []
+            return lst if default.min_values == 0 else inspect.Parameter.empty
+        return default
 
     @property
     def optional(self) -> bool:
         """Whether or not this parameter is optional. If the parameter is default-less and optional,
         the parameter will instead default to `None`.
         """
-        return self.default is not inspect.Parameter.empty
+        return self.default not in {inspect.Parameter.empty, Ellipsis}
 
     @property
     def name(self) -> str:
@@ -285,9 +303,9 @@ class ParamInfo:
         """For internal use only. Run converters on an argument without regex validation."""
         errors: t.List[ValueError] = []
 
-        for converter in self.converters:
+        for conv in self.converters_to:
             try:
-                return await self._actual_conversion(argument, converter, **kwargs)
+                return await self._actual_conversion(argument, conv, **kwargs)
             except ValueError as exc:
                 errors.append(exc)
 
@@ -302,20 +320,22 @@ class ParamInfo:
         match_cache: t.Set[t.Pattern[str]] = set()  # Prevent matching the same regex again.
         errors: t.List[ValueError] = []
 
-        for regex, converter in zip(self.regex, self.converters):
+        for regex, conv in zip(self.regex, self.converters_to):
             if regex not in match_cache:
                 if regex.fullmatch(argument):
                     match_cache.add(regex)
                 else:
                     errors.append(
                         exceptions.MatchFailure(
-                            f"Input '{argument}' did not match {regex.pattern}.", self.param, regex
+                            f"Input '{argument}' did not match r'{regex.pattern}'.",
+                            self.param,
+                            regex,
                         )
                     )
                     continue
 
             try:
-                return await self._actual_conversion(argument, converter, **kwargs)
+                return await self._actual_conversion(argument, conv, **kwargs)
             except ValueError as exc:
                 errors.append(exc)
 
@@ -324,7 +344,7 @@ class ParamInfo:
     async def _actual_conversion(
         self,
         argument: str,
-        converter: converter.ConverterSig,
+        conv: converter.ConverterSig,
         **kwargs: t.Any,
     ) -> t.Tuple[t.Any, t.List[ValueError]]:
         """For internal use only. Actually run a converter on an argument and return the result.
@@ -332,10 +352,10 @@ class ParamInfo:
         :class:`ValueError`s.
         """
         converter_signature = params.signature(  # pyright: ignore
-            converter.__new__ if isinstance(converter, type) else converter
+            conv.__new__ if isinstance(conv, type) else conv
         ).parameters
 
-        converted = converter(
+        converted = conv(
             argument,
             **{key: value for key, value in kwargs.items() if key in converter_signature},
         )
@@ -343,3 +363,115 @@ class ParamInfo:
         if inspect.isawaitable(converted):
             return await converted, []
         return converted, []
+
+    async def to_str(self, argument: t.Any) -> str:
+        errors: t.List[ValueError] = []
+        for conv in self.converters_from:
+            try:
+                converted = conv(argument)
+                if inspect.isawaitable(converted):
+                    return await converted
+                return converted
+
+            except ValueError as exc:
+                errors.append(exc)
+
+        raise exceptions.ConversionError(
+            f"Failed to convert parameter {self.param.name}", self.param, errors
+        )
+
+
+class _SelectValue:
+    def __init__(
+        self,
+        placeholder: str,
+        *,
+        min_values: int = 1,
+        max_values: t.Optional[int] = None,
+        options: t.Union[t.List[disnake.SelectOption], t.List[str], t.Dict[str, str], None] = None,
+        disabled: bool = False,
+    ):
+        self.placeholder = placeholder
+        self.min_values = min_values
+        self.max_values = max_values
+        self.options = options
+        self.disabled = disabled
+
+
+def SelectValue(
+    placeholder: str,
+    *,
+    min_values: int = 1,
+    max_values: t.Optional[int] = None,
+    options: t.Union[t.List[disnake.SelectOption], t.List[str], t.Dict[str, str], None] = None,
+    disabled: bool = False,
+) -> t.Any:
+    return _SelectValue(
+        placeholder,
+        min_values=min_values,
+        max_values=max_values,
+        options=options,
+        disabled=disabled,
+    )
+
+
+class _ModalValue:
+    def __init__(
+        self,
+        placeholder: str,
+        *,
+        label: t.Optional[str] = None,
+        value: t.Optional[str] = None,
+        required: bool = True,
+        min_length: t.Optional[int] = None,
+        max_length: t.Optional[int] = None,
+        style: disnake.TextInputStyle = disnake.TextInputStyle.short,
+    ):
+        self.placeholder = placeholder
+        self.label = label
+        self.value = value
+        self.required = required
+        self.min_length = min_length
+        self.max_length = max_length
+        self.style = style
+
+
+def ModalValue(
+    placeholder: str,
+    *,
+    label: t.Optional[str] = None,
+    value: t.Optional[str] = None,
+    required: bool = True,
+    min_length: t.Optional[int] = None,
+    max_length: t.Optional[int] = None,
+    style: disnake.TextInputStyle = disnake.TextInputStyle.short,
+) -> t.Any:
+    return _ModalValue(
+        placeholder,
+        label=label,
+        value=value,
+        required=required,
+        min_length=min_length,
+        max_length=max_length,
+        style=style,
+    )
+
+
+def ParagraphModalValue(
+    placeholder: str,
+    *,
+    label: t.Optional[str] = None,
+    value: t.Optional[str] = None,
+    required: bool = True,
+    min_length: t.Optional[int] = None,
+    max_length: t.Optional[int] = None,
+) -> t.Any:
+    return _ModalValue(
+        placeholder,
+        label=label,
+        value=value,
+        required=required,
+        min_length=min_length,
+        max_length=max_length,
+        style=disnake.TextInputStyle.paragraph,
+    )

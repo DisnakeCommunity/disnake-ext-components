@@ -1,13 +1,8 @@
 disnake-ext-components
 ======================
 
-
-**NOTE!**
-Proper functionality is currently reliant on a [bugfix](https://github.com/DisnakeDev/disnake/pull/444) that will be implemented in the upcoming version of disnake. If you wish to use this module, you'll have to install disnake from master (`pip install git+https://github.com/DisnakeDev/disnake.git`), or manually make the changes in your local installation. This will last until disnake is updated to version 2.5.0.
----
-
----
-An extension for disnake aimed at making component interactions with listeners somewhat less cumbersome.
+An extension for disnake aimed at making component interactions with listeners somewhat less cumbersome.  
+Requires disnake version 2.5.0 or above.
 
 Key Features
 ------------
@@ -52,7 +47,7 @@ class MyCog(commands.Cog):
         self.bot = bot
 
     @components.component_listener()
-    async def secret_listener(self, inter: disnake.MessageInteraction, secret: str, author: disnake.Member):
+    async def secret_listener(self, inter: disnake.MessageInteraction, *, secret: str, author: disnake.Member):
         await inter.response.send_message(f"You found {author.mention}'s secret message: '{secret}'!")
 
     @commands.slash_command()
@@ -63,6 +58,7 @@ class MyCog(commands.Cog):
             components=disnake.ui.Button(
                 label="Reveal secret...",
                 custom_id=self.secret_listener.create_custom_id(secret=secret, author=inter.author),
+                # e.g. "secret_listener:extreme secrecy right here:872576125384147005"
             )
         )
 
@@ -78,10 +74,10 @@ import disnake
 from disnake.ext import commands, components
 
 
-bot = disnake.Bot("..")
+bot = disnake.Bot(commands.when_mentioned)
 
 @components.component_listener(bot=bot)
-async def secret_listener(inter: disnake.MessageInteraction, secret: str, author: disnake.Member):
+async def secret_listener(inter: disnake.MessageInteraction, *, secret: str, author: disnake.Member):
     await inter.response.send_message(f"You found {author.mention}'s secret message: '{secret}'!")
 
 @commands.slash_command()
@@ -91,7 +87,7 @@ async def make_secret(inter: disnake.CommandInteraction, secret: str):
         "Press this button to reveal the secret!",
         components=disnake.ui.Button(
             label="Reveal secret...",
-            custom_id=register_user.create_custom_id(secret=secret, author=inter.author),
+            custom_id=secret_listener.create_custom_id(secret=secret, author=inter.author),
         )
     )
 ```
@@ -101,10 +97,9 @@ For more examples, see [the examples folder](https://github.com/Chromosomologist
 
 To-Do
 -----
-- CI,
-- Contribution guidelines.
-- Wait for disnake 2.5.0 release and publish to PyPI,
-- Support `commands.inject`/`commands.Injection`,
+- PyPI release,
+- Contribution guidelines,
+- Support some sort of dependency injection.
 
 Contributing
 ------------

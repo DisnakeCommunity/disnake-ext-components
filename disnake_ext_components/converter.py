@@ -280,23 +280,30 @@ async def role_converter(
         raise ValueError(f"Could not find a role with id {argument}.")
 
 
+def snowflake_to_str(snowflake: disnake.abc.Snowflake) -> str:
+    return str(snowflake.id)
+
+
 # flake8: noqa: E241
-CONVERTER_MAP: t.Mapping[type, ConverterSig] = {
+CONVERTER_MAP: t.Mapping[type, t.Tuple[ConverterSig, ConverterSig]] = {
     # fmt: off
-    str:                      str,
-    int:                      int,
-    float:                    float,
-    bool:                     commands.converter._convert_to_bool,
-    disnake.User:             user_converter,
-    disnake.Member:           member_converter,
-    disnake.Role:             role_converter,
-    disnake.Thread:           make_channel_converter(disnake.Thread),
-    disnake.TextChannel:      make_channel_converter(disnake.TextChannel),
-    disnake.VoiceChannel:     make_channel_converter(disnake.VoiceChannel),
-    disnake.CategoryChannel:  make_channel_converter(disnake.CategoryChannel),
-    disnake.abc.GuildChannel: make_channel_converter(disnake.abc.GuildChannel),
-    disnake.Guild:            guild_converter,
-    disnake.Message:          message_converter,
+    str:                      (str,                                              str),
+    int:                      (int,                                              str),
+    float:                    (float,                                            str),
+    bool:                     (commands.converter._convert_to_bool,              str),  
+    disnake.User:             (user_converter,                                   snowflake_to_str),
+    disnake.Member:           (member_converter,                                 snowflake_to_str),
+    disnake.Role:             (role_converter,                                   snowflake_to_str),
+    disnake.Thread:           (make_channel_converter(disnake.Thread),           snowflake_to_str),
+    disnake.TextChannel:      (make_channel_converter(disnake.TextChannel),      snowflake_to_str),
+    disnake.VoiceChannel:     (make_channel_converter(disnake.VoiceChannel),     snowflake_to_str),
+    disnake.CategoryChannel:  (make_channel_converter(disnake.CategoryChannel),  snowflake_to_str),
+    disnake.abc.GuildChannel: (make_channel_converter(disnake.abc.GuildChannel), snowflake_to_str),
+    disnake.Guild:            (guild_converter,                                  snowflake_to_str),
+    disnake.Message:          (message_converter,                                snowflake_to_str),
     # disnake.Emoji:            dpy_converter.EmojiConverter().convert,  # temporarily(?) disabled.
     # fmt: on
 }
+"""A mapping of a type to a tuple of two converter functions. The first is used to convert from str
+to that type, the second is used to convert the type back to str.
+"""

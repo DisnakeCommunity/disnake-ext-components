@@ -1,4 +1,4 @@
-git+https://github.com/DisnakeDev/disnake@master#egg=disnake
+disnake
 typing-extensions
 
 black

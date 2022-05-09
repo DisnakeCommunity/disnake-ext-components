@@ -13,11 +13,14 @@ __all__ = [
     "ListenerType",
     "partial",
     "Converted",
-    "SelectValue",
 ]
 
 
 _T = t.TypeVar("_T")
+_T_co = t.TypeVar("_T_co", covariant=True)
+_T_contra = t.TypeVar("_T_contra", contravariant=True)
+
+_TypeT = t.TypeVar("_TypeT", bound=type)
 
 MaybeAwaitable = t.Union[t.Awaitable[_T], _T]
 MaybeSequence = t.Union[t.Sequence[_T], _T]
@@ -63,6 +66,16 @@ class ListenerType(str, enum.Enum):
     """Listener event for modals."""
 
 
+class ToConverterProtocol(t.Protocol[_T_co]):
+    def __call__(self, __argument: str, *args: t.Any) -> _T_co:
+        ...
+
+
+class FromConverterProtocol(t.Protocol[_T_contra]):
+    def __call__(self, __argument: _T_contra, *args: t.Any) -> str:
+        ...
+
+
 class _SpecialType(type):
     def __new__(cls, *args: t.Any, **kwargs: t.Any) -> t.Any:
         return super().__new__(cls, cls.__name__, (), {})
@@ -73,35 +86,43 @@ class _ConvertedMeta(type):
         self,
         args: t.Tuple[
             t.Union[str, t.Pattern[str]],
-            MaybeSequence[t.Callable[..., MaybeAwaitable[_T]]],
+            ToConverterProtocol[_T],
+            FromConverterProtocol[_T],
         ],
     ) -> t.Type[_T]:
-        regex, converters = args
+        regex, converter_to, converter_from = args
         if isinstance(regex, str):
             regex = re.compile(re.escape(regex))
 
-        if not isinstance(converters, t.Sequence):
-            converters = (converters,)
-
-        return t.cast(t.Type[_T], Converted(regex, *converters))
+        return t.cast(t.Type[_T], Converted(regex, converter_to, converter_from))
 
 
 class Converted(_SpecialType, metaclass=_ConvertedMeta):
     """Type annotation to denote a custom converter. Provide a regex pattern to match the argument
-    with before attempting conversion, and a (sequence of) converter function(s) with which to
-    transform the argument.
+    with before attempting conversion, a converter function to convert the input from string to
+    a given type, and lastly a converter function to convert back to a string.
 
     Used as a typehint! For example, a converter function parameter could be annotated as follows:
     ```py
+    pat = re.Pattern(r".*")
+
+    def to_list(arg: str) -> typing.List[str]:
+        return list(str)
+
+    def to_str(arg: typing.List[str]) -> str:
+        return "".join(arg)
+
     @components.component_listener()
     async def listener(
         inter: disnake.MessageInteraction,
-        param: Converted[r"/d+\\.?\\d*", [float, round]]
+        param: Converted[pat, to_list, to_str]
     ):
         ...
     ````
-    This would first check if the input matches the provided regex to see if it can be a float.
-    Next, it would actually convert the input to a float, and lastly, it would round the float.
+    This would first check if the input matches the provided regex. If it matches, the ``to_str``
+    converter is used to convert the input to a list. Use the regex to make sure this is possible!
+    Lastly, ``to_str`` is used when auto-generating a `custom_id` to make sure the value can be
+    matched again the next time it crosses the listener.
     """
 
     regex: t.Pattern[str]
@@ -109,27 +130,33 @@ class Converted(_SpecialType, metaclass=_ConvertedMeta):
     simply provide pattern ".*".
     """
 
-    converters: t.Tuple[t.Callable[..., MaybeAwaitable[t.Any]]]
-    """The custom converter functions. Must take at least a string, which is the argument that is to
-    be converted. This function may also take the interaction: `inter: disnake.MessageInteraction`
-    or `inter: disnake.ModalInteraction` depending on the listener type. Finally, it may also take
-    `converted: List[Any]`, which contains all the previously converted values.
+    # TODO: Should probably rename these.
+
+    converter_to: t.Callable[..., MaybeAwaitable[t.Any]]
+    """The custom converter function used to convert input from :class:`str` to the return type
+    of the function. Make sure that this function can convert anything matched by the provided
+    regex pattern.
     """
 
-    def __init__(self, regex: t.Pattern[str], *converters: t.Callable[..., MaybeAwaitable[t.Any]]):
+    converter_from: t.Callable[..., MaybeAwaitable[t.Any]]
+    """The custom converter function used to convert back to :class:`str`. This is used to ensure
+    the value is inserted into the custom_id in such a manner that it can be matched anew. Make
+    sure that whatever is returned by this function can be matched by the provided regex pattern.
+    """
+
+    def __init__(
+        self,
+        regex: t.Pattern[str],
+        converter_to: t.Callable[..., MaybeAwaitable[t.Any]],
+        converter_from: t.Callable[..., MaybeAwaitable[t.Any]],
+    ):
         self.regex = regex
-        self.converters = converters
+        self.converter_to = converter_to
+        self.converter_from = converter_from
 
     def __repr__(self):
-        converters = f"({', '.join(converter.__name__ for converter in self.converters)})"
-        return f'Converted[regex=r"{self.regex.pattern}", converters={converters}]'
-
-
-class SpecialValues(enum.Enum):
-    SELECT = enum.auto()
-    MODAL = enum.auto()
-
-
-SelectValue = Annotated[_T, SpecialValues.SELECT]
-
-ModalValue = Annotated[_T, SpecialValues.MODAL]  # not sure about this one yet...
+        return (
+            f'Converted[regex=r"{self.regex.pattern}", '
+            f"converter_to={self.converter_to.__name__}(), "
+            f"converter_from={self.converter_from.__name__}()]"
+        )

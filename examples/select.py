@@ -1,18 +1,29 @@
+# NOTE: This example does, by no means, provide the safest or most efficient means of creating a
+#       simple game like this. For this specific case, for example, the converters aren't needed,
+#       and just comparing strings would be easier. However, for sake of illustration, custom
+#       converters are used here to show how they work.
+
 import re
 import typing as t
 
 import disnake
 from disnake.ext import commands, components
 
-# First, we make a custom converter:
-# For that, we need a regex pattern to match the input...
-password_pattern = re.compile(r"\[\d+(, \d+)*\]")  # Match "[n1, n2, ...]"...
+# Custom converter regex! The input must match this to run the converter function on it.
+password_regex = re.compile(r"\d{1,4}")
+"""Matches a string of one to four numbers."""
 
 
-# And then we need an actual converter function...
-def password_converter(arg: str) -> t.List[int]:  # Parse a match^ to a set of ints.
-    """Converts a string "[1, 2, 3, ...]" to an actual list of ints [1, 2, 3, 4]."""
-    return [int(char) for char in arg if char.isdigit()]
+# Custom converter functions! One to go from str to whatever we want...
+def to_password(arg: str) -> t.List[int]:
+    """Converts a string "1234" to a list of ints [1, 2, 3, 4]."""
+    return [int(char) for char in arg]
+
+
+# ... and one to go back.
+def from_password(arg: t.List[int]) -> str:
+    """Converts a list of ints [1, 2, 3, 4] back to a str "1234" """
+    return "".join(str(num) for num in arg)
 
 
 class SelectCog(commands.Cog):
@@ -31,27 +42,27 @@ class SelectCog(commands.Cog):
     async def safe_listener(
         self,
         inter: disnake.MessageInteraction,
-        selected: components.SelectValue[t.List[int]],
+        selected: t.List[int] = components.SelectValue("Choose carefully..."),
         # ^ We designate `selected` as the parameter where the Select's values go by annotating it
         #   as `components.SelectValue`. This must come before any other arguments.
-        secret_password: components.Converted[password_pattern, password_converter],
-        # ^ Here, we use `components.Converted` to assign our custom converter to param
-        #   `secret_password`. The first argument should be the regex pattern (use r".*" if
-        #   validation is not needed); the second argument should be the converter function.
+        *,
+        secret_password: components.Converted[
+            password_regex,  # First the custom regex, if this is not matched, the converter is not run.
+            to_password,  # The converter function to go from the input string to the password we want.
+            from_password,  # The converter to go from password back to str. Used by `build_custom_id.`
+        ] = ...,
     ):
         """The listener for the selects. Only responds to `custom_id`s that match the regex:
         ```py
-        r"safe_listener:(\\[\\d+(, \\d+)*\\])"
+        r"safe_listener:(\\d+{1,4})"
         ```
-        Note how this contains the custom converter regex we defined at the top of this file.
+        Note how this contains the converter regex contained in `password_regex`.
 
         Furthermore, parameter `selected` is the parameter in which the user-selected values will be
         stored. Since it is annotated as a `typing.List[int]`, it will convert all the values to
         `int`s, and they will be stored in a list. Changing that to e.g. `typing.Set[str]` would
         instead convert the values to `str`s and store them in a set.
         """
-        # NOTE: it would be easier here to just compare the strings, as that does not require converters.
-        # However, we use converters here to demonstrate their functionality.
         if selected == secret_password:
             await inter.response.send_message(f"{inter.author.mention} cracked the safe!")
         else:
@@ -61,9 +72,15 @@ class SelectCog(commands.Cog):
     async def start_heist(
         self, inter: disnake.CommandInteraction, password: commands.Range[0, 9876]
     ):
-        """Command to start the safe cracking minigame."""
+        """Command to start the safe cracking minigame.
+
+        Parameters
+        ----------
+        password: A number of up to 4 digits. Duplicate numbers will be dropped.
+        """
+
         # First, we drop duplicate numbers as you cannot select the same value twice.
-        password_digits = [int(char) for char in str(password)]
+        password_digits = to_password(str(password))
         validated_password = sorted(set(password_digits), key=password_digits.index)
 
         await inter.response.send_message(
@@ -73,8 +90,8 @@ class SelectCog(commands.Cog):
 
         select: disnake.ui.Select[t.Any] = disnake.ui.Select(
             placeholder="Choose carefully...",
-            custom_id=self.safe_listener.build_custom_id(validated_password),
-            # ^ use the list of ints to create the custom_id, e.g. "safe_listener:[1, 2, 3, 4]".
+            custom_id=await self.safe_listener.build_custom_id(secret_password=validated_password),
+            # ^ use the list of ints to create the custom_id, e.g. "safe_listener:1234".
             min_values=1,
             max_values=9,
             options=[str(i) for i in range(10)],

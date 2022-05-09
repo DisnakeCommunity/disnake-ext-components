@@ -5,8 +5,6 @@ import typing as t
 import disnake
 from disnake.ext import commands
 
-from . import types_
-
 __all__ = [
     "id_spec_from_signature",
     "id_spec_from_signature",
@@ -26,7 +24,6 @@ def id_spec_from_signature(name: str, sep: str, signature: inspect.Signature) ->
         The function signature of the listener function.
     """
     _, custom_id_params = extract_listener_params(signature)
-    print(_, custom_id_params)
     return name + sep + sep.join(f"{{{param.name}}}" for param in custom_id_params)
 
 
@@ -83,16 +80,11 @@ def extract_listener_params(
     special_params: t.List[inspect.Parameter] = []
     for param in param_iter:
 
-        # Ensure the next type(s) is/are special types...
-        if types_.get_origin(param.annotation) is not types_.Annotated:
-            break
-        if not (args := types_.get_args(param.annotation)):
-            break
-        if not isinstance(args[1], types_.SpecialValues):
+        # Continue until keyword-only...
+        if param.kind is inspect.Parameter.KEYWORD_ONLY:
             break
 
-        # Unpack the typing.Annotated.
-        special_params.append(param.replace(annotation=args[0]))
+        special_params.append(param)
 
     return tuple(special_params), (param, *param_iter)
 

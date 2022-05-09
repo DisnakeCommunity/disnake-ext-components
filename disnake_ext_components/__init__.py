@@ -7,10 +7,12 @@ listeners somewhat less cumbersome.
 :license: MIT, see LICENSE for more details.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 
+from . import patterns  # pyright: ignore  # TODO: explicit imports and __all__
 from .converter import *
 from .exceptions import *
 from .listener import *
+from .params import *
 from .types_ import *
