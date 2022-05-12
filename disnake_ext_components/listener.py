@@ -177,6 +177,25 @@ class ButtonListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
 
         return await super().__call__(inter, **converted)
 
+    async def build_button(
+        self,
+        style: disnake.ButtonStyle = disnake.ButtonStyle.secondary,
+        label: t.Optional[str] = None,
+        disabled: bool = False,
+        url: t.Optional[str] = None,
+        emoji: t.Union[str, disnake.Emoji, disnake.PartialEmoji, None] = None,
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ):
+        return disnake.ui.Button(
+            style=style,
+            label=label,
+            disabled=disabled,
+            custom_id=await self.build_custom_id(*args, **kwargs),
+            url=url,
+            emoji=emoji,
+        )
+
 
 def button_listener(
     *,
