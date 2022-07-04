@@ -1,2 +1,2 @@
-disnake ~= 2.5.0
-typing-extensions ~= 4.1
+disnake >= 2.5.0
+typing-extensions
