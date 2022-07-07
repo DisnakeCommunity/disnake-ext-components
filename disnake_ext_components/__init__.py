@@ -10,7 +10,7 @@ listeners somewhat less cumbersome.
 __version__ = "0.3.0"
 
 
-from . import patterns  # pyright: ignore  # TODO: explicit imports and __all__
+from . import patterns, utils  # pyright: ignore  # TODO: explicit imports and __all__
 from .converter import *
 from .exceptions import *
 from .listener import *

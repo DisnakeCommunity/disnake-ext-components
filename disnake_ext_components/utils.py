@@ -7,7 +7,7 @@ from disnake.ext import commands
 
 __all__ = [
     "id_spec_from_signature",
-    "id_spec_from_signature",
+    "id_spec_from_regex",
     "extract_listener_params",
     "ensure_compiled",
 ]
@@ -85,6 +85,10 @@ def extract_listener_params(
             break
 
         special_params.append(param)
+
+    else:
+        # No keyword-only params, thus only special params if any params at all.
+        return tuple(special_params), ()
 
     return tuple(special_params), (param, *param_iter)
 

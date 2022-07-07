@@ -158,10 +158,16 @@ class ParamInfo:
         elif origin is t.Literal:
             return self._parse_literal(annotation)
 
-        elif issubclass(origin, t.Collection):
-            # Ignore collection and parse first underlying type. Collection parsing is handled
-            # by input to :meth:`self.convert` instead.
-            return self.parse_annotation(args[0] if (args := types_.get_args(annotation)) else str)
+        try:
+            if issubclass(origin, t.Collection):
+                # Ignore collection and parse first underlying type. Collection parsing is handled
+                # by input to :meth:`self.convert` instead.
+                return self.parse_annotation(
+                    args[0] if (args := types_.get_args(annotation)) else str
+                )
+
+        except TypeError:
+            pass
 
         raise TypeError(f"{annotation!r} is not a valid type annotation for a listener.")
 
@@ -239,6 +245,20 @@ class ParamInfo:
         """The name of the parameter."""
         return self.param.name
 
+    @property
+    def container_type(self) -> t.Optional[type]:
+        """The container type, if any. For example, a parameter annotated as ``List[str]``
+        would have container type ``list``.
+        """
+        annotation = self.param.annotation
+        origin = t.get_origin(annotation) or annotation
+        try:
+            if issubclass(origin, t.Collection) and origin not in {str, bytes}:
+                return t.cast(type, origin)
+        except TypeError:
+            pass
+        return None
+
     @t.overload
     async def convert(self, argument: str, **kwargs: t.Any) -> t.Any:
         ...
@@ -278,20 +298,20 @@ class ParamInfo:
             The successfully converted input argument.
         """
         if not isinstance(argument, str):
-            converted = [
-                await self.convert(arg, depth=kwargs.get("depth", 0) + 1, **kwargs)
-                for arg in argument
-            ]
-            # Pyright complains here because typing.Collection is not instantiatable.
-            # This is safe (at least for all builtin collections), as the passed argument is by
-            # definion an instantiated type.
-            return type(argument)(converted)
+            if not self.container_type:
+                exc = ValueError("Cannot convert a list of arguments to a non-collection type.")
+                raise exceptions.ConversionError(
+                    f"Failed to convert parameter {self.param.name}", self.param, [exc]
+                )
+
+            converted = [result for arg in argument for result in await self.convert(arg, **kwargs)]
+            return self.container_type(converted)
 
         method = self._convert_and_validate if self.regex else self._convert_raw
         converted, errors = await method(argument, **kwargs)
 
         if not errors or self.optional:
-            return converted
+            return self.container_type([converted]) if self.container_type else converted
 
         raise exceptions.ConversionError(
             f"Failed to convert parameter {self.param.name}", self.param, errors

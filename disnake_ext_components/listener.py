@@ -317,7 +317,7 @@ class SelectListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
         """Cast a value to the desired return type: either converts the collection to the annotation
         type, or unpacks the value if it is annotated as a non-collection type.
         """
-        return_type = types_.get_origin(self.select_param.param.annotation)
+        return_type = types_.get_origin(ann := self.select_param.param.annotation) or ann
 
         if not issubclass(return_type, t.Collection) or issubclass(return_type, (str, bytes)):
             if len(values) != 1:

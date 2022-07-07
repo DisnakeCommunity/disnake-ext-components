@@ -20,8 +20,6 @@ _T = t.TypeVar("_T")
 _T_co = t.TypeVar("_T_co", covariant=True)
 _T_contra = t.TypeVar("_T_contra", contravariant=True)
 
-_TypeT = t.TypeVar("_TypeT", bound=type)
-
 MaybeAwaitable = t.Union[t.Awaitable[_T], _T]
 MaybeSequence = t.Union[t.Sequence[_T], _T]
 
