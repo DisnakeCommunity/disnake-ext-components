@@ -1,10 +1,12 @@
 import abc
+import asyncio.coroutines
 import sys
 import typing as t
 
 import disnake
+from disnake.ext import commands
 
-from . import params, types_
+from . import params, types_, utils
 
 if sys.version_info >= (3, 10):
     from typing import ParamSpec
@@ -21,12 +23,27 @@ InteractionT = t.TypeVar("InteractionT", bound=disnake.Interaction)
 ListenerT = t.TypeVar("ListenerT", bound="BaseListener[t.Any, t.Any, t.Any]")
 
 
-class BaseListener(types_.partial[t.Awaitable[T]], abc.ABC, t.Generic[P, T, InteractionT]):
+class BaseListener(abc.ABC, t.Generic[P, T, InteractionT]):
 
-    # These are just to conform to dpy listener spec
-    __name__: str
+    # Make asyncio.iscoroutinefunction believe this is a coroutine function...
+    _is_coroutine = asyncio.coroutines._is_coroutine  # type: ignore
+
+    # These are just to conform to dpy listener spec...
     __cog_listener__: t.Final[t.Literal[True]] = True
     __cog_listener_names__: t.List[types_.ListenerType]
+
+    parent: t.Optional[t.Any]
+    """The class on which this listener is defined, if any.
+    Used to set the `self` parameter on the listener.
+    """
+
+    callback: t.Callable[..., types_.Coro[T]]
+    """The callback function wrapped by this listener."""
+
+    name: str
+    """The name of the callback function wrapped by this listener. Used to determine the custom
+    id spec for the listener. This can be customized in `~.__init__`.
+    """
 
     id_spec: str
     """The spec that inbound `custom_id`s should match. Also used to create new custom ids; see
@@ -49,22 +66,46 @@ class BaseListener(types_.partial[t.Awaitable[T]], abc.ABC, t.Generic[P, T, Inte
     about their regex pattern(s) and converter(s).
     """
 
-    def __new__(
-        cls: t.Type[ListenerT],
-        func: t.Callable[..., t.Awaitable[T]],
-        **kwargs: t.Any,
-    ) -> ListenerT:
-        self = super().__new__(cls, func)
-        self.__name__ = func.__name__
-        return self
+    def __init__(
+        self,
+        callback: t.Callable[..., types_.Coro[T]],
+        *,
+        name: t.Optional[str] = None,
+        regex: t.Union[str, t.Pattern[str], None] = None,
+        sep: str = ":",
+    ) -> None:
+        self.parent = None
 
-    def __get__(self: ListenerT, instance: t.Any, _) -> ListenerT:
+        self.callback = callback
+        self.name = name or callback.__name__
+        self._signature = commands.params.signature(callback)  # type: ignore
+
+        if regex:
+            self.regex = utils.ensure_compiled(regex)
+            self.id_spec = utils.id_spec_from_regex(self.regex)
+            self.sep = None
+
+        else:
+            self.regex = None
+            self.id_spec = utils.id_spec_from_signature(self.__name__, sep, self._signature)
+            self.sep = sep
+
+    @property
+    def __name__(self):
+        return self.name
+
+    def __get__(self: ListenerT, instance: t.Optional[t.Any], _) -> ListenerT:
         """Abuse descriptor functionality to inject instance of the owner class as first arg."""
         # Inject instance of the owner class as the partial's first arg.
         # If need be, we could add support for classmethods by checking the
         # type of self.func and injecting the owner class instead where appropriate.
-        self.__setstate__((self.func, (instance,), {}, self.__dict__))  # type: ignore
+        self.parent = instance
         return self
+
+    async def __call__(self, *args: t.Any, **kwargs: t.Any) -> T:
+        if self.parent:
+            return await self.callback(self.parent, *args, **kwargs)
+        return await self.callback(*args, **kwargs)
 
     def error(
         self, func: t.Callable[[ParentT, InteractionT, Exception], t.Any]

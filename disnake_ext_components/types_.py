@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import enum
-import functools
 import re
 import sys
 import typing as t
@@ -11,7 +10,6 @@ __all__ = [
     "get_args",
     "get_origin",
     "ListenerType",
-    "partial",
     "Converted",
 ]
 
@@ -20,7 +18,8 @@ _T = t.TypeVar("_T")
 _T_co = t.TypeVar("_T_co", covariant=True)
 _T_contra = t.TypeVar("_T_contra", contravariant=True)
 
-MaybeAwaitable = t.Union[t.Awaitable[_T], _T]
+Coro = t.Coroutine[t.Any, t.Any, _T]
+MaybeCoro = t.Union[Coro[_T], _T]
 MaybeSequence = t.Union[t.Sequence[_T], _T]
 
 
@@ -28,24 +27,6 @@ if sys.version_info >= (3, 10):
     from typing import Annotated, get_args, get_origin
 else:
     from typing_extensions import Annotated, get_args, get_origin
-
-if sys.version_info >= (3, 9):
-    partial = functools.partial
-
-else:
-
-    class partial(functools.partial, t.Generic[_T]):  # pyright: ignore
-        """This intermediary class is needed to have type-checking work properly between Python
-        versions 3.8 through 3.10. Since `functools.partial` became a generic in Python 3.9,
-        type-checkers expect this in versions 3.9 and up, whereas it would raise in version 3.8.
-
-        To get around this, for version 3.8 specifically, we create this intermediary class to
-        make `functools.partial` behave like its version 3.9+ counterpart, where the return type
-        can be set as the generic type specifier.
-        """
-
-        def __call__(self, *args: t.Any, **kwargs: t.Any) -> _T:
-            return t.cast(_T, super().__call__(*args, **kwargs))
 
 
 class ListenerType(str, enum.Enum):
@@ -130,13 +111,13 @@ class Converted(_SpecialType, metaclass=_ConvertedMeta):
 
     # TODO: Should probably rename these.
 
-    converter_to: t.Callable[..., MaybeAwaitable[t.Any]]
+    converter_to: t.Callable[..., MaybeCoro[t.Any]]
     """The custom converter function used to convert input from :class:`str` to the return type
     of the function. Make sure that this function can convert anything matched by the provided
     regex pattern.
     """
 
-    converter_from: t.Callable[..., MaybeAwaitable[t.Any]]
+    converter_from: t.Callable[..., MaybeCoro[t.Any]]
     """The custom converter function used to convert back to :class:`str`. This is used to ensure
     the value is inserted into the custom_id in such a manner that it can be matched anew. Make
     sure that whatever is returned by this function can be matched by the provided regex pattern.
@@ -145,8 +126,8 @@ class Converted(_SpecialType, metaclass=_ConvertedMeta):
     def __init__(
         self,
         regex: t.Pattern[str],
-        converter_to: t.Callable[..., MaybeAwaitable[t.Any]],
-        converter_from: t.Callable[..., MaybeAwaitable[t.Any]],
+        converter_to: t.Callable[..., MaybeCoro[t.Any]],
+        converter_from: t.Callable[..., MaybeCoro[t.Any]],
     ):
         self.regex = regex
         self.converter_to = converter_to

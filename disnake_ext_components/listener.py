@@ -38,29 +38,29 @@ ErrorHandlerT = t.Callable[[ParentT, InteractionT, Exception], t.Any]
 # TODO: Make this more compact.
 
 ButtonListenerCallback = t.Union[
-    t.Callable[Concatenate[ParentT, disnake.MessageInteraction, P], t.Awaitable[T]],
-    t.Callable[Concatenate[disnake.MessageInteraction, P], t.Awaitable[T]],
+    t.Callable[Concatenate[ParentT, disnake.MessageInteraction, P], types_.Coro[T]],
+    t.Callable[Concatenate[disnake.MessageInteraction, P], types_.Coro[T]],
 ]
 
 SelectListenerCallback = t.Union[
-    t.Callable[Concatenate[ParentT, disnake.MessageInteraction, t.Any, P], t.Awaitable[T]],
-    t.Callable[Concatenate[disnake.MessageInteraction, t.Any, P], t.Awaitable[T]],
+    t.Callable[Concatenate[ParentT, disnake.MessageInteraction, t.Any, P], types_.Coro[T]],
+    t.Callable[Concatenate[disnake.MessageInteraction, t.Any, P], types_.Coro[T]],
 ]
 
 # flake8: noqa: E241
 ModalListenerCallback = t.Union[
     # fmt: off
-    t.Callable[Concatenate[ParentT, disnake.ModalInteraction, t.Any, P], t.Awaitable[T]],
-    t.Callable[Concatenate[ParentT, disnake.ModalInteraction, t.Any, t.Any, P], t.Awaitable[T]],
-    t.Callable[Concatenate[ParentT, disnake.ModalInteraction, t.Any, t.Any, t.Any, P], t.Awaitable[T]],
-    t.Callable[Concatenate[ParentT, disnake.ModalInteraction, t.Any, t.Any, t.Any, t.Any, P], t.Awaitable[T]],
-    t.Callable[Concatenate[ParentT, disnake.ModalInteraction, t.Any, t.Any, t.Any, t.Any, t.Any, P], t.Awaitable[T]],
+    t.Callable[Concatenate[ParentT, disnake.ModalInteraction, t.Any, P], types_.Coro[T]],
+    t.Callable[Concatenate[ParentT, disnake.ModalInteraction, t.Any, t.Any, P], types_.Coro[T]],
+    t.Callable[Concatenate[ParentT, disnake.ModalInteraction, t.Any, t.Any, t.Any, P], types_.Coro[T]],
+    t.Callable[Concatenate[ParentT, disnake.ModalInteraction, t.Any, t.Any, t.Any, t.Any, P], types_.Coro[T]],
+    t.Callable[Concatenate[ParentT, disnake.ModalInteraction, t.Any, t.Any, t.Any, t.Any, t.Any, P], types_.Coro[T]],
 
-    t.Callable[Concatenate[disnake.ModalInteraction, t.Any, P], t.Awaitable[T]],
-    t.Callable[Concatenate[disnake.ModalInteraction, t.Any, t.Any, P], t.Awaitable[T]],
-    t.Callable[Concatenate[disnake.ModalInteraction, t.Any, t.Any, t.Any, P], t.Awaitable[T]],
-    t.Callable[Concatenate[disnake.ModalInteraction, t.Any, t.Any, t.Any, t.Any, P], t.Awaitable[T]],
-    t.Callable[Concatenate[disnake.ModalInteraction, t.Any, t.Any, t.Any, t.Any, t.Any, P], t.Awaitable[T]],
+    t.Callable[Concatenate[disnake.ModalInteraction, t.Any, P], types_.Coro[T]],
+    t.Callable[Concatenate[disnake.ModalInteraction, t.Any, t.Any, P], types_.Coro[T]],
+    t.Callable[Concatenate[disnake.ModalInteraction, t.Any, t.Any, t.Any, P], types_.Coro[T]],
+    t.Callable[Concatenate[disnake.ModalInteraction, t.Any, t.Any, t.Any, t.Any, P], types_.Coro[T]],
+    t.Callable[Concatenate[disnake.ModalInteraction, t.Any, t.Any, t.Any, t.Any, t.Any, P], types_.Coro[T]],
     # fmt: on
 ]
 
@@ -93,29 +93,15 @@ class ButtonListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
 
     __cog_listener_names__: t.List[types_.ListenerType] = [types_.ListenerType.BUTTON]
 
-    def __new__(
-        cls: t.Type[ListenerT],
-        func: ButtonListenerCallback[ParentT, P, T],
-        **kwargs: t.Any,
-    ) -> ListenerT:
-        return super().__new__(cls, func, **kwargs)
-
     def __init__(
         self,
-        func: ButtonListenerCallback[ParentT, P, T],
+        callback: ButtonListenerCallback[ParentT, P, T],
         *,
+        name: t.Optional[str] = None,
         regex: t.Union[str, t.Pattern[str], None] = None,
         sep: str = ":",
     ) -> None:
-        self._signature = commands.params.signature(func)  # pyright: ignore
-        if regex:
-            self.regex = utils.ensure_compiled(regex)
-            self.id_spec = utils.id_spec_from_regex(self.regex)
-            self.sep = None
-        else:
-            self.regex = None
-            self.id_spec = utils.id_spec_from_signature(self.__name__, sep, self._signature)
-            self.sep = sep
+        super().__init__(callback, name=name, regex=regex, sep=sep)
 
         special_params, listener_params = utils.extract_listener_params(self._signature)
 
@@ -279,29 +265,15 @@ class SelectListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
     converted to match the type annotation of this parameter.
     """
 
-    def __new__(
-        cls: t.Type[ListenerT],
-        func: SelectListenerCallback[ParentT, P, T],
-        **kwargs: t.Any,
-    ) -> ListenerT:
-        return super().__new__(cls, func, **kwargs)
-
     def __init__(
         self,
-        func: SelectListenerCallback[ParentT, P, T],
+        callback: SelectListenerCallback[ParentT, P, T],
         *,
+        name: t.Optional[str] = None,
         regex: t.Union[str, t.Pattern[str], None] = None,
         sep: str = ":",
     ) -> None:
-        self._signature = commands.params.signature(func)  # pyright: ignore
-        if regex:
-            self.regex = utils.ensure_compiled(regex)
-            self.id_spec = utils.id_spec_from_regex(self.regex)
-            self.sep = None
-        else:
-            self.regex = None
-            self.id_spec = utils.id_spec_from_signature(self.__name__, sep, self._signature)
-            self.sep = sep
+        super().__init__(callback, name=name, regex=regex, sep=sep)
 
         special_params, listener_params = utils.extract_listener_params(self._signature)
         self.params = [params.ParamInfo.from_param(param) for param in listener_params]
@@ -476,29 +448,15 @@ class ModalListener(abc.BaseListener[P, T, disnake.ModalInteraction]):
     converted to match the type annotations of these parameters.
     """
 
-    def __new__(
-        cls: t.Type[ListenerT],
-        func: ModalListenerCallback[ParentT, P, T],
-        **kwargs: t.Any,
-    ) -> ListenerT:
-        return super().__new__(cls, func, **kwargs)
-
     def __init__(
         self,
-        func: ModalListenerCallback[ParentT, P, T],
+        callback: ModalListenerCallback[ParentT, P, T],
         *,
+        name: t.Optional[str] = None,
         regex: t.Union[str, t.Pattern[str], None] = None,
         sep: str = ":",
     ) -> None:
-        self._signature = commands.params.signature(func)  # pyright: ignore
-        if regex:
-            self.regex = utils.ensure_compiled(regex)
-            self.id_spec = utils.id_spec_from_regex(self.regex)
-            self.sep = None
-        else:
-            self.regex = None
-            self.id_spec = utils.id_spec_from_signature(self.__name__, sep, self._signature)
-            self.sep = sep
+        super().__init__(callback, name=name, regex=regex, sep=sep)
 
         special_params, listener_params = utils.extract_listener_params(self._signature)
 
