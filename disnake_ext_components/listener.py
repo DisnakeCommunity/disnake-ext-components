@@ -186,7 +186,7 @@ class ButtonListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
         emoji: t.Union[str, disnake.Emoji, disnake.PartialEmoji, None] = None,
         *args: P.args,
         **kwargs: P.kwargs,
-    ):
+    ) -> disnake.ui.Button[t.Any]:
         return disnake.ui.Button(
             style=style,
             label=label,
@@ -313,27 +313,6 @@ class SelectListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
             )
         self.select_param = params.ParamInfo.from_param(special_params[0])
 
-    def _cast_to_return_type(self, values: t.List[t.Any]) -> MaybeCollection[t.Any]:
-        """Cast a value to the desired return type: either converts the collection to the annotation
-        type, or unpacks the value if it is annotated as a non-collection type.
-        """
-        return_type = types_.get_origin(ann := self.select_param.param.annotation) or ann
-
-        if not issubclass(return_type, t.Collection) or issubclass(return_type, (str, bytes)):
-            if len(values) != 1:
-                type_name = getattr(return_type, "__name__", repr(return_type))
-                raise TypeError(
-                    f"Listener `{self.__name__}`'s SelectValue parameter was annotated as a non-"
-                    f"Collection or string, but received multiple values."
-                )
-            return values[0]
-
-        try:
-            return return_type(values)  # pyright: ignore  # Try to instantiate the type...
-        except Exception as exc:
-            type_name = getattr(return_type, "__name__", repr(return_type))
-            raise TypeError(f"Failed to cast list of select values to type {type_name!r}.") from exc
-
     async def __call__(  # pyright: ignore
         self,
         inter: disnake.MessageInteraction,
@@ -387,12 +366,15 @@ class SelectListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
             inter.values, inter=inter, converted=converted
         )
 
-        return await super().__call__(
-            inter, self._cast_to_return_type(converted_values), **converted
-        )
+        return await super().__call__(inter, converted_values, **converted)
 
     async def build_select(
         self,
+        placeholder: t.Optional[str] = None,
+        min_values: t.Optional[int] = None,
+        max_values: t.Optional[int] = None,
+        options: t.Union[t.List[disnake.SelectOption], t.List[str], t.Dict[str, str], None] = None,
+        disabled: t.Optional[bool] = None,
         *args: P.args,
         **kwargs: P.kwargs,
     ) -> disnake.ui.Select[t.Any]:
@@ -412,33 +394,24 @@ class SelectListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
         :class:`disnake.ui.Select`
             The newly created Select.
         """
-        param = self.select_param
+        # We need the underlying `inspect.Parameter` here...
+        param = self.select_param.param
 
-        if types_.get_origin(param) is t.Literal:
-            options = [str(arg) for arg in types_.get_args(param)]
-        else:
-            options = []
+        # Parse options from `typing.Literal` if none were provided.
+        if options is None and types_.get_origin(param.annotation) is t.Literal:
+            options = [str(arg) for arg in types_.get_args(param.annotation)]
 
-        if param.optional and isinstance(select_value := param.default, params._SelectValue):
-            placeholder = select_value.placeholder
-            options = select_value.options or options
-            min_values = select_value.min_values
-            max_values = select_value.max_values or len(options)
-            disabled = select_value.disabled
-        else:
-            placeholder = None
-            min_values = 1
-            max_values = len(options)
-            disabled = False
+        # Get or create the parameter's SelectValue and .
+        if not isinstance(select_value := param.default, params._SelectValue):
+            select_value = params._SelectValue()
 
-        return disnake.ui.Select[t.Any](
-            custom_id=await self.build_custom_id(*args, **kwargs),
+        return select_value.with_overrides(
             placeholder=placeholder,
             min_values=min_values,
             max_values=max_values,
             options=options,
             disabled=disabled,
-        )
+        ).build(custom_id=await self.build_custom_id(*args, **kwargs))
 
 
 def select_listener(
@@ -593,9 +566,10 @@ class ModalListener(abc.BaseListener[P, T, disnake.ModalInteraction]):
 
         return await super().__call__(inter, **converted)
 
-    async def build_modal(
+    async def build_modal(  # TODO: Update with new ModalValue functionality.
         self,
         title: str,
+        components: t.Optional[t.List[disnake.ui.TextInput]] = None,  # TODO: Disnake 2.6 typing.
         timeout: float = 600,
         *args: P.args,
         **kwargs: P.kwargs,
@@ -622,38 +596,43 @@ class ModalListener(abc.BaseListener[P, T, disnake.ModalInteraction]):
         :class:`disnake.ui.Modal`
             The newly created Modal.
         """
-        components: t.List[disnake.ui.TextInput] = []
-        for param, custom_id in zip(self.modal_params, self.field_ids):
+        if components is None:
 
-            if isinstance(modal_value := param.param.default, params._ModalValue):
-                placeholder = modal_value.placeholder
-                style = modal_value.style
-                label = modal_value.label or param.name.replace("_", " ")
-                value = modal_value.value
-                required = modal_value.required
-                min_length = modal_value.min_length
-                max_length = modal_value.max_length
-            else:
-                placeholder = None
-                style = disnake.TextInputStyle.short
-                label = param.name.replace("_", " ")
-                value = param.default if param.optional else None
-                required = True
-                min_length = None
-                max_length = None
+            components = []
+            for param, custom_id in zip(self.modal_params, self.field_ids):
 
-            components.append(
-                disnake.ui.TextInput(
-                    label=label,
-                    custom_id=custom_id,
-                    style=style,
-                    placeholder=placeholder,
-                    value=value,
-                    required=required,
-                    min_length=min_length,
-                    max_length=max_length,
+                if not isinstance(modal_value := param.param.default, params._ModalValue):
+                    modal_value = params._ModalValue()
+
+                if isinstance(modal_value := param.param.default, params._ModalValue):
+                    placeholder = modal_value.placeholder
+                    style = modal_value.style
+                    label = modal_value.label or param.name.replace("_", " ")
+                    value = modal_value.value
+                    required = modal_value.required
+                    min_length = modal_value.min_length
+                    max_length = modal_value.max_length
+                else:
+                    placeholder = None
+                    style = disnake.TextInputStyle.short
+                    label = param.name.replace("_", " ")
+                    value = param.default if param.optional else None
+                    required = True
+                    min_length = None
+                    max_length = None
+
+                components.append(
+                    disnake.ui.TextInput(
+                        label=label,
+                        custom_id=custom_id,
+                        style=style,
+                        placeholder=placeholder,
+                        value=value,
+                        required=required,
+                        min_length=min_length,
+                        max_length=max_length,
+                    )
                 )
-            )
 
         return disnake.ui.Modal(
             title=title,

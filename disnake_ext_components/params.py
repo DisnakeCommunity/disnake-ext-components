@@ -299,6 +299,9 @@ class ParamInfo:
         """
         if not isinstance(argument, str):
             if not self.container_type:
+                if len(argument) == 1:
+                    return await self.convert(argument[0], **kwargs)
+
                 exc = ValueError("Cannot convert a list of arguments to a non-collection type.")
                 raise exceptions.ConversionError(
                     f"Failed to convert parameter {self.param.name}", self.param, [exc]
@@ -391,7 +394,7 @@ class ParamInfo:
                 converted = conv(argument)
                 if inspect.isawaitable(converted):
                     return await converted
-                return converted
+                return converted  # type: ignore  # Type not correctly narrowed.
 
             except ValueError as exc:
                 errors.append(exc)
@@ -404,7 +407,7 @@ class ParamInfo:
 class _SelectValue:
     def __init__(
         self,
-        placeholder: str,
+        placeholder: t.Optional[str] = None,
         *,
         min_values: int = 1,
         max_values: t.Optional[int] = None,
@@ -416,6 +419,35 @@ class _SelectValue:
         self.max_values = max_values
         self.options = options
         self.disabled = disabled
+
+    def with_overrides(
+        self,
+        *,
+        placeholder: t.Optional[str] = None,
+        min_values: t.Optional[int] = None,
+        max_values: t.Optional[int] = None,
+        options: t.Union[t.List[disnake.SelectOption], t.List[str], t.Dict[str, str], None] = None,
+        disabled: t.Optional[bool] = None,
+    ) -> _SelectValue:
+        print(options)
+        return type(self)(
+            placeholder=self.placeholder if placeholder is None else placeholder,
+            min_values=self.min_values if min_values is None else min_values,
+            max_values=self.max_values if max_values is None else max_values,
+            options=self.options if options is None else options,
+            disabled=self.disabled if disabled is None else disabled,
+        )
+
+    def build(self, *, custom_id: str) -> disnake.ui.Select[t.Any]:
+        options = self.options or []
+        return disnake.ui.Select(
+            custom_id=custom_id,
+            placeholder=self.placeholder,
+            min_values=self.min_values,
+            max_values=self.max_values or len(options),
+            options=options,
+            disabled=self.disabled,
+        )
 
 
 def SelectValue(
@@ -438,7 +470,7 @@ def SelectValue(
 class _ModalValue:
     def __init__(
         self,
-        placeholder: str,
+        placeholder: t.Optional[str] = None,
         *,
         label: t.Optional[str] = None,
         value: t.Optional[str] = None,
@@ -454,6 +486,39 @@ class _ModalValue:
         self.min_length = min_length
         self.max_length = max_length
         self.style = style
+
+    def with_overrides(
+        self,
+        *,
+        placeholder: t.Optional[str] = None,
+        label: t.Optional[str] = None,
+        value: t.Optional[str] = None,
+        required: t.Optional[bool] = None,
+        min_length: t.Optional[int] = None,
+        max_length: t.Optional[int] = None,
+        style: disnake.TextInputStyle = disnake.TextInputStyle.short,
+    ) -> _ModalValue:
+        return type(self)(
+            placeholder=self.placeholder if placeholder is None else placeholder,
+            label=self.label if label is None else label,
+            value=self.value if value is None else value,
+            required=self.required if required is None else required,
+            min_length=self.min_length if min_length is None else min_length,
+            max_length=self.max_length if max_length is None else max_length,
+            style=self.style if style is None else style,
+        )
+
+    def build(self, *, custom_id: str) -> disnake.ui.TextInput:
+        return disnake.ui.TextInput(
+            custom_id=custom_id,
+            placeholder=self.placeholder,
+            label=self.label or "\u200b",
+            value=self.value,
+            required=self.required,
+            min_length=self.min_length,
+            max_length=self.max_length,
+            style=self.style,
+        )
 
 
 def ModalValue(

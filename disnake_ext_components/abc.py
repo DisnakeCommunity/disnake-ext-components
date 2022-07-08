@@ -127,16 +127,19 @@ class BaseListener(types_.partial[t.Awaitable[T]], abc.ABC, t.Generic[P, T, Inte
         """
         if args:
             # Change args into kwargs such that they're accepted by str.format
-            args_as_kwargs = dict(zip([param.name for param in self.params], args))
+            args_as_kwargs: t.Dict[str, t.Any] = dict(
+                zip([param.name for param in self.params], args)
+            )
 
             if overlap := kwargs.keys() & args_as_kwargs:
                 # Emulate standard python behaviour by disallowing duplicate names for args/kwargs.
-                first = next(iter(overlap))
-                raise TypeError(f"'build_custom_id' got multiple values for argument '{first}'")
+                raise TypeError(
+                    f"'build_custom_id' got multiple values for argument(s) '{', '.join(overlap)}'"
+                )
 
             kwargs.update(args_as_kwargs)  # This is safe as we ensured there is no overlap.
 
-        # "Deserialize" types to str...
+        # "Serialize" types to str...
         deserialized_kwargs = {
             param.name: await param.to_str(kwargs[param.name]) for param in self.params
         }
