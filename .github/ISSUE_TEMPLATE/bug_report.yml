@@ -1,0 +1,73 @@
+name: Bug Report
+description: Report broken or incorrect behaviour
+labels: ["unconfirmed bug"]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        Thanks for taking the time to fill out a bug report.
+        If you want real-time support, consider joining the [official disnake Discord server](https://discord.gg/disnake) instead.
+
+        Please note that this form is for bugs only!
+  - type: input
+    attributes:
+      label: Summary
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Reproduction Steps
+      description: >
+         Steps to reproduce the behavior-- how did you make the bug occur?
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: [Minimal, Complete and Verifiable Example](https://stackoverflow.com/help/minimal-reproducible-example)
+      description: >
+        A short snippet of code that showcases the bug.
+        Ideally, this would be as minimal as possible, as this will make it easier to track down your issue.
+      render: python
+  - type: textarea
+    attributes:
+      label: Expected Results
+      description: >
+        A clear and concise description of what you expected to happen.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Actual Results
+      description: >
+        A clear and concise description of what actually happened.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      render: markdown
+      label: System Information
+      description: >
+        Please provide us with the version of `disnake` and `disnake-ext-components` you are running.
+        This can be done using `python -m pip show disnake` and `python -m pip show disnake-ext-components`
+
+        If you are unable to run these commands, show some basic information involving
+        your system such as operating system and Python version.
+    validations:
+      required: true
+  - type: checkboxes
+    attributes:
+      label: Checklist
+      description: >
+        Let's make sure you've properly done due diligence when reporting this issue!
+      options:
+        - label: I have searched the open issues for duplicates.
+          required: true
+        - label: I have shown the entire traceback, if possible.
+          required: true
+        - label: I have removed my token from display, if visible.
+          required: true
+  - type: textarea
+    attributes:
+      label: Additional Context
+      description: If there is anything else to say, please do so here.
