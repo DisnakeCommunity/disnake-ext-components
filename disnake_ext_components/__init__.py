@@ -7,7 +7,7 @@ listeners somewhat less cumbersome.
 :license: MIT, see LICENSE for more details.
 """
 
-__version__ = "0.3.2"
+__version__ = "0.3.3"
 
 
 from . import patterns, utils  # pyright: ignore  # TODO: explicit imports and __all__

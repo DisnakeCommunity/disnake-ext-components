@@ -24,6 +24,9 @@ def id_spec_from_signature(name: str, sep: str, signature: inspect.Signature) ->
         The function signature of the listener function.
     """
     _, custom_id_params = extract_listener_params(signature)
+    if not custom_id_params:
+        return name
+
     return name + sep + sep.join(f"{{{param.name}}}" for param in custom_id_params)
 
 
