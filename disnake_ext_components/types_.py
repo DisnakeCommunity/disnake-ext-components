@@ -5,6 +5,8 @@ import re
 import sys
 import typing as t
 
+import disnake
+
 __all__ = [
     "Annotated",
     "get_args",
@@ -22,6 +24,10 @@ Coro = t.Coroutine[t.Any, t.Any, _T]
 MaybeCoro = t.Union[Coro[_T], _T]
 MaybeSequence = t.Union[t.Sequence[_T], _T]
 
+InteractionT = t.TypeVar("InteractionT", disnake.MessageInteraction, disnake.ModalInteraction)
+
+CheckCallback = t.Callable[[InteractionT], MaybeCoro[bool]]
+CheckT = t.TypeVar("CheckT", bound=CheckCallback[t.Any])
 
 if sys.version_info >= (3, 10):
     from typing import Annotated, get_args, get_origin

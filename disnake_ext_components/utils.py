@@ -5,6 +5,8 @@ import typing as t
 import disnake
 from disnake.ext import commands
 
+from . import types_
+
 __all__ = [
     "id_spec_from_signature",
     "id_spec_from_regex",
@@ -22,6 +24,11 @@ def id_spec_from_signature(name: str, sep: str, signature: inspect.Signature) ->
         The name of the listener function to which the signature belongs.
     signature: :class:`inspect.Signature`
         The function signature of the listener function.
+
+    Returns
+    -------
+    :class:`str`
+        The custom_id spec that was built from the provided function signature.
     """
     _, custom_id_params = extract_listener_params(signature)
     if not custom_id_params:
@@ -38,6 +45,11 @@ def id_spec_from_regex(regex: t.Pattern[str]) -> str:
     ----------
     regex: :class:`re.Pattern`
         The regex pattern that is to be deconstructed.
+
+    Returns
+    -------
+    :class:`str`
+        The custom_id spec that was extracted from the regex pattern.
     """
     return re.sub(r"\(\?P<(.+?)>.*?\)", lambda m: f"{{{m[1]}}}", regex.pattern)
 
@@ -112,5 +124,39 @@ def ensure_compiled(
         compiled, it is returned as-is.
     flags: :class:`re.RegexFlag`
         Any flags to apply to compilation. By default this has the same behaviour as `re.compile`.
+
+    Returns
+    -------
+    :class:`re.Pattern`
+        The compiled regex pattern.
     """
     return re.compile(pattern, flags) if isinstance(pattern, str) else pattern
+
+
+async def assert_all_checks(
+    checks: t.Sequence[types_.CheckCallback[types_.InteractionT]],
+    inter: types_.InteractionT,
+) -> bool:
+    """Ensure all checks for a given listener pass.
+
+    Parameters
+    ----------
+    checks: Sequence[Callable[[:class:`disnake.Interaction`], MaybeCoro[:class:`bool`]]]
+        The checks that should be run for the listener.
+    inter: :class:`disnake.Interaction`
+        The interaction to supply to the checks.
+
+    Returns
+    -------
+    :class:`bool`
+        Whether all checks succeeded or not.
+    """
+    for check in checks:
+        result = check(inter)
+        if inspect.isawaitable(result):
+            result = await result
+
+        if result is False:
+            return False
+
+    return True

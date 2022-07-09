@@ -3,7 +3,6 @@ import asyncio.coroutines
 import sys
 import typing as t
 
-import disnake
 from disnake.ext import commands
 
 from . import params, types_, utils
@@ -18,12 +17,11 @@ else:
 T = t.TypeVar("T")
 ParentT = t.TypeVar("ParentT")
 P = ParamSpec("P")
-InteractionT = t.TypeVar("InteractionT", bound=disnake.Interaction)
 
 ListenerT = t.TypeVar("ListenerT", bound="BaseListener[t.Any, t.Any, t.Any]")
 
 
-class BaseListener(abc.ABC, t.Generic[P, T, InteractionT]):
+class BaseListener(abc.ABC, t.Generic[P, T, types_.InteractionT]):
 
     # Make asyncio.iscoroutinefunction believe this is a coroutine function...
     _is_coroutine = asyncio.coroutines._is_coroutine  # type: ignore
@@ -66,6 +64,8 @@ class BaseListener(abc.ABC, t.Generic[P, T, InteractionT]):
     about their regex pattern(s) and converter(s).
     """
 
+    checks: t.List[types_.CheckCallback[types_.InteractionT]]
+
     def __init__(
         self,
         callback: t.Callable[..., types_.Coro[T]],
@@ -74,6 +74,7 @@ class BaseListener(abc.ABC, t.Generic[P, T, InteractionT]):
         regex: t.Union[str, t.Pattern[str], None] = None,
         sep: str = ":",
     ) -> None:
+        self.checks = []
         self.parent = None
 
         self.callback = callback
@@ -108,8 +109,8 @@ class BaseListener(abc.ABC, t.Generic[P, T, InteractionT]):
         return await self.callback(*args, **kwargs)
 
     def error(
-        self, func: t.Callable[[ParentT, InteractionT, Exception], t.Any]
-    ) -> t.Callable[[ParentT, InteractionT, Exception], t.Any]:
+        self, func: t.Callable[[ParentT, types_.InteractionT, Exception], t.Any]
+    ) -> t.Callable[[ParentT, types_.InteractionT, Exception], t.Any]:
         """Register an error handler for this listener.
         Note: Not yet implemented.
         """
@@ -188,3 +189,22 @@ class BaseListener(abc.ABC, t.Generic[P, T, InteractionT]):
         if self.regex:
             return self.id_spec.format(**deserialized_kwargs)
         return self.id_spec.format(sep=self.sep, **deserialized_kwargs)
+
+    def add_check(self, callback: types_.CheckT) -> types_.CheckT:
+        """Add a check to the listener. Like `commands.check` checks, these checks must
+        take an interaction as their sole parameter and must return a boolean. Checks may
+        be coroutines, though this is not required. Checks are run when the listener is
+        called by an interaction event, and are bypassed when the listener is called manually.
+        All checks must pass for the interaction to go through and fire the listener callback.
+
+        Parameters
+        ----------
+        check: t.Callable[[:class:`disnake.Interaction`], MaybeCoro[:class:`bool`]]
+            The check to be added.
+
+        Returns:
+        t.Callable[[:class:`disnake.Interaction`], MaybeCoro[:class:`bool`]]
+            The callback of the check is returned unedited such that it can be used elsewhere.
+        """
+        self.checks.append(callback)
+        return callback

@@ -32,8 +32,7 @@ ParentT = t.TypeVar("ParentT")
 
 ListenerT = t.TypeVar("ListenerT", bound="abc.BaseListener[t.Any, t.Any, t.Any]")
 
-InteractionT = t.TypeVar("InteractionT", disnake.MessageInteraction, disnake.ModalInteraction)
-ErrorHandlerT = t.Callable[[ParentT, InteractionT, Exception], t.Any]
+# ErrorHandlerT = t.Callable[[ParentT, InteractionT, Exception], t.Any]
 
 # TODO: Make this more compact.
 
@@ -150,6 +149,9 @@ class ButtonListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
         try:
             custom_id_params = self.parse_custom_id(custom_id)
         except ValueError:
+            return
+
+        if not await utils.assert_all_checks(self.checks, inter):
             return
 
         converted: t.Dict[str, t.Any] = {}
@@ -322,6 +324,9 @@ class SelectListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
         try:
             custom_id_params = self.parse_custom_id(custom_id)
         except ValueError:
+            return
+
+        if not await utils.assert_all_checks(self.checks, inter):
             return
 
         # First convert custom_id params...
@@ -504,6 +509,9 @@ class ModalListener(abc.BaseListener[P, T, disnake.ModalInteraction]):
         try:
             custom_id_params = self.parse_custom_id(inter.custom_id)
         except ValueError:
+            return
+
+        if not await utils.assert_all_checks(self.checks, inter):
             return
 
         converted: t.Dict[str, t.Any] = {}
