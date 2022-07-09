@@ -24,7 +24,7 @@ body:
       required: true
   - type: textarea
     attributes:
-      label: [Minimal, Complete and Verifiable Example](https://stackoverflow.com/help/minimal-reproducible-example)
+      label: "[Minimal, Complete and Verifiable Example](https://stackoverflow.com/help/minimal-reproducible-example)"
       description: >
         A short snippet of code that showcases the bug.
         Ideally, this would be as minimal as possible, as this will make it easier to track down your issue.
