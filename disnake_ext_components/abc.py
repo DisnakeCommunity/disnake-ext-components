@@ -38,9 +38,11 @@ class BaseListener(abc.ABC, t.Generic[P, T, types_.InteractionT]):
     callback: t.Callable[..., types_.Coro[T]]
     """The callback function wrapped by this listener."""
 
-    name: str
-    """The name of the callback function wrapped by this listener. Used to determine the custom
-    id spec for the listener. This can be customized in `~.__init__`.
+    name: t.Optional[str]
+    """The name is used to determine the custom id spec for the listener.
+    This can be customized in `~.__init__`. For most listeners, the name will equal the name of
+    the bound callback function.
+    If no name is provided, custom_id name validation will will be skipped.
     """
 
     id_spec: str
@@ -65,6 +67,9 @@ class BaseListener(abc.ABC, t.Generic[P, T, types_.InteractionT]):
     """
 
     checks: t.List[types_.CheckCallback[types_.InteractionT]]
+    """Check functions that are called when the listener is invoked. All of these must pass for
+    the listener invocation to complete.
+    """
 
     def __init__(
         self,
@@ -78,7 +83,7 @@ class BaseListener(abc.ABC, t.Generic[P, T, types_.InteractionT]):
         self.parent = None
 
         self.callback = callback
-        self.name = name or callback.__name__
+        self.name = name
         self._signature = commands.params.signature(callback)  # type: ignore
 
         if regex:
@@ -92,8 +97,8 @@ class BaseListener(abc.ABC, t.Generic[P, T, types_.InteractionT]):
             self.sep = sep
 
     @property
-    def __name__(self):
-        return self.name
+    def __name__(self) -> str:
+        return self.name or ""
 
     def __get__(self: ListenerT, instance: t.Optional[t.Any], _) -> ListenerT:
         """Abuse descriptor functionality to inject instance of the owner class as first arg."""
@@ -142,7 +147,9 @@ class BaseListener(abc.ABC, t.Generic[P, T, types_.InteractionT]):
             return tuple(params.values())
 
         name, *params = custom_id.split(self.sep)
-        if name != self.__name__ or len(params) != len(self.params):
+        # If no name is set, skip name check. Otherwise, assure stored and provided name are equal.
+        # Also confirm the number of incoming params matches the number of params on the listener.
+        if (self.name and name != self.name) or (len(params) != len(self.params)):
             raise ValueError(f"Listener spec {self.id_spec} did not match custom_id {custom_id}.")
 
         return tuple(params)

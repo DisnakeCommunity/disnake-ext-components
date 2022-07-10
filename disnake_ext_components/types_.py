@@ -145,3 +145,36 @@ class Converted(_SpecialType, metaclass=_ConvertedMeta):
             f"converter_to={self.converter_to.__name__}(), "
             f"converter_from={self.converter_from.__name__}()]"
         )
+
+
+class AbstractComponent:
+    __sentinel = object()
+
+    __slots__: t.Tuple[t.Any] = tuple(
+        set(disnake.Component.__slots__)
+        | set(disnake.Button.__slots__)
+        | set(disnake.SelectMenu.__slots__)
+    )
+
+    def __init__(self, **kwargs: t.Any):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+    @classmethod
+    def from_component(
+        cls,
+        component: t.Union[disnake.ui.Button[t.Any], disnake.ui.Select[t.Any]],
+    ) -> AbstractComponent:
+        self = cls()
+        for slot in cls.__slots__:
+            value = getattr(component, slot, cls.__sentinel)
+            if value is not cls.__sentinel:
+                setattr(self, slot, value)
+        return self
+
+    def __eq__(self, other: t.Union[disnake.Button, disnake.SelectMenu]) -> bool:  # type: ignore
+        for slot in self.__slots__:
+            value = getattr(self, slot, self.__sentinel)
+            if value is not self.__sentinel and value != getattr(other, slot, self.__sentinel):
+                return False
+        return True

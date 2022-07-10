@@ -15,6 +15,7 @@ __all__ = [
     "SelectListener",
     "modal_listener",
     "ModalListener",
+    "match_component",
 ]
 
 
@@ -32,36 +33,43 @@ ParentT = t.TypeVar("ParentT")
 
 ListenerT = t.TypeVar("ListenerT", bound="abc.BaseListener[t.Any, t.Any, t.Any]")
 
-# ErrorHandlerT = t.Callable[[ParentT, InteractionT, Exception], t.Any]
+ComponentListener = t.Union[
+    "ButtonListener[t.Any, t.Any]",
+    "SelectListener[t.Any, t.Any]",
+]
 
-# TODO: Make this more compact.
 
+# fmt: off
 ButtonListenerCallback = t.Union[
     t.Callable[Concatenate[ParentT, disnake.MessageInteraction, P], types_.Coro[T]],
     t.Callable[Concatenate[disnake.MessageInteraction, P], types_.Coro[T]],
 ]
 
 SelectListenerCallback = t.Union[
+    t.Callable[Concatenate[ParentT, disnake.MessageInteraction, P], types_.Coro[T]],
     t.Callable[Concatenate[ParentT, disnake.MessageInteraction, t.Any, P], types_.Coro[T]],
+
+    t.Callable[Concatenate[disnake.MessageInteraction, P], types_.Coro[T]],
     t.Callable[Concatenate[disnake.MessageInteraction, t.Any, P], types_.Coro[T]],
 ]
 
-# flake8: noqa: E241
+# flake8: noqa: E501
 ModalListenerCallback = t.Union[
-    # fmt: off
+    t.Callable[Concatenate[ParentT, disnake.ModalInteraction, P], types_.Coro[T]],
     t.Callable[Concatenate[ParentT, disnake.ModalInteraction, t.Any, P], types_.Coro[T]],
     t.Callable[Concatenate[ParentT, disnake.ModalInteraction, t.Any, t.Any, P], types_.Coro[T]],
     t.Callable[Concatenate[ParentT, disnake.ModalInteraction, t.Any, t.Any, t.Any, P], types_.Coro[T]],
     t.Callable[Concatenate[ParentT, disnake.ModalInteraction, t.Any, t.Any, t.Any, t.Any, P], types_.Coro[T]],
     t.Callable[Concatenate[ParentT, disnake.ModalInteraction, t.Any, t.Any, t.Any, t.Any, t.Any, P], types_.Coro[T]],
 
+    t.Callable[Concatenate[disnake.ModalInteraction, P], types_.Coro[T]],
     t.Callable[Concatenate[disnake.ModalInteraction, t.Any, P], types_.Coro[T]],
     t.Callable[Concatenate[disnake.ModalInteraction, t.Any, t.Any, P], types_.Coro[T]],
     t.Callable[Concatenate[disnake.ModalInteraction, t.Any, t.Any, t.Any, P], types_.Coro[T]],
     t.Callable[Concatenate[disnake.ModalInteraction, t.Any, t.Any, t.Any, t.Any, P], types_.Coro[T]],
     t.Callable[Concatenate[disnake.ModalInteraction, t.Any, t.Any, t.Any, t.Any, t.Any, P], types_.Coro[T]],
-    # fmt: on
 ]
+# fmt: on
 
 
 class ButtonListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
@@ -262,7 +270,7 @@ class SelectListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
 
     __cog_listener_names__: t.List[types_.ListenerType] = [types_.ListenerType.SELECT]
 
-    select_param: params.ParamInfo
+    select_param: t.Optional[params.ParamInfo] = None
     """The parameter with which the user-selected value(s) will be parsed. The values will be
     converted to match the type annotation of this parameter.
     """
@@ -280,12 +288,14 @@ class SelectListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
         special_params, listener_params = utils.extract_listener_params(self._signature)
         self.params = [params.ParamInfo.from_param(param) for param in listener_params]
 
-        if len(special_params) != 1:
+        if len(special_params) > 1:
             raise TypeError(
-                f"A `{type(self).__name__}` must have exactly one parameter before the "
-                f"keyword-only argument separator (`*,`), got {len(special_params)}."
+                f"A `{type(self).__name__}` must have exactly zero or one parameter before "
+                f"the keyword-only argument separator (`*,`), got {len(special_params)}."
             )
-        self.select_param = params.ParamInfo.from_param(special_params[0])
+
+        if special_params:
+            self.select_param = params.ParamInfo.from_param(special_params[0])
 
     async def __call__(  # pyright: ignore
         self,
@@ -339,6 +349,11 @@ class SelectListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
                 skip_validation=bool(self.regex),
             )
 
+        # User didn't supply select params, can still be accessed through inter.values; return.
+        if self.select_param is None:
+            return await super().__call__(inter, **converted)
+
+        # User did supply select params, convert inter.values and provide it to the param.
         converted_values = await self.select_param.convert(
             inter.values, inter=inter, converted=converted
         )
@@ -371,16 +386,20 @@ class SelectListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
         :class:`disnake.ui.Select`
             The newly created Select.
         """
-        # We need the underlying `inspect.Parameter` here...
-        param = self.select_param.param
-
-        # Parse options from `typing.Literal` if none were provided.
-        if options is None and types_.get_origin(param.annotation) is t.Literal:
-            options = [str(arg) for arg in types_.get_args(param.annotation)]
-
-        # Get or create the parameter's SelectValue and .
-        if not isinstance(select_value := param.default, params._SelectValue):
+        if self.select_param is None:
             select_value = params._SelectValue()
+
+        else:
+            # We need the underlying `inspect.Parameter` here...
+            param = self.select_param.param
+
+            # Parse options from `typing.Literal` if none were provided.
+            if options is None and types_.get_origin(param.annotation) is t.Literal:
+                options = [str(arg) for arg in types_.get_args(param.annotation)]
+
+            # Get or create the parameter's SelectValue and build the select.
+            if not isinstance(select_value := param.default, params._SelectValue):
+                select_value = params._SelectValue()
 
         return select_value.with_overrides(
             placeholder=placeholder,
@@ -396,7 +415,7 @@ def select_listener(
     regex: t.Union[str, t.Pattern[str], None] = None,
     sep: str = ":",
     bot: t.Optional[commands.Bot] = None,
-) -> t.Callable[[SelectListenerCallback[ParentT, P, T]], SelectListener[P, T],]:
+) -> t.Callable[[SelectListenerCallback[ParentT, P, T]], SelectListener[P, T]]:
     """Create a new :class:`SelectListener` from a decorated function. The :class:`SelectListener`
     will take care of regex-matching and persistent data stored in the `custom_id` of the
     :class:`disnake.ui.Select`.
@@ -613,7 +632,7 @@ def modal_listener(
     regex: t.Union[str, t.Pattern[str], None] = None,
     sep: str = ":",
     bot: t.Optional[commands.Bot] = None,
-) -> t.Callable[[ModalListenerCallback[ParentT, P, T]], ModalListener[P, T],]:
+) -> t.Callable[[ModalListenerCallback[ParentT, P, T]], ModalListener[P, T]]:
     """Create a new :class:`ModalListener` from a decorated function. The ModalListener will take
     care of regex-matching and persistent data stored in the custom_id of the :class:`disnake.ui.Modal`.
 
@@ -677,6 +696,104 @@ def modal_listener(
 
         if bot is not None:
             bot.add_listener(listener, types_.ListenerType.MODAL)
+
+        return listener
+
+    return wrapper
+
+
+@t.overload
+def match_component(
+    component: disnake.ui.Button[t.Any],
+    /,
+    *,
+    bot: t.Optional[commands.Bot] = None,
+) -> t.Callable[[ButtonListenerCallback[ParentT, P, T]], ButtonListener[P, T]]:
+    ...
+
+
+@t.overload
+def match_component(
+    *,
+    component_type: t.Literal[disnake.ComponentType.button],
+    style: disnake.ButtonStyle = ...,
+    custom_id: str = ...,
+    disabled: bool = ...,
+    label: str = ...,
+    emoji: t.Union[disnake.PartialEmoji, disnake.Emoji, str] = ...,
+    bot: t.Optional[commands.Bot] = None,
+) -> t.Callable[[ButtonListenerCallback[ParentT, P, T]], ButtonListener[P, T]]:
+    ...
+
+
+@t.overload
+def match_component(
+    component: disnake.ui.Select[t.Any],
+    /,
+    *,
+    bot: t.Optional[commands.Bot] = None,
+) -> t.Callable[[SelectListenerCallback[ParentT, P, T]], SelectListener[P, T]]:
+    ...
+
+
+@t.overload
+def match_component(
+    *,
+    component_type: t.Literal[disnake.ComponentType.select],
+    custom_id: str = ...,
+    placeholder: str = ...,
+    min_values: int = ...,
+    max_values: int = ...,
+    disabled: bool = ...,
+    options: t.List[disnake.SelectOption] = ...,
+    label: str = ...,
+    bot: t.Optional[commands.Bot] = None,
+) -> t.Callable[[ButtonListenerCallback[ParentT, P, T]], ButtonListener[P, T]]:
+    ...
+
+
+def match_component(
+    component: t.Union[disnake.ui.Button[t.Any], disnake.ui.Select[t.Any], None] = None,
+    /,
+    *,
+    component_type: t.Optional[disnake.ComponentType] = None,
+    bot: t.Optional[commands.Bot] = None,
+    **kwargs: t.Any,
+) -> t.Callable[[t.Callable[..., t.Any]], ComponentListener]:
+    if component is not None and component_type is not None:
+        raise ValueError("Please provide exactly one of `component` or `component_type`.")
+
+    if component is not None:
+        if isinstance(component, disnake.ui.Button):
+            listener_class = ButtonListener
+        elif isinstance(component, disnake.ui.Select):  # pyright: ignore  # Valid redundancy imo.
+            listener_class = SelectListener
+        else:
+            raise TypeError(
+                "Expected `component` to be an instance of disnake.ui.Button or "
+                f"disnake.ui.Select; got {type(component).__name__}."
+            )
+
+    elif component_type is not None:
+        if component_type is disnake.ComponentType.button:
+            listener_class = ButtonListener
+        elif component_type is disnake.ComponentType.select:
+            listener_class = ButtonListener
+        else:
+            raise TypeError(
+                "Expected `component_type` to be either disnake.ComponentType.button or "
+                f"disnake.ComponentType.select; got {component_type.name}."
+            )
+
+    else:
+        raise ValueError("Please provide exactly one of `component` or `component_type`.")
+
+    def wrapper(callback: t.Callable[..., t.Any]) -> ComponentListener:
+        listener = listener_class(callback, name=kwargs.get("custom_id"))
+        listener.add_check(utils.build_component_matching_check(component, **kwargs))
+
+        if bot:
+            bot.add_listener(listener, listener.__cog_listener_names__[0])
 
         return listener
 

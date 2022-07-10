@@ -429,7 +429,6 @@ class _SelectValue:
         options: t.Union[t.List[disnake.SelectOption], t.List[str], t.Dict[str, str], None] = None,
         disabled: t.Optional[bool] = None,
     ) -> _SelectValue:
-        print(options)
         return type(self)(
             placeholder=self.placeholder if placeholder is None else placeholder,
             min_values=self.min_values if min_values is None else min_values,
