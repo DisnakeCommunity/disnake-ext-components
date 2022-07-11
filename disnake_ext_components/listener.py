@@ -788,6 +788,9 @@ def match_component(
     else:
         raise ValueError("Please provide exactly one of `component` or `component_type`.")
 
+    if component_type:
+        kwargs["type"] = component_type
+
     def wrapper(callback: t.Callable[..., t.Any]) -> ComponentListener:
         listener = listener_class(callback, name=kwargs.get("custom_id"))
         listener.add_check(utils.build_component_matching_check(component, **kwargs))
