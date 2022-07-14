@@ -291,7 +291,7 @@ def make_flag_converter(type_: t.Type[FlagT]) -> t.Callable[..., FlagT]:
     """Create a flag converter for a given flag type."""
 
     def _convert_flag(argument: str, inter: disnake.Interaction) -> FlagT:
-        return type_._from_value(int(argument))
+        return type_._from_value(int(argument))  # pyright: ignore[reportUnknownMemberType]
 
     return _convert_flag
 
