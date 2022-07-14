@@ -84,6 +84,7 @@ class BaseListener(abc.ABC, t.Generic[P, T, types_.InteractionT]):
 
         self.callback = callback
         self.name = name
+        self.__name__ = callback.__name__
         self._signature = commands.params.signature(callback)  # type: ignore
 
         if regex:
@@ -95,10 +96,6 @@ class BaseListener(abc.ABC, t.Generic[P, T, types_.InteractionT]):
             self.regex = None
             self.id_spec = utils.id_spec_from_signature(self.__name__, sep, self._signature)
             self.sep = sep
-
-    @property
-    def __name__(self) -> str:
-        return self.name or ""
 
     def __get__(self: ListenerT, instance: t.Optional[t.Any], _) -> ListenerT:
         """Abuse descriptor functionality to inject instance of the owner class as first arg."""
