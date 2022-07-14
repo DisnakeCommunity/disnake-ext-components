@@ -15,6 +15,7 @@ ConverterSig = t.Union[
     t.Callable[..., t.Any],
 ]
 ChannelT = t.TypeVar("ChannelT", disnake.abc.GuildChannel, disnake.Thread)
+FlagT = t.TypeVar("FlagT", bound=disnake.flags.BaseFlags)
 
 
 class ALLOW_CONVERTER_FETCHING:  # There's probably a better way of doing this...
@@ -284,6 +285,19 @@ def snowflake_to_str(snowflake: disnake.abc.Snowflake) -> str:
     return str(snowflake.id)
 
 
+def make_flag_converter(type_: t.Type[FlagT]) -> t.Callable[..., FlagT]:
+    """Create a flag converter for a given flag type."""
+
+    def _convert_flag(argument: str, inter: disnake.Interaction) -> FlagT:
+        return type_._from_value(int(argument))
+
+    return _convert_flag
+
+
+def flag_to_str(flag: disnake.flags.BaseFlags) -> str:
+    return str(flag.value)
+
+
 # flake8: noqa: E241
 CONVERTER_MAP: t.Mapping[type, t.Tuple[ConverterSig, ConverterSig]] = {
     # fmt: off
@@ -301,6 +315,7 @@ CONVERTER_MAP: t.Mapping[type, t.Tuple[ConverterSig, ConverterSig]] = {
     disnake.abc.GuildChannel: (make_channel_converter(disnake.abc.GuildChannel), snowflake_to_str),
     disnake.Guild:            (guild_converter,                                  snowflake_to_str),
     disnake.Message:          (message_converter,                                snowflake_to_str),
+    disnake.Permissions:      (make_flag_converter(disnake.Permissions),         flag_to_str),
     # disnake.Emoji:            dpy_converter.EmojiConverter().convert,  # temporarily(?) disabled.
     # fmt: on
 }
