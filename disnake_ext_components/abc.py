@@ -94,7 +94,7 @@ class BaseListener(abc.ABC, t.Generic[P, T, types_.InteractionT]):
 
         else:
             self.regex = None
-            self.id_spec = utils.id_spec_from_signature(self.__name__, sep, self._signature)
+            self.id_spec = utils.id_spec_from_signature(self.name or "", sep, self._signature)
             self.sep = sep
 
     def __get__(self: ListenerT, instance: t.Optional[t.Any], _) -> ListenerT:
