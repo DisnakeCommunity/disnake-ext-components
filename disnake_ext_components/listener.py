@@ -7,7 +7,7 @@ import typing as t
 import disnake
 from disnake.ext import commands
 
-from . import abc, params, types_, utils
+from . import abc, params, types_, utils, deprecation
 
 __all__ = [
     "button_listener",
@@ -206,6 +206,29 @@ class ButtonListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
             emoji=emoji,
             custom_id=await self.build_custom_id(*args, **kwargs),
         ).as_component(disnake.ui.Button[t.Any])
+
+    @deprecation.deprecated("build_component")
+    async def build_button(
+        self,
+        style: disnake.ButtonStyle = disnake.ButtonStyle.secondary,
+        label: t.Optional[str] = None,
+        disabled: bool = False,
+        url: t.Optional[str] = None,
+        emoji: t.Union[str, disnake.Emoji, disnake.PartialEmoji, None] = None,
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> disnake.ui.Button[t.Any]:
+        return await self.build_component(
+            style=style,
+            label=label,
+            disabled=disabled,
+            url=url,
+            emoji=emoji,
+            *args,
+            **kwargs,
+        )
+
+    build_button.__doc__ = build_component.__doc__
 
 
 def button_listener(
@@ -447,6 +470,29 @@ class SelectListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
             custom_id=await self.build_custom_id(*args, **kwargs),
         ).as_component(disnake.ui.Select[t.Any])
 
+    @deprecation.deprecated("build_component")
+    async def build_select(
+        self,
+        placeholder: t.Optional[str] = None,
+        min_values: t.Optional[int] = None,
+        max_values: t.Optional[int] = None,
+        options: t.Union[t.List[disnake.SelectOption], t.List[str], t.Dict[str, str], None] = None,
+        disabled: t.Optional[bool] = None,
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> disnake.ui.Select[t.Any]:
+        return await self.build_component(
+            placeholder=placeholder,
+            min_values=min_values,
+            max_values=max_values,
+            options=options,
+            disabled=disabled,
+            *args,
+            **kwargs,
+        )
+
+    build_select.__doc__ = build_component.__doc__
+
 
 def select_listener(
     *,
@@ -589,7 +635,7 @@ class ModalListener(abc.BaseListener[P, T, disnake.ModalInteraction]):
 
         return await super().__call__(inter, **converted)
 
-    async def build_modal(  # TODO: Update with new ModalValue functionality.
+    async def build_component(  # TODO: Update with new ModalValue functionality.
         self,
         title: str,
         components: t.Optional[t.List[disnake.ui.TextInput]] = None,  # TODO: Disnake 2.6 typing.
@@ -786,7 +832,7 @@ def match_component(
     options: t.List[disnake.SelectOption] = ...,
     label: str = ...,
     bot: t.Optional[commands.Bot] = None,
-) -> t.Callable[[ButtonListenerCallback[ParentT, P, T]], ButtonListener[P, T]]:
+) -> t.Callable[[SelectListenerCallback[ParentT, P, T]], SelectListener[P, T]]:
     ...
 
 

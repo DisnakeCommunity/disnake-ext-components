@@ -186,13 +186,17 @@ class BaseListener(abc.ABC, t.Generic[P, T, types_.InteractionT]):
             kwargs.update(args_as_kwargs)  # This is safe as we ensured there is no overlap.
 
         # "Serialize" types to str...
-        deserialized_kwargs = {
+        serialized_kwargs = {
             param.name: await param.to_str(kwargs[param.name]) for param in self.params
         }
 
         if self.regex:
-            return self.id_spec.format(**deserialized_kwargs)
-        return self.id_spec.format(sep=self.sep, **deserialized_kwargs)
+            custom_id = self.id_spec.format(**serialized_kwargs)
+        custom_id = self.id_spec.format(sep=self.sep, **serialized_kwargs)
+
+        if not custom_id:  # Fallback in case the listener has neither a name nor params.
+            return self.__name__
+        return custom_id
 
     def add_check(self, callback: types_.CheckT) -> types_.CheckT:
         """Add a check to the listener. Like `commands.check` checks, these checks must
