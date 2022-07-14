@@ -464,13 +464,6 @@ def SelectValue(
         options=options,
         disabled=disabled,
     )
-    # return _SelectValue(
-    #     placeholder,
-    #     min_values=min_values,
-    #     max_values=max_values,
-    #     options=options,
-    #     disabled=disabled,
-    # )
 
 
 class _ModalValue:

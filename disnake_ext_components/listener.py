@@ -7,7 +7,7 @@ import typing as t
 import disnake
 from disnake.ext import commands
 
-from . import abc, params, types_, utils, deprecation
+from . import abc, deprecation, params, types_, utils
 
 __all__ = [
     "button_listener",
@@ -37,6 +37,17 @@ ListenerT = t.TypeVar("ListenerT", bound="abc.BaseListener[t.Any, t.Any, t.Any]"
 ComponentListener = t.Union[
     "ButtonListener[t.Any, t.Any]",
     "SelectListener[t.Any, t.Any]",
+]
+
+ButtonReference = t.Union[
+    disnake.Button,
+    disnake.ui.Button[t.Any],
+    types_.AbstractComponent,
+]
+SelectReference = t.Union[
+    disnake.SelectMenu,
+    disnake.ui.Select[t.Any],
+    types_.AbstractComponent,
 ]
 
 
@@ -97,9 +108,14 @@ class ButtonListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
         Under normal circumstances, this should not lead to conflicts. In case ':' is intentionally
         part of the `custom_id`s matched by the listener, this should be set to a different value
         to prevent conflicts.
+    reference: Optional[Union[:class:`disnake.Button`, :class:`disnake.ui.Button`, :class:`AbstractComponent`]
+        A reference component used to set default values in `~.build_component`.
     """
 
     __cog_listener_names__: t.List[types_.ListenerType] = [types_.ListenerType.BUTTON]
+
+    reference: types_.AbstractComponent
+    """A reference component used to set default values in `~.build_component`."""
 
     def __init__(
         self,
@@ -108,7 +124,7 @@ class ButtonListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
         name: t.Optional[str] = None,
         regex: t.Union[str, t.Pattern[str], None] = None,
         sep: str = ":",
-        reference: t.Union[disnake.ui.Button[t.Any], types_.AbstractComponent, None] = None,
+        reference: t.Optional[ButtonReference] = None,
     ) -> None:
         super().__init__(callback, name=name, regex=regex, sep=sep)
 
@@ -125,7 +141,7 @@ class ButtonListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
 
     def _choose_optimal_reference(
         self,
-        component: t.Union[disnake.ui.Button[t.Any], types_.AbstractComponent, None],
+        component: t.Optional[ButtonReference],
     ) -> types_.AbstractComponent:
         if component is not None:  # Manually provided takes highest priority
             if isinstance(component, types_.AbstractComponent):
@@ -236,6 +252,7 @@ def button_listener(
     regex: t.Union[str, t.Pattern[str], None] = None,
     sep: str = ":",
     bot: t.Optional[commands.Bot] = None,
+    reference: t.Optional[ButtonReference] = None,
 ) -> t.Callable[[ButtonListenerCallback[ParentT, P, T]], ButtonListener[P, T]]:
     """Create a new :class:`ButtonListener` from a decorated function. The :class:`ButtonListener`
     will take care of regex-matching and persistent data stored in the `custom_id` of the
@@ -270,7 +287,7 @@ def button_listener(
     def wrapper(
         func: ButtonListenerCallback[ParentT, P, T],
     ) -> ButtonListener[P, T]:
-        listener = ButtonListener[P, T](func, regex=regex, sep=sep)
+        listener = ButtonListener[P, T](func, regex=regex, sep=sep, reference=reference)
 
         if bot is not None:
             bot.add_listener(listener, types_.ListenerType.BUTTON)
@@ -304,6 +321,8 @@ class SelectListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
         Under normal circumstances, this should not lead to conflicts. In case ':' is intentionally
         part of the `custom_id`s matched by the listener, this should be set to a different value
         to prevent conflicts.
+    reference: Optional[Union[:class:`disnake.SelectMenu`, :class:`disnake.ui.Select`, :class:`AbstractComponent`]
+        A reference component used to set default values in `~.build_component`.
     """
 
     __cog_listener_names__: t.List[types_.ListenerType] = [types_.ListenerType.SELECT]
@@ -313,6 +332,9 @@ class SelectListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
     converted to match the type annotation of this parameter.
     """
 
+    reference: types_.AbstractComponent
+    """A reference component used to set default values in `~.build_component`."""
+
     def __init__(
         self,
         callback: SelectListenerCallback[ParentT, P, T],
@@ -320,7 +342,7 @@ class SelectListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
         name: t.Optional[str] = None,
         regex: t.Union[str, t.Pattern[str], None] = None,
         sep: str = ":",
-        reference: t.Union[disnake.ui.Select[t.Any], types_.AbstractComponent, None] = None,
+        reference: t.Optional[SelectReference] = None,
     ) -> None:
         super().__init__(callback, name=name, regex=regex, sep=sep)
 
@@ -343,7 +365,7 @@ class SelectListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
 
     def _choose_optimal_reference(
         self,
-        component: t.Union[disnake.ui.Select[t.Any], types_.AbstractComponent, None],
+        component: t.Optional[SelectReference],
         param: t.Optional[inspect.Parameter],
     ) -> types_.AbstractComponent:
         if component is not None:  # Manually provided takes highest priority
@@ -499,6 +521,7 @@ def select_listener(
     regex: t.Union[str, t.Pattern[str], None] = None,
     sep: str = ":",
     bot: t.Optional[commands.Bot] = None,
+    reference: t.Optional[SelectReference] = None,
 ) -> t.Callable[[SelectListenerCallback[ParentT, P, T]], SelectListener[P, T]]:
     """Create a new :class:`SelectListener` from a decorated function. The :class:`SelectListener`
     will take care of regex-matching and persistent data stored in the `custom_id` of the
@@ -537,7 +560,7 @@ def select_listener(
     def wrapper(
         func: SelectListenerCallback[ParentT, P, T],
     ) -> SelectListener[P, T]:
-        listener = SelectListener[P, T](func, regex=regex, sep=sep)
+        listener = SelectListener[P, T](func, regex=regex, sep=sep, reference=reference)
 
         if bot is not None:
             bot.add_listener(listener, types_.ListenerType.SELECT)
@@ -788,7 +811,7 @@ def modal_listener(
 
 @t.overload
 def match_component(
-    component: disnake.ui.Button[t.Any],
+    component: t.Union[disnake.Button, disnake.ui.Button[t.Any]],
     /,
     *,
     bot: t.Optional[commands.Bot] = None,
@@ -812,7 +835,7 @@ def match_component(
 
 @t.overload
 def match_component(
-    component: disnake.ui.Select[t.Any],
+    component: t.Union[disnake.SelectMenu, disnake.ui.Select[t.Any]],
     /,
     *,
     bot: t.Optional[commands.Bot] = None,
@@ -837,25 +860,79 @@ def match_component(
 
 
 def match_component(
-    component: t.Union[disnake.ui.Button[t.Any], disnake.ui.Select[t.Any], None] = None,
+    component: t.Optional[
+        t.Union[
+            disnake.Button,
+            disnake.ui.Button[t.Any],
+            disnake.SelectMenu,
+            disnake.ui.Select[t.Any],
+        ]
+    ] = None,
     /,
     *,
     component_type: t.Optional[disnake.ComponentType] = None,
     bot: t.Optional[commands.Bot] = None,
     **kwargs: t.Any,
 ) -> t.Callable[[t.Callable[..., t.Any]], ComponentListener]:
-    if component is not None and component_type is not None:
-        raise ValueError("Please provide exactly one of `component` or `component_type`.")
+    """Create a listener that listens for components that match the provided one.
+    A component can be provided either as an actual component, or as keyword-arguments with the
+    necessary information to build a component. Note that these are mutually exclusive.
+
+    This will generate a fully qualified listener based on the parameters entered. From there, one
+    can easily create matching components using the `~.build_component` methods.
+
+    Parameters
+    ----------
+    component: Union[:class:`disnake.Button`, :class:`disnake.ui.Button`, :class:`disnake.SelectMenu`, :class:`disnake.ui.Select`]
+        The component to match. As this passes a fully qualified component with all its
+        parameters set, this will make the listener look for an *exact* match of the passed
+        component.
+
+        Note that passing components is mutually exclusive with passing any keyword arguments
+        outside of `bot`.
+    component_type: :class:`disnake.ComponentType`
+        The type of component the listener is for. If using keyword args to provide a component to
+        match, this parameter is required.
+
+        Note that passing keyword arguments is mutually exclusive with passing a concrete component.
+    **kwargs: Any
+        Any other parameters that can be passed to the desired component type.
+    bot: Optional[:class:`commands.Bot`]
+        Useful when defining this listener in the main file. This can be used to automatically
+        register the listener to the bot. This is automatically taken care of inside of cogs.
+
+    Raises
+    ------
+    ValueError
+        Either both or neither of `component` and `component_type` were passed. Please make sure
+        to pass strictly one of these parameters. Furthermore, make sure to not combine a
+        concrete component with further kwargs.
+    TypeError
+        The passed component is not of compatible type, or the passed component_type is not
+        among `disnake.ComponentType.button` or `disnake.ComponentType.select`
+
+    Returns
+    -------
+    Union[:class:`ButtonListener`, :class:`SelectListener`]
+        A component listener with a component matching check registered. The listener will match
+        the type of the provided component.
+    """
+    if component is not None and (component_type is not None or kwargs):
+        raise ValueError(
+            "Please provide exactly one of `component` or `component_type` and its kwargs."
+        )
 
     if component is not None:
-        if isinstance(component, disnake.ui.Button):
+        if isinstance(component, (disnake.Button, disnake.ui.Button)):
             listener_class = ButtonListener
-        elif isinstance(component, disnake.ui.Select):  # pyright: ignore  # Valid redundancy imo.
+        elif isinstance(
+            component, (disnake.SelectMenu, disnake.ui.Select)
+        ):  # pyright: ignore  # Valid redundancy imo.
             listener_class = SelectListener
         else:
             raise TypeError(
-                "Expected `component` to be an instance of disnake.ui.Button or "
-                f"disnake.ui.Select; got {type(component).__name__}."
+                "Expected `component` to be an instance of disnake.Button, disnake.ui.Button, "
+                f"disnake.SelectMenu or disnake.ui.Select; got {type(component).__name__}."
             )
 
     elif component_type is not None:
@@ -870,7 +947,9 @@ def match_component(
             )
 
     else:
-        raise ValueError("Please provide exactly one of `component` or `component_type`.")
+        raise ValueError(
+            "Please provide exactly one of `component` or `component_type` and its kwargs."
+        )
 
     if component_type:
         kwargs["type"] = component_type
@@ -887,7 +966,8 @@ def match_component(
         listener.add_check(utils.build_component_matching_check(reference))
 
         if bot:
-            bot.add_listener(listener, listener.__cog_listener_names__[0])
+            for listener_type in listener.__cog_listener_names__:
+                bot.add_listener(listener, listener_type)
 
         return listener
 

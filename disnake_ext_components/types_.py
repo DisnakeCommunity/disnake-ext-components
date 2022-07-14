@@ -170,7 +170,12 @@ class AbstractComponent:
     @classmethod
     def from_component(
         cls,
-        component: t.Union[disnake.ui.Button[t.Any], disnake.ui.Select[t.Any]],
+        component: t.Union[
+            disnake.Button,
+            disnake.ui.Button[t.Any],
+            disnake.SelectMenu,
+            disnake.ui.Select[t.Any],
+        ],
     ) -> AbstractComponent:
         self = cls()
         for slot in cls.__slots__:
