@@ -25,6 +25,13 @@ MaybeCoro = t.Union[Coro[_T], _T]
 MaybeSequence = t.Union[t.Sequence[_T], _T]
 
 InteractionT = t.TypeVar("InteractionT", disnake.MessageInteraction, disnake.ModalInteraction)
+MessageComponentT = t.TypeVar(
+    "MessageComponentT",
+    bound=t.Union[
+        disnake.ui.Button[t.Any],
+        disnake.ui.Select[t.Any],
+    ],
+)
 
 CheckCallback = t.Callable[[InteractionT], MaybeCoro[bool]]
 CheckT = t.TypeVar("CheckT", bound=CheckCallback[t.Any])
@@ -172,9 +179,40 @@ class AbstractComponent:
                 setattr(self, slot, value)
         return self
 
-    def __eq__(self, other: t.Union[disnake.Button, disnake.SelectMenu]) -> bool:  # type: ignore
+    def __iter__(self) -> t.Generator[t.Tuple[str, t.Any], None, None]:
         for slot in self.__slots__:
             value = getattr(self, slot, self.__sentinel)
-            if value is not self.__sentinel and value != getattr(other, slot, self.__sentinel):
-                return False
-        return True
+            if value is not self.__sentinel:
+                yield slot, value
+
+    def __eq__(self, other: t.Union[disnake.Button, disnake.SelectMenu]) -> bool:  # type: ignore
+        return not any(value != getattr(other, slot, self.__sentinel) for slot, value in self)
+
+    def __repr__(self):
+        return f"AbstractComponent({', '.join(f'{k}={v}' for k, v in self)})"
+
+    def get(self, key: str) -> t.Optional[t.Any]:
+        return getattr(self, key, None)
+
+    def copy(self) -> AbstractComponent:
+        return AbstractComponent(**dict(self))
+
+    def with_overrides(self, **kwargs: t.Any):
+        copy = self.copy()
+        for k, v in kwargs.items():
+            if v is not None:
+                setattr(copy, k, v)
+        return copy
+
+    def as_component(self, template: t.Type[MessageComponentT]) -> MessageComponentT:
+        kwargs = dict(self)
+        type_ = kwargs.pop("type", self.__sentinel)
+
+        component = template(**kwargs)
+        if component.type is not type_:
+            raise ValueError(
+                f"This AbstractComponent is of type {type_}, "
+                f"and is therefore incompatible with {template.__name__}."
+            )
+
+        return component

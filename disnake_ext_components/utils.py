@@ -163,17 +163,22 @@ async def assert_all_checks(
 
 
 def build_component_matching_check(
-    component: t.Union[disnake.ui.Button[t.Any], disnake.ui.Select[t.Any], None] = None,
+    component: t.Union[
+        disnake.ui.Button[t.Any],
+        disnake.ui.Select[t.Any],
+        types_.AbstractComponent,
+        None,
+    ] = None,
     /,
     **kwargs: t.Any,
 ) -> t.Callable[[disnake.MessageInteraction], bool]:
     """Build a check function to compare a component with the incoming interaction's component.
     Takes either a component, or kwargs that build a component. A component will look for an exact
-    match, whereas kwargs will look for a "superset".
+    match, whereas kwargs will look for a "superset" of the provided kwargs.
 
     Parameters
     ----------
-    component: Union[:class:`disnake.ui.Button`, :class:`disnake.ui.Select`]
+    component: Union[:class:`disnake.ui.Button`, :class:`disnake.ui.Select` :class:`.types_.AbstractComponent`]
         The component to match.
     kwargs: Any
         The parameters that make up a (partial) component.
@@ -188,7 +193,10 @@ def build_component_matching_check(
         if kwargs:
             raise ValueError("Please provide either a component or kwargs.")
 
-        check_component = types_.AbstractComponent.from_component(component)
+        if isinstance(component, types_.AbstractComponent):
+            check_component = component
+        else:
+            check_component = types_.AbstractComponent.from_component(component)
     else:
         check_component = types_.AbstractComponent(**kwargs)
 

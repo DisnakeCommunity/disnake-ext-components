@@ -457,13 +457,20 @@ def SelectValue(
     options: t.Union[t.List[disnake.SelectOption], t.List[str], t.Dict[str, str], None] = None,
     disabled: bool = False,
 ) -> t.Any:
-    return _SelectValue(
-        placeholder,
+    return types_.AbstractComponent(
+        placeholder=placeholder,
         min_values=min_values,
         max_values=max_values,
         options=options,
         disabled=disabled,
     )
+    # return _SelectValue(
+    #     placeholder,
+    #     min_values=min_values,
+    #     max_values=max_values,
+    #     options=options,
+    #     disabled=disabled,
+    # )
 
 
 class _ModalValue:

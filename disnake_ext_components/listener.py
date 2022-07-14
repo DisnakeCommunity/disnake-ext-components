@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import sys
 import typing as t
 
@@ -107,6 +108,7 @@ class ButtonListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
         name: t.Optional[str] = None,
         regex: t.Union[str, t.Pattern[str], None] = None,
         sep: str = ":",
+        reference: t.Union[disnake.ui.Button[t.Any], types_.AbstractComponent, None] = None,
     ) -> None:
         super().__init__(callback, name=name, regex=regex, sep=sep)
 
@@ -119,6 +121,19 @@ class ButtonListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
             )
 
         self.params = [params.ParamInfo.from_param(param) for param in listener_params]
+        self.reference = self._choose_optimal_reference(reference)
+
+    def _choose_optimal_reference(
+        self,
+        component: t.Union[disnake.ui.Button[t.Any], types_.AbstractComponent, None],
+    ) -> types_.AbstractComponent:
+        if component is not None:  # Manually provided takes highest priority
+            if isinstance(component, types_.AbstractComponent):
+                return component
+            return types_.AbstractComponent.from_component(component)
+
+        # Nothing of use was found, return an AbstractComponent that can match any button.
+        return types_.AbstractComponent(type=disnake.ComponentType.button)
 
     async def __call__(  # pyright: ignore
         self,
@@ -173,7 +188,7 @@ class ButtonListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
 
         return await super().__call__(inter, **converted)
 
-    async def build_button(
+    async def build_component(
         self,
         style: disnake.ButtonStyle = disnake.ButtonStyle.secondary,
         label: t.Optional[str] = None,
@@ -183,14 +198,14 @@ class ButtonListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
         *args: P.args,
         **kwargs: P.kwargs,
     ) -> disnake.ui.Button[t.Any]:
-        return disnake.ui.Button(
+        return self.reference.with_overrides(
             style=style,
             label=label,
             disabled=disabled,
-            custom_id=await self.build_custom_id(*args, **kwargs),
             url=url,
             emoji=emoji,
-        )
+            custom_id=await self.build_custom_id(*args, **kwargs),
+        ).as_component(disnake.ui.Button[t.Any])
 
 
 def button_listener(
@@ -270,7 +285,7 @@ class SelectListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
 
     __cog_listener_names__: t.List[types_.ListenerType] = [types_.ListenerType.SELECT]
 
-    select_param: t.Optional[params.ParamInfo] = None
+    select_param: t.Optional[params.ParamInfo]
     """The parameter with which the user-selected value(s) will be parsed. The values will be
     converted to match the type annotation of this parameter.
     """
@@ -282,6 +297,7 @@ class SelectListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
         name: t.Optional[str] = None,
         regex: t.Union[str, t.Pattern[str], None] = None,
         sep: str = ":",
+        reference: t.Union[disnake.ui.Select[t.Any], types_.AbstractComponent, None] = None,
     ) -> None:
         super().__init__(callback, name=name, regex=regex, sep=sep)
 
@@ -295,7 +311,35 @@ class SelectListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
             )
 
         if special_params:
-            self.select_param = params.ParamInfo.from_param(special_params[0])
+            self.select_param = params.ParamInfo.from_param(param := special_params[0])
+            self.reference = self._choose_optimal_reference(reference, param)
+
+        else:
+            self.select_param = None
+            self.reference = self._choose_optimal_reference(reference, None)
+
+    def _choose_optimal_reference(
+        self,
+        component: t.Union[disnake.ui.Select[t.Any], types_.AbstractComponent, None],
+        param: t.Optional[inspect.Parameter],
+    ) -> types_.AbstractComponent:
+        if component is not None:  # Manually provided takes highest priority
+            if isinstance(component, types_.AbstractComponent):
+                return component
+            return types_.AbstractComponent.from_component(component)
+
+        if param is not None and isinstance(default := param.default, types_.AbstractComponent):
+            if not default.get("options") and types_.get_origin(param.annotation) is t.Literal:
+                # No options were defined in the AbstractComponent but the parameter was
+                # annotated as literal, thus we should infer the options from the parameter.
+                return default.with_overrides(
+                    options=[str(arg) for arg in types_.get_args(param.annotation)]
+                )
+
+            return default
+
+        # Nothing of use was found, return an AbstractComponent that can match any select.
+        return types_.AbstractComponent(type=disnake.ComponentType.select)
 
     async def __call__(  # pyright: ignore
         self,
@@ -360,7 +404,7 @@ class SelectListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
 
         return await super().__call__(inter, converted_values, **converted)
 
-    async def build_select(
+    async def build_component(
         self,
         placeholder: t.Optional[str] = None,
         min_values: t.Optional[int] = None,
@@ -372,24 +416,21 @@ class SelectListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
     ) -> disnake.ui.Select[t.Any]:
         """Build a :class:`disnake.ui.Select` that matches this listener.
 
-        By default, this will create a Select with custom_id based on the custom_id parameters.
-        All other parameters use the normal Select defaults, except this defaults max_options to
+        By default, this will create a select with custom_id based on the custom_id parameters.
+        All other parameters use the normal select defaults, except this defaults max_options to
         ``len(options)``. These values can be overwritten by setting the parameter default to a
-        :func:`.SelectValue`, and call it with the parameters you wish to set on the TextInput.
+        :func:`.SelectValue`, and call it with the parameters you wish to set on the select.
 
         Parameters
         ----------
         **kwargs: Any
-            The keyword-only parameters of the listener to store on the Select's custom_id.
+            The keyword-only parameters of the listener to store on the select's custom_id.
 
         Returns:
         :class:`disnake.ui.Select`
-            The newly created Select.
+            The newly created select.
         """
-        if self.select_param is None:
-            select_value = params._SelectValue()
-
-        else:
+        if self.select_param:
             # We need the underlying `inspect.Parameter` here...
             param = self.select_param.param
 
@@ -397,17 +438,14 @@ class SelectListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
             if options is None and types_.get_origin(param.annotation) is t.Literal:
                 options = [str(arg) for arg in types_.get_args(param.annotation)]
 
-            # Get or create the parameter's SelectValue and build the select.
-            if not isinstance(select_value := param.default, params._SelectValue):
-                select_value = params._SelectValue()
-
-        return select_value.with_overrides(
+        return self.reference.with_overrides(
             placeholder=placeholder,
             min_values=min_values,
             max_values=max_values,
             options=options,
             disabled=disabled,
-        ).build(custom_id=await self.build_custom_id(*args, **kwargs))
+            custom_id=await self.build_custom_id(*args, **kwargs),
+        ).as_component(disnake.ui.Select[t.Any])
 
 
 def select_listener(
@@ -778,7 +816,7 @@ def match_component(
         if component_type is disnake.ComponentType.button:
             listener_class = ButtonListener
         elif component_type is disnake.ComponentType.select:
-            listener_class = ButtonListener
+            listener_class = SelectListener
         else:
             raise TypeError(
                 "Expected `component_type` to be either disnake.ComponentType.button or "
@@ -792,8 +830,15 @@ def match_component(
         kwargs["type"] = component_type
 
     def wrapper(callback: t.Callable[..., t.Any]) -> ComponentListener:
-        listener = listener_class(callback, name=kwargs.get("custom_id"))
-        listener.add_check(utils.build_component_matching_check(component, **kwargs))
+        if component is not None:
+            reference = types_.AbstractComponent.from_component(component)
+            name = component.custom_id
+        else:
+            reference = types_.AbstractComponent(**kwargs)
+            name = kwargs.get("custom_id")
+
+        listener = listener_class(callback, name=name, reference=reference)
+        listener.add_check(utils.build_component_matching_check(reference))
 
         if bot:
             bot.add_listener(listener, listener.__cog_listener_names__[0])
