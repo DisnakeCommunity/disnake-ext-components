@@ -6,15 +6,18 @@ import typing as t
 import disnake
 from disnake.ext import commands
 
+from . import types_
+
 __all__ = ["ALLOW_CONVERTER_FETCHING", "CONVERTER_MAP"]
 
 
 CollectionT = t.TypeVar("CollectionT", bound=t.Collection[t.Any])
 ConverterSig = t.Union[
-    t.Callable[..., t.Awaitable[t.Any]],
+    t.Callable[..., types_.Coro[t.Any]],
     t.Callable[..., t.Any],
 ]
 ChannelT = t.TypeVar("ChannelT", disnake.abc.GuildChannel, disnake.Thread)
+FlagT = t.TypeVar("FlagT", bound=disnake.flags.BaseFlags)
 
 
 class ALLOW_CONVERTER_FETCHING:  # There's probably a better way of doing this...
@@ -38,7 +41,7 @@ class ALLOW_CONVERTER_FETCHING:  # There's probably a better way of doing this..
 def collection_converter(
     collection_type: t.Type[CollectionT],
     inner_converter: ConverterSig,
-) -> t.Callable[[t.Collection[str], disnake.Interaction, t.List[t.Any]], t.Awaitable[CollectionT]]:
+) -> t.Callable[[t.Collection[str], disnake.Interaction, t.List[t.Any]], types_.Coro[CollectionT]]:
     """Create a converter for a given collection type."""
 
     async def _convert_collection(
@@ -59,7 +62,7 @@ def collection_converter(
     return _convert_collection
 
 
-def make_channel_converter(type_: t.Type[ChannelT]) -> t.Callable[..., t.Awaitable[ChannelT]]:
+def make_channel_converter(type_: t.Type[ChannelT]) -> t.Callable[..., types_.Coro[ChannelT]]:
     """Create a channel converter for a given channel type."""
 
     async def _convert_channel(argument: str, inter: disnake.Interaction) -> ChannelT:
@@ -284,6 +287,19 @@ def snowflake_to_str(snowflake: disnake.abc.Snowflake) -> str:
     return str(snowflake.id)
 
 
+def make_flag_converter(type_: t.Type[FlagT]) -> t.Callable[..., FlagT]:
+    """Create a flag converter for a given flag type."""
+
+    def _convert_flag(argument: str, inter: disnake.Interaction) -> FlagT:
+        return type_._from_value(int(argument))
+
+    return _convert_flag
+
+
+def flag_to_str(flag: disnake.flags.BaseFlags) -> str:
+    return str(flag.value)
+
+
 # flake8: noqa: E241
 CONVERTER_MAP: t.Mapping[type, t.Tuple[ConverterSig, ConverterSig]] = {
     # fmt: off
@@ -301,6 +317,7 @@ CONVERTER_MAP: t.Mapping[type, t.Tuple[ConverterSig, ConverterSig]] = {
     disnake.abc.GuildChannel: (make_channel_converter(disnake.abc.GuildChannel), snowflake_to_str),
     disnake.Guild:            (guild_converter,                                  snowflake_to_str),
     disnake.Message:          (message_converter,                                snowflake_to_str),
+    disnake.Permissions:      (make_flag_converter(disnake.Permissions),         flag_to_str),
     # disnake.Emoji:            dpy_converter.EmojiConverter().convert,  # temporarily(?) disabled.
     # fmt: on
 }
