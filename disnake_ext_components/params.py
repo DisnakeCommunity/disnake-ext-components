@@ -48,6 +48,7 @@ REGEX_MAP: t.Dict[type, t.Pattern[str]] = {
     disnake.abc.GuildChannel: patterns.SNOWFLAKE,
     disnake.Guild:            patterns.SNOWFLAKE,
     disnake.Message:          patterns.SNOWFLAKE,
+    disnake.Permissions:      patterns.STRICTINT,
     # disnake.Emoji:            ID,  # temporarily(?) disabled
     # fmt: on
 }
