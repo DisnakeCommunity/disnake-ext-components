@@ -156,7 +156,8 @@ class BaseListener(abc.ABC, t.Generic[P, T, types_.InteractionT]):
         the values entered are valid according to the listener's typehints, the custom_id is
         guaranteed to be matched by the listener.
 
-        Note: No actual validation is done on the values entered.
+        Note: No actual validation is done on the values entered, though they are converted where
+        possible.
 
         Parameters
         ----------
@@ -185,9 +186,10 @@ class BaseListener(abc.ABC, t.Generic[P, T, types_.InteractionT]):
 
             kwargs.update(args_as_kwargs)  # This is safe as we ensured there is no overlap.
 
-        # "Serialize" types to str...
+        # "Serialize" types to strings; empty string for None (optional)...
         serialized_kwargs = {
-            param.name: await param.to_str(kwargs[param.name]) for param in self.params
+            param.name: "" if kwargs[param.name] is None else await param.to_str(kwargs[param.name])
+            for param in self.params
         }
 
         if self.regex:
