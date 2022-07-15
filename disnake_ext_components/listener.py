@@ -206,9 +206,9 @@ class ButtonListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
 
     async def build_component(
         self,
-        style: disnake.ButtonStyle = disnake.ButtonStyle.secondary,
+        style: t.Optional[disnake.ButtonStyle] = None,
         label: t.Optional[str] = None,
-        disabled: bool = False,
+        disabled: t.Optional[bool] = None,
         url: t.Optional[str] = None,
         emoji: t.Union[str, disnake.Emoji, disnake.PartialEmoji, None] = None,
         *args: P.args,
