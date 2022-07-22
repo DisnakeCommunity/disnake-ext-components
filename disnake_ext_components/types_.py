@@ -163,11 +163,12 @@ class SelectOption(disnake.SelectOption):
 
         for slot in disnake.SelectOption.__slots__:
             value = getattr(self, slot)
+            other_value = getattr(other, slot)
 
-            if value is disnake.utils.MISSING and getattr(other, slot) is not disnake.utils.MISSING:
+            if value is disnake.utils.MISSING and other_value is not disnake.utils.MISSING:
                 return False
 
-            if getattr(other, slot) != value:
+            if other_value != value:
                 return False
 
         return True
