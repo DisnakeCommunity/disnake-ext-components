@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import inspect
 import sys
 import typing as t
 
 import disnake
 from disnake.ext import commands
 
-from . import abc, params, types_, utils
+from . import abc, deprecation, params, types_, utils
 
 __all__ = [
     "button_listener",
@@ -15,6 +16,7 @@ __all__ = [
     "SelectListener",
     "modal_listener",
     "ModalListener",
+    "match_component",
 ]
 
 
@@ -32,37 +34,54 @@ ParentT = t.TypeVar("ParentT")
 
 ListenerT = t.TypeVar("ListenerT", bound="abc.BaseListener[t.Any, t.Any, t.Any]")
 
-InteractionT = t.TypeVar("InteractionT", disnake.MessageInteraction, disnake.ModalInteraction)
-ErrorHandlerT = t.Callable[[ParentT, InteractionT, Exception], t.Any]
+ComponentListener = t.Union[
+    "ButtonListener[t.Any, t.Any]",
+    "SelectListener[t.Any, t.Any]",
+]
 
-# TODO: Make this more compact.
+ButtonReference = t.Union[
+    disnake.Button,
+    disnake.ui.Button[t.Any],
+    types_.AbstractComponent,
+]
+SelectReference = t.Union[
+    disnake.SelectMenu,
+    disnake.ui.Select[t.Any],
+    types_.AbstractComponent,
+]
 
+
+# fmt: off
 ButtonListenerCallback = t.Union[
-    t.Callable[Concatenate[ParentT, disnake.MessageInteraction, P], t.Awaitable[T]],
-    t.Callable[Concatenate[disnake.MessageInteraction, P], t.Awaitable[T]],
+    t.Callable[Concatenate[ParentT, disnake.MessageInteraction, P], types_.Coro[T]],
+    t.Callable[Concatenate[disnake.MessageInteraction, P], types_.Coro[T]],
 ]
 
 SelectListenerCallback = t.Union[
-    t.Callable[Concatenate[ParentT, disnake.MessageInteraction, t.Any, P], t.Awaitable[T]],
-    t.Callable[Concatenate[disnake.MessageInteraction, t.Any, P], t.Awaitable[T]],
+    t.Callable[Concatenate[ParentT, disnake.MessageInteraction, P], types_.Coro[T]],
+    t.Callable[Concatenate[ParentT, disnake.MessageInteraction, t.Any, P], types_.Coro[T]],
+
+    t.Callable[Concatenate[disnake.MessageInteraction, P], types_.Coro[T]],
+    t.Callable[Concatenate[disnake.MessageInteraction, t.Any, P], types_.Coro[T]],
 ]
 
-# flake8: noqa: E241
+# flake8: noqa: E501
 ModalListenerCallback = t.Union[
-    # fmt: off
-    t.Callable[Concatenate[ParentT, disnake.ModalInteraction, t.Any, P], t.Awaitable[T]],
-    t.Callable[Concatenate[ParentT, disnake.ModalInteraction, t.Any, t.Any, P], t.Awaitable[T]],
-    t.Callable[Concatenate[ParentT, disnake.ModalInteraction, t.Any, t.Any, t.Any, P], t.Awaitable[T]],
-    t.Callable[Concatenate[ParentT, disnake.ModalInteraction, t.Any, t.Any, t.Any, t.Any, P], t.Awaitable[T]],
-    t.Callable[Concatenate[ParentT, disnake.ModalInteraction, t.Any, t.Any, t.Any, t.Any, t.Any, P], t.Awaitable[T]],
+    t.Callable[Concatenate[ParentT, disnake.ModalInteraction, P], types_.Coro[T]],
+    t.Callable[Concatenate[ParentT, disnake.ModalInteraction, t.Any, P], types_.Coro[T]],
+    t.Callable[Concatenate[ParentT, disnake.ModalInteraction, t.Any, t.Any, P], types_.Coro[T]],
+    t.Callable[Concatenate[ParentT, disnake.ModalInteraction, t.Any, t.Any, t.Any, P], types_.Coro[T]],
+    t.Callable[Concatenate[ParentT, disnake.ModalInteraction, t.Any, t.Any, t.Any, t.Any, P], types_.Coro[T]],
+    t.Callable[Concatenate[ParentT, disnake.ModalInteraction, t.Any, t.Any, t.Any, t.Any, t.Any, P], types_.Coro[T]],
 
-    t.Callable[Concatenate[disnake.ModalInteraction, t.Any, P], t.Awaitable[T]],
-    t.Callable[Concatenate[disnake.ModalInteraction, t.Any, t.Any, P], t.Awaitable[T]],
-    t.Callable[Concatenate[disnake.ModalInteraction, t.Any, t.Any, t.Any, P], t.Awaitable[T]],
-    t.Callable[Concatenate[disnake.ModalInteraction, t.Any, t.Any, t.Any, t.Any, P], t.Awaitable[T]],
-    t.Callable[Concatenate[disnake.ModalInteraction, t.Any, t.Any, t.Any, t.Any, t.Any, P], t.Awaitable[T]],
-    # fmt: on
+    t.Callable[Concatenate[disnake.ModalInteraction, P], types_.Coro[T]],
+    t.Callable[Concatenate[disnake.ModalInteraction, t.Any, P], types_.Coro[T]],
+    t.Callable[Concatenate[disnake.ModalInteraction, t.Any, t.Any, P], types_.Coro[T]],
+    t.Callable[Concatenate[disnake.ModalInteraction, t.Any, t.Any, t.Any, P], types_.Coro[T]],
+    t.Callable[Concatenate[disnake.ModalInteraction, t.Any, t.Any, t.Any, t.Any, P], types_.Coro[T]],
+    t.Callable[Concatenate[disnake.ModalInteraction, t.Any, t.Any, t.Any, t.Any, t.Any, P], types_.Coro[T]],
 ]
+# fmt: on
 
 
 class ButtonListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
@@ -89,33 +108,25 @@ class ButtonListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
         Under normal circumstances, this should not lead to conflicts. In case ':' is intentionally
         part of the `custom_id`s matched by the listener, this should be set to a different value
         to prevent conflicts.
+    reference: Optional[Union[:class:`disnake.Button`, :class:`disnake.ui.Button`, :class:`AbstractComponent`]
+        A reference component used to set default values in `~.build_component`.
     """
 
     __cog_listener_names__: t.List[types_.ListenerType] = [types_.ListenerType.BUTTON]
 
-    def __new__(
-        cls: t.Type[ListenerT],
-        func: ButtonListenerCallback[ParentT, P, T],
-        **kwargs: t.Any,
-    ) -> ListenerT:
-        return super().__new__(cls, func, **kwargs)
+    reference: types_.AbstractComponent
+    """A reference component used to set default values in `~.build_component`."""
 
     def __init__(
         self,
-        func: ButtonListenerCallback[ParentT, P, T],
+        callback: ButtonListenerCallback[ParentT, P, T],
         *,
+        name: t.Optional[str] = None,
         regex: t.Union[str, t.Pattern[str], None] = None,
         sep: str = ":",
+        reference: t.Optional[ButtonReference] = None,
     ) -> None:
-        self._signature = commands.params.signature(func)  # pyright: ignore
-        if regex:
-            self.regex = utils.ensure_compiled(regex)
-            self.id_spec = utils.id_spec_from_regex(self.regex)
-            self.sep = None
-        else:
-            self.regex = None
-            self.id_spec = utils.id_spec_from_signature(self.__name__, sep, self._signature)
-            self.sep = sep
+        super().__init__(callback, name=name, regex=regex, sep=sep)
 
         special_params, listener_params = utils.extract_listener_params(self._signature)
 
@@ -126,6 +137,19 @@ class ButtonListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
             )
 
         self.params = [params.ParamInfo.from_param(param) for param in listener_params]
+        self.reference = self._choose_optimal_reference(reference)
+
+    def _choose_optimal_reference(
+        self,
+        component: t.Optional[ButtonReference],
+    ) -> types_.AbstractComponent:
+        if component is not None:  # Manually provided takes highest priority
+            if isinstance(component, types_.AbstractComponent):
+                return component
+            return types_.AbstractComponent.from_component(component)
+
+        # Nothing of use was found, return an AbstractComponent that can match any button.
+        return types_.AbstractComponent(type=disnake.ComponentType.button)
 
     async def __call__(  # pyright: ignore
         self,
@@ -166,6 +190,9 @@ class ButtonListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
         except ValueError:
             return
 
+        if not await utils.assert_all_checks(self.checks, inter):
+            return
+
         converted: t.Dict[str, t.Any] = {}
         for param, arg in zip(self.params, custom_id_params):
             converted[param.name] = await param.convert(
@@ -177,6 +204,26 @@ class ButtonListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
 
         return await super().__call__(inter, **converted)
 
+    async def build_component(
+        self,
+        style: t.Optional[disnake.ButtonStyle] = None,
+        label: t.Optional[str] = None,
+        disabled: t.Optional[bool] = None,
+        url: t.Optional[str] = None,
+        emoji: t.Union[str, disnake.Emoji, disnake.PartialEmoji, None] = None,
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> disnake.ui.Button[t.Any]:
+        return self.reference.with_overrides(
+            style=style,
+            label=label,
+            disabled=disabled,
+            url=url,
+            emoji=emoji,
+            custom_id=await self.build_custom_id(*args, **kwargs),
+        ).as_component(disnake.ui.Button[t.Any])
+
+    @deprecation.deprecated("build_component")
     async def build_button(
         self,
         style: disnake.ButtonStyle = disnake.ButtonStyle.secondary,
@@ -187,14 +234,17 @@ class ButtonListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
         *args: P.args,
         **kwargs: P.kwargs,
     ) -> disnake.ui.Button[t.Any]:
-        return disnake.ui.Button(
+        return await self.build_component(
             style=style,
             label=label,
             disabled=disabled,
-            custom_id=await self.build_custom_id(*args, **kwargs),
             url=url,
             emoji=emoji,
+            *args,
+            **kwargs,
         )
+
+    build_button.__doc__ = build_component.__doc__
 
 
 def button_listener(
@@ -202,6 +252,7 @@ def button_listener(
     regex: t.Union[str, t.Pattern[str], None] = None,
     sep: str = ":",
     bot: t.Optional[commands.Bot] = None,
+    reference: t.Optional[ButtonReference] = None,
 ) -> t.Callable[[ButtonListenerCallback[ParentT, P, T]], ButtonListener[P, T]]:
     """Create a new :class:`ButtonListener` from a decorated function. The :class:`ButtonListener`
     will take care of regex-matching and persistent data stored in the `custom_id` of the
@@ -236,7 +287,7 @@ def button_listener(
     def wrapper(
         func: ButtonListenerCallback[ParentT, P, T],
     ) -> ButtonListener[P, T]:
-        listener = ButtonListener[P, T](func, regex=regex, sep=sep)
+        listener = ButtonListener[P, T](func, regex=regex, sep=sep, reference=reference)
 
         if bot is not None:
             bot.add_listener(listener, types_.ListenerType.BUTTON)
@@ -270,48 +321,70 @@ class SelectListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
         Under normal circumstances, this should not lead to conflicts. In case ':' is intentionally
         part of the `custom_id`s matched by the listener, this should be set to a different value
         to prevent conflicts.
+    reference: Optional[Union[:class:`disnake.SelectMenu`, :class:`disnake.ui.Select`, :class:`AbstractComponent`]
+        A reference component used to set default values in `~.build_component`.
     """
 
     __cog_listener_names__: t.List[types_.ListenerType] = [types_.ListenerType.SELECT]
 
-    select_param: params.ParamInfo
+    select_param: t.Optional[params.ParamInfo]
     """The parameter with which the user-selected value(s) will be parsed. The values will be
     converted to match the type annotation of this parameter.
     """
 
-    def __new__(
-        cls: t.Type[ListenerT],
-        func: SelectListenerCallback[ParentT, P, T],
-        **kwargs: t.Any,
-    ) -> ListenerT:
-        return super().__new__(cls, func, **kwargs)
+    reference: types_.AbstractComponent
+    """A reference component used to set default values in `~.build_component`."""
 
     def __init__(
         self,
-        func: SelectListenerCallback[ParentT, P, T],
+        callback: SelectListenerCallback[ParentT, P, T],
         *,
+        name: t.Optional[str] = None,
         regex: t.Union[str, t.Pattern[str], None] = None,
         sep: str = ":",
+        reference: t.Optional[SelectReference] = None,
     ) -> None:
-        self._signature = commands.params.signature(func)  # pyright: ignore
-        if regex:
-            self.regex = utils.ensure_compiled(regex)
-            self.id_spec = utils.id_spec_from_regex(self.regex)
-            self.sep = None
-        else:
-            self.regex = None
-            self.id_spec = utils.id_spec_from_signature(self.__name__, sep, self._signature)
-            self.sep = sep
+        super().__init__(callback, name=name, regex=regex, sep=sep)
 
         special_params, listener_params = utils.extract_listener_params(self._signature)
         self.params = [params.ParamInfo.from_param(param) for param in listener_params]
 
-        if len(special_params) != 1:
+        if len(special_params) > 1:
             raise TypeError(
-                f"A `{type(self).__name__}` must have exactly one parameter before the "
-                f"keyword-only argument separator (`*,`), got {len(special_params)}."
+                f"A `{type(self).__name__}` must have exactly zero or one parameter before "
+                f"the keyword-only argument separator (`*,`), got {len(special_params)}."
             )
-        self.select_param = params.ParamInfo.from_param(special_params[0])
+
+        if special_params:
+            self.select_param = params.ParamInfo.from_param(param := special_params[0])
+            self.reference = self._choose_optimal_reference(reference, param)
+
+        else:
+            self.select_param = None
+            self.reference = self._choose_optimal_reference(reference, None)
+
+    def _choose_optimal_reference(
+        self,
+        component: t.Optional[SelectReference],
+        param: t.Optional[inspect.Parameter],
+    ) -> types_.AbstractComponent:
+        if component is not None:  # Manually provided takes highest priority
+            if isinstance(component, types_.AbstractComponent):
+                return component
+            return types_.AbstractComponent.from_component(component)
+
+        if param is not None and isinstance(default := param.default, types_.AbstractComponent):
+            if not default.get("options") and types_.get_origin(param.annotation) is t.Literal:
+                # No options were defined in the AbstractComponent but the parameter was
+                # annotated as literal, thus we should infer the options from the parameter.
+                return default.with_overrides(
+                    options=[str(arg) for arg in types_.get_args(param.annotation)]
+                )
+
+            return default
+
+        # Nothing of use was found, return an AbstractComponent that can match any select.
+        return types_.AbstractComponent(type=disnake.ComponentType.select)
 
     async def __call__(  # pyright: ignore
         self,
@@ -352,6 +425,9 @@ class SelectListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
         except ValueError:
             return
 
+        if not await utils.assert_all_checks(self.checks, inter):
+            return
+
         # First convert custom_id params...
         converted: t.Dict[str, t.Any] = {}
         for param, arg in zip(self.params, custom_id_params):
@@ -362,13 +438,18 @@ class SelectListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
                 skip_validation=bool(self.regex),
             )
 
+        # User didn't supply select params, can still be accessed through inter.values; return.
+        if self.select_param is None:
+            return await super().__call__(inter, **converted)
+
+        # User did supply select params, convert inter.values and provide it to the param.
         converted_values = await self.select_param.convert(
             inter.values, inter=inter, converted=converted
         )
 
         return await super().__call__(inter, converted_values, **converted)
 
-    async def build_select(
+    async def build_component(
         self,
         placeholder: t.Optional[str] = None,
         min_values: t.Optional[int] = None,
@@ -380,38 +461,59 @@ class SelectListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
     ) -> disnake.ui.Select[t.Any]:
         """Build a :class:`disnake.ui.Select` that matches this listener.
 
-        By default, this will create a Select with custom_id based on the custom_id parameters.
-        All other parameters use the normal Select defaults, except this defaults max_options to
+        By default, this will create a select with custom_id based on the custom_id parameters.
+        All other parameters use the normal select defaults, except this defaults max_options to
         ``len(options)``. These values can be overwritten by setting the parameter default to a
-        :func:`.SelectValue`, and call it with the parameters you wish to set on the TextInput.
+        :func:`.SelectValue`, and call it with the parameters you wish to set on the select.
 
         Parameters
         ----------
         **kwargs: Any
-            The keyword-only parameters of the listener to store on the Select's custom_id.
+            The keyword-only parameters of the listener to store on the select's custom_id.
 
         Returns:
         :class:`disnake.ui.Select`
-            The newly created Select.
+            The newly created select.
         """
-        # We need the underlying `inspect.Parameter` here...
-        param = self.select_param.param
+        if self.select_param:
+            # We need the underlying `inspect.Parameter` here...
+            param = self.select_param.param
 
-        # Parse options from `typing.Literal` if none were provided.
-        if options is None and types_.get_origin(param.annotation) is t.Literal:
-            options = [str(arg) for arg in types_.get_args(param.annotation)]
+            # Parse options from `typing.Literal` if none were provided.
+            if options is None and types_.get_origin(param.annotation) is t.Literal:
+                options = [str(arg) for arg in types_.get_args(param.annotation)]
 
-        # Get or create the parameter's SelectValue and .
-        if not isinstance(select_value := param.default, params._SelectValue):
-            select_value = params._SelectValue()
-
-        return select_value.with_overrides(
+        return self.reference.with_overrides(
             placeholder=placeholder,
             min_values=min_values,
             max_values=max_values,
             options=options,
             disabled=disabled,
-        ).build(custom_id=await self.build_custom_id(*args, **kwargs))
+            custom_id=await self.build_custom_id(*args, **kwargs),
+        ).as_component(disnake.ui.Select[t.Any])
+
+    @deprecation.deprecated("build_component")
+    async def build_select(
+        self,
+        placeholder: t.Optional[str] = None,
+        min_values: t.Optional[int] = None,
+        max_values: t.Optional[int] = None,
+        options: t.Union[t.List[disnake.SelectOption], t.List[str], t.Dict[str, str], None] = None,
+        disabled: t.Optional[bool] = None,
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> disnake.ui.Select[t.Any]:
+        return await self.build_component(
+            placeholder=placeholder,
+            min_values=min_values,
+            max_values=max_values,
+            options=options,
+            disabled=disabled,
+            *args,
+            **kwargs,
+        )
+
+    build_select.__doc__ = build_component.__doc__
 
 
 def select_listener(
@@ -419,7 +521,8 @@ def select_listener(
     regex: t.Union[str, t.Pattern[str], None] = None,
     sep: str = ":",
     bot: t.Optional[commands.Bot] = None,
-) -> t.Callable[[SelectListenerCallback[ParentT, P, T]], SelectListener[P, T],]:
+    reference: t.Optional[SelectReference] = None,
+) -> t.Callable[[SelectListenerCallback[ParentT, P, T]], SelectListener[P, T]]:
     """Create a new :class:`SelectListener` from a decorated function. The :class:`SelectListener`
     will take care of regex-matching and persistent data stored in the `custom_id` of the
     :class:`disnake.ui.Select`.
@@ -457,7 +560,7 @@ def select_listener(
     def wrapper(
         func: SelectListenerCallback[ParentT, P, T],
     ) -> SelectListener[P, T]:
-        listener = SelectListener[P, T](func, regex=regex, sep=sep)
+        listener = SelectListener[P, T](func, regex=regex, sep=sep, reference=reference)
 
         if bot is not None:
             bot.add_listener(listener, types_.ListenerType.SELECT)
@@ -476,29 +579,15 @@ class ModalListener(abc.BaseListener[P, T, disnake.ModalInteraction]):
     converted to match the type annotations of these parameters.
     """
 
-    def __new__(
-        cls: t.Type[ListenerT],
-        func: ModalListenerCallback[ParentT, P, T],
-        **kwargs: t.Any,
-    ) -> ListenerT:
-        return super().__new__(cls, func, **kwargs)
-
     def __init__(
         self,
-        func: ModalListenerCallback[ParentT, P, T],
+        callback: ModalListenerCallback[ParentT, P, T],
         *,
+        name: t.Optional[str] = None,
         regex: t.Union[str, t.Pattern[str], None] = None,
         sep: str = ":",
     ) -> None:
-        self._signature = commands.params.signature(func)  # pyright: ignore
-        if regex:
-            self.regex = utils.ensure_compiled(regex)
-            self.id_spec = utils.id_spec_from_regex(self.regex)
-            self.sep = None
-        else:
-            self.regex = None
-            self.id_spec = utils.id_spec_from_signature(self.__name__, sep, self._signature)
-            self.sep = sep
+        super().__init__(callback, name=name, regex=regex, sep=sep)
 
         special_params, listener_params = utils.extract_listener_params(self._signature)
 
@@ -548,6 +637,9 @@ class ModalListener(abc.BaseListener[P, T, disnake.ModalInteraction]):
         except ValueError:
             return
 
+        if not await utils.assert_all_checks(self.checks, inter):
+            return
+
         converted: t.Dict[str, t.Any] = {}
         for param, arg in zip(self.params, custom_id_params):
             converted[param.name] = await param.convert(
@@ -566,7 +658,7 @@ class ModalListener(abc.BaseListener[P, T, disnake.ModalInteraction]):
 
         return await super().__call__(inter, **converted)
 
-    async def build_modal(  # TODO: Update with new ModalValue functionality.
+    async def build_component(  # TODO: Update with new ModalValue functionality.
         self,
         title: str,
         components: t.Optional[t.List[disnake.ui.TextInput]] = None,  # TODO: Disnake 2.6 typing.
@@ -647,7 +739,7 @@ def modal_listener(
     regex: t.Union[str, t.Pattern[str], None] = None,
     sep: str = ":",
     bot: t.Optional[commands.Bot] = None,
-) -> t.Callable[[ModalListenerCallback[ParentT, P, T]], ModalListener[P, T],]:
+) -> t.Callable[[ModalListenerCallback[ParentT, P, T]], ModalListener[P, T]]:
     """Create a new :class:`ModalListener` from a decorated function. The ModalListener will take
     care of regex-matching and persistent data stored in the custom_id of the :class:`disnake.ui.Modal`.
 
@@ -711,6 +803,171 @@ def modal_listener(
 
         if bot is not None:
             bot.add_listener(listener, types_.ListenerType.MODAL)
+
+        return listener
+
+    return wrapper
+
+
+@t.overload
+def match_component(
+    component: t.Union[disnake.Button, disnake.ui.Button[t.Any]],
+    /,
+    *,
+    bot: t.Optional[commands.Bot] = None,
+) -> t.Callable[[ButtonListenerCallback[ParentT, P, T]], ButtonListener[P, T]]:
+    ...
+
+
+@t.overload
+def match_component(
+    *,
+    component_type: t.Literal[disnake.ComponentType.button],
+    style: disnake.ButtonStyle = ...,
+    custom_id: str = ...,
+    disabled: bool = ...,
+    label: str = ...,
+    emoji: t.Union[disnake.PartialEmoji, disnake.Emoji, str] = ...,
+    bot: t.Optional[commands.Bot] = None,
+) -> t.Callable[[ButtonListenerCallback[ParentT, P, T]], ButtonListener[P, T]]:
+    ...
+
+
+@t.overload
+def match_component(
+    component: t.Union[disnake.SelectMenu, disnake.ui.Select[t.Any]],
+    /,
+    *,
+    bot: t.Optional[commands.Bot] = None,
+) -> t.Callable[[SelectListenerCallback[ParentT, P, T]], SelectListener[P, T]]:
+    ...
+
+
+@t.overload
+def match_component(
+    *,
+    component_type: t.Literal[disnake.ComponentType.select],
+    custom_id: str = ...,
+    placeholder: str = ...,
+    min_values: int = ...,
+    max_values: int = ...,
+    disabled: bool = ...,
+    options: t.List[disnake.SelectOption] = ...,
+    label: str = ...,
+    bot: t.Optional[commands.Bot] = None,
+) -> t.Callable[[SelectListenerCallback[ParentT, P, T]], SelectListener[P, T]]:
+    ...
+
+
+def match_component(
+    component: t.Optional[
+        t.Union[
+            disnake.Button,
+            disnake.ui.Button[t.Any],
+            disnake.SelectMenu,
+            disnake.ui.Select[t.Any],
+        ]
+    ] = None,
+    /,
+    *,
+    component_type: t.Optional[disnake.ComponentType] = None,
+    bot: t.Optional[commands.Bot] = None,
+    **kwargs: t.Any,
+) -> t.Callable[[t.Callable[..., t.Any]], ComponentListener]:
+    """Create a listener that listens for components that match the provided one.
+    A component can be provided either as an actual component, or as keyword-arguments with the
+    necessary information to build a component. Note that these are mutually exclusive.
+
+    This will generate a fully qualified listener based on the parameters entered. From there, one
+    can easily create matching components using the `~.build_component` methods.
+
+    Parameters
+    ----------
+    component: Union[:class:`disnake.Button`, :class:`disnake.ui.Button`, :class:`disnake.SelectMenu`, :class:`disnake.ui.Select`]
+        The component to match. As this passes a fully qualified component with all its
+        parameters set, this will make the listener look for an *exact* match of the passed
+        component.
+
+        Note that passing components is mutually exclusive with passing any keyword arguments
+        outside of `bot`.
+    component_type: :class:`disnake.ComponentType`
+        The type of component the listener is for. If using keyword args to provide a component to
+        match, this parameter is required.
+
+        Note that passing keyword arguments is mutually exclusive with passing a concrete component.
+    **kwargs: Any
+        Any other parameters that can be passed to the desired component type.
+    bot: Optional[:class:`commands.Bot`]
+        Useful when defining this listener in the main file. This can be used to automatically
+        register the listener to the bot. This is automatically taken care of inside of cogs.
+
+    Raises
+    ------
+    ValueError
+        Either both or neither of `component` and `component_type` were passed. Please make sure
+        to pass strictly one of these parameters. Furthermore, make sure to not combine a
+        concrete component with further kwargs.
+    TypeError
+        The passed component is not of compatible type, or the passed component_type is not
+        among `disnake.ComponentType.button` or `disnake.ComponentType.select`
+
+    Returns
+    -------
+    Union[:class:`ButtonListener`, :class:`SelectListener`]
+        A component listener with a component matching check registered. The listener will match
+        the type of the provided component.
+    """
+    if component is not None and (component_type is not None or kwargs):
+        raise ValueError(
+            "Please provide exactly one of `component` or `component_type` and its kwargs."
+        )
+
+    if component is not None:
+        if isinstance(component, (disnake.Button, disnake.ui.Button)):
+            listener_class = ButtonListener
+        elif isinstance(
+            component, (disnake.SelectMenu, disnake.ui.Select)
+        ):  # pyright: ignore  # Valid redundancy imo.
+            listener_class = SelectListener
+        else:
+            raise TypeError(
+                "Expected `component` to be an instance of disnake.Button, disnake.ui.Button, "
+                f"disnake.SelectMenu or disnake.ui.Select; got {type(component).__name__}."
+            )
+
+    elif component_type is not None:
+        if component_type is disnake.ComponentType.button:
+            listener_class = ButtonListener
+        elif component_type is disnake.ComponentType.select:
+            listener_class = SelectListener
+        else:
+            raise TypeError(
+                "Expected `component_type` to be either disnake.ComponentType.button or "
+                f"disnake.ComponentType.select; got {component_type.name}."
+            )
+
+    else:
+        raise ValueError(
+            "Please provide exactly one of `component` or `component_type` and its kwargs."
+        )
+
+    if component_type:
+        kwargs["type"] = component_type
+
+    def wrapper(callback: t.Callable[..., t.Any]) -> ComponentListener:
+        if component is not None:
+            reference = types_.AbstractComponent.from_component(component)
+            name = component.custom_id
+        else:
+            reference = types_.AbstractComponent(**kwargs)
+            name = kwargs.get("custom_id")
+
+        listener = listener_class(callback, name=name, reference=reference)
+        listener.add_check(utils.build_component_matching_check(reference))
+
+        if bot:
+            for listener_type in listener.__cog_listener_names__:
+                bot.add_listener(listener, listener_type)
 
         return listener
 

@@ -1,10 +1,11 @@
 import abc
+import asyncio.coroutines
 import sys
 import typing as t
 
-import disnake
+from disnake.ext import commands
 
-from . import params, types_
+from . import params, types_, utils
 
 if sys.version_info >= (3, 10):
     from typing import ParamSpec
@@ -16,17 +17,33 @@ else:
 T = t.TypeVar("T")
 ParentT = t.TypeVar("ParentT")
 P = ParamSpec("P")
-InteractionT = t.TypeVar("InteractionT", bound=disnake.Interaction)
 
 ListenerT = t.TypeVar("ListenerT", bound="BaseListener[t.Any, t.Any, t.Any]")
 
 
-class BaseListener(types_.partial[t.Awaitable[T]], abc.ABC, t.Generic[P, T, InteractionT]):
+class BaseListener(abc.ABC, t.Generic[P, T, types_.InteractionT]):
 
-    # These are just to conform to dpy listener spec
-    __name__: str
+    # Make asyncio.iscoroutinefunction believe this is a coroutine function...
+    _is_coroutine = asyncio.coroutines._is_coroutine  # type: ignore
+
+    # These are just to conform to dpy listener spec...
     __cog_listener__: t.Final[t.Literal[True]] = True
     __cog_listener_names__: t.List[types_.ListenerType]
+
+    parent: t.Optional[t.Any]
+    """The class on which this listener is defined, if any.
+    Used to set the `self` parameter on the listener.
+    """
+
+    callback: t.Callable[..., types_.Coro[T]]
+    """The callback function wrapped by this listener."""
+
+    name: t.Optional[str]
+    """The name is used to determine the custom id spec for the listener.
+    This can be customized in `~.__init__`. For most listeners, the name will equal the name of
+    the bound callback function.
+    If no name is provided, custom_id name validation will will be skipped.
+    """
 
     id_spec: str
     """The spec that inbound `custom_id`s should match. Also used to create new custom ids; see
@@ -49,26 +66,53 @@ class BaseListener(types_.partial[t.Awaitable[T]], abc.ABC, t.Generic[P, T, Inte
     about their regex pattern(s) and converter(s).
     """
 
-    def __new__(
-        cls: t.Type[ListenerT],
-        func: t.Callable[..., t.Awaitable[T]],
-        **kwargs: t.Any,
-    ) -> ListenerT:
-        self = super().__new__(cls, func)
-        self.__name__ = func.__name__
-        return self
+    checks: t.List[types_.CheckCallback[types_.InteractionT]]
+    """Check functions that are called when the listener is invoked. All of these must pass for
+    the listener invocation to complete.
+    """
 
-    def __get__(self: ListenerT, instance: t.Any, _) -> ListenerT:
+    def __init__(
+        self,
+        callback: t.Callable[..., types_.Coro[T]],
+        *,
+        name: t.Optional[str] = None,
+        regex: t.Union[str, t.Pattern[str], None] = None,
+        sep: str = ":",
+    ) -> None:
+        self.checks = []
+        self.parent = None
+
+        self.callback = callback
+        self.name = name
+        self.__name__ = callback.__name__
+        self._signature = commands.params.signature(callback)  # type: ignore
+
+        if regex:
+            self.regex = utils.ensure_compiled(regex)
+            self.id_spec = utils.id_spec_from_regex(self.regex)
+            self.sep = None
+
+        else:
+            self.regex = None
+            self.id_spec = utils.id_spec_from_signature(self.name or "", sep, self._signature)
+            self.sep = sep
+
+    def __get__(self: ListenerT, instance: t.Optional[t.Any], _) -> ListenerT:
         """Abuse descriptor functionality to inject instance of the owner class as first arg."""
         # Inject instance of the owner class as the partial's first arg.
         # If need be, we could add support for classmethods by checking the
         # type of self.func and injecting the owner class instead where appropriate.
-        self.__setstate__((self.func, (instance,), {}, self.__dict__))  # type: ignore
+        self.parent = instance
         return self
 
+    async def __call__(self, *args: t.Any, **kwargs: t.Any) -> T:
+        if self.parent:
+            return await self.callback(self.parent, *args, **kwargs)
+        return await self.callback(*args, **kwargs)
+
     def error(
-        self, func: t.Callable[[ParentT, InteractionT, Exception], t.Any]
-    ) -> t.Callable[[ParentT, InteractionT, Exception], t.Any]:
+        self, func: t.Callable[[ParentT, types_.InteractionT, Exception], t.Any]
+    ) -> t.Callable[[ParentT, types_.InteractionT, Exception], t.Any]:
         """Register an error handler for this listener.
         Note: Not yet implemented.
         """
@@ -100,7 +144,9 @@ class BaseListener(types_.partial[t.Awaitable[T]], abc.ABC, t.Generic[P, T, Inte
             return tuple(params.values())
 
         name, *params = custom_id.split(self.sep)
-        if name != self.__name__ or len(params) != len(self.params):
+        # If no name is set, skip name check. Otherwise, assure stored and provided name are equal.
+        # Also confirm the number of incoming params matches the number of params on the listener.
+        if (self.name and name != self.name) or (len(params) != len(self.params)):
             raise ValueError(f"Listener spec {self.id_spec} did not match custom_id {custom_id}.")
 
         return tuple(params)
@@ -110,7 +156,8 @@ class BaseListener(types_.partial[t.Awaitable[T]], abc.ABC, t.Generic[P, T, Inte
         the values entered are valid according to the listener's typehints, the custom_id is
         guaranteed to be matched by the listener.
 
-        Note: No actual validation is done on the values entered.
+        Note: No actual validation is done on the values entered, though they are converted where
+        possible.
 
         Parameters
         ----------
@@ -139,11 +186,35 @@ class BaseListener(types_.partial[t.Awaitable[T]], abc.ABC, t.Generic[P, T, Inte
 
             kwargs.update(args_as_kwargs)  # This is safe as we ensured there is no overlap.
 
-        # "Serialize" types to str...
-        deserialized_kwargs = {
-            param.name: await param.to_str(kwargs[param.name]) for param in self.params
+        # "Serialize" types to strings; empty string for None (optional)...
+        serialized_kwargs = {
+            param.name: "" if kwargs[param.name] is None else await param.to_str(kwargs[param.name])
+            for param in self.params
         }
 
         if self.regex:
-            return self.id_spec.format(**deserialized_kwargs)
-        return self.id_spec.format(sep=self.sep, **deserialized_kwargs)
+            custom_id = self.id_spec.format(**serialized_kwargs)
+        custom_id = self.id_spec.format(sep=self.sep, **serialized_kwargs)
+
+        if not custom_id:  # Fallback in case the listener has neither a name nor params.
+            return self.__name__
+        return custom_id
+
+    def add_check(self, callback: types_.CheckT) -> types_.CheckT:
+        """Add a check to the listener. Like `commands.check` checks, these checks must
+        take an interaction as their sole parameter and must return a boolean. Checks may
+        be coroutines, though this is not required. Checks are run when the listener is
+        called by an interaction event, and are bypassed when the listener is called manually.
+        All checks must pass for the interaction to go through and fire the listener callback.
+
+        Parameters
+        ----------
+        check: t.Callable[[:class:`disnake.Interaction`], MaybeCoro[:class:`bool`]]
+            The check to be added.
+
+        Returns:
+        t.Callable[[:class:`disnake.Interaction`], MaybeCoro[:class:`bool`]]
+            The callback of the check is returned unedited such that it can be used elsewhere.
+        """
+        self.checks.append(callback)
+        return callback

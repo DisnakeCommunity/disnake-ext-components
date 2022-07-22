@@ -5,6 +5,8 @@ import typing as t
 import disnake
 from disnake.ext import commands
 
+from . import types_
+
 __all__ = [
     "id_spec_from_signature",
     "id_spec_from_regex",
@@ -22,6 +24,11 @@ def id_spec_from_signature(name: str, sep: str, signature: inspect.Signature) ->
         The name of the listener function to which the signature belongs.
     signature: :class:`inspect.Signature`
         The function signature of the listener function.
+
+    Returns
+    -------
+    :class:`str`
+        The custom_id spec that was built from the provided function signature.
     """
     _, custom_id_params = extract_listener_params(signature)
     if not custom_id_params:
@@ -38,6 +45,11 @@ def id_spec_from_regex(regex: t.Pattern[str]) -> str:
     ----------
     regex: :class:`re.Pattern`
         The regex pattern that is to be deconstructed.
+
+    Returns
+    -------
+    :class:`str`
+        The custom_id spec that was extracted from the regex pattern.
     """
     return re.sub(r"\(\?P<(.+?)>.*?\)", lambda m: f"{{{m[1]}}}", regex.pattern)
 
@@ -71,7 +83,7 @@ def extract_listener_params(
         - The second tuple contains all remaining parameters, which are parsed from the `custom_id`.
     """
     param_iter = iter(signature.parameters.values())
-    for param in param_iter:
+    for pos, param in enumerate(param_iter):
         if commands.params.issubclass_(param.annotation, disnake.Interaction):
             break
     else:
@@ -79,6 +91,9 @@ def extract_listener_params(
             "No interaction parameter (annotated as any kind of 'disnake.Interaction') was found.\n"
             "Please make sure the interaction parameter is properly annotated in the listener."
         )
+
+    if pos > 1:
+        raise TypeError("The listener callback's `self` parameter must be the first parameter.")
 
     special_params: t.List[inspect.Parameter] = []
     for param in param_iter:
@@ -109,5 +124,83 @@ def ensure_compiled(
         compiled, it is returned as-is.
     flags: :class:`re.RegexFlag`
         Any flags to apply to compilation. By default this has the same behaviour as `re.compile`.
+
+    Returns
+    -------
+    :class:`re.Pattern`
+        The compiled regex pattern.
     """
     return re.compile(pattern, flags) if isinstance(pattern, str) else pattern
+
+
+async def assert_all_checks(
+    checks: t.Sequence[types_.CheckCallback[types_.InteractionT]],
+    inter: types_.InteractionT,
+) -> bool:
+    """Ensure all checks for a given listener pass.
+
+    Parameters
+    ----------
+    checks: Sequence[Callable[[:class:`disnake.Interaction`], MaybeCoro[:class:`bool`]]]
+        The checks that should be run for the listener.
+    inter: :class:`disnake.Interaction`
+        The interaction to supply to the checks.
+
+    Returns
+    -------
+    :class:`bool`
+        Whether all checks succeeded or not.
+    """
+    for check in checks:
+        result = check(inter)
+        if inspect.isawaitable(result):
+            result = await result
+
+        if result is False:
+            return False
+
+    return True
+
+
+def build_component_matching_check(
+    component: t.Union[
+        disnake.ui.Button[t.Any],
+        disnake.ui.Select[t.Any],
+        types_.AbstractComponent,
+        None,
+    ] = None,
+    /,
+    **kwargs: t.Any,
+) -> t.Callable[[disnake.MessageInteraction], bool]:
+    """Build a check function to compare a component with the incoming interaction's component.
+    Takes either a component, or kwargs that build a component. A component will look for an exact
+    match, whereas kwargs will look for a "superset" of the provided kwargs.
+
+    Parameters
+    ----------
+    component: Union[:class:`disnake.ui.Button`, :class:`disnake.ui.Select` :class:`.types_.AbstractComponent`]
+        The component to match.
+    kwargs: Any
+        The parameters that make up a (partial) component.
+
+    Returns
+    -------
+    Callable[[:class:`disnake.MessageInteraction`], :class:`bool`]
+        The check function. Takes a message interaction and returns a bool depending on whether the
+        component matches.
+    """  # noqa: E501
+    if component is not None:
+        if kwargs:
+            raise ValueError("Please provide either a component or kwargs.")
+
+        if isinstance(component, types_.AbstractComponent):
+            check_component = component
+        else:
+            check_component = types_.AbstractComponent.from_component(component)
+    else:
+        check_component = types_.AbstractComponent(**kwargs)
+
+    def check(inter: disnake.MessageInteraction) -> bool:
+        return check_component == inter.component
+
+    return check

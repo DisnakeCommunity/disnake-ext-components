@@ -48,6 +48,7 @@ REGEX_MAP: t.Dict[type, t.Pattern[str]] = {
     disnake.abc.GuildChannel: patterns.SNOWFLAKE,
     disnake.Guild:            patterns.SNOWFLAKE,
     disnake.Message:          patterns.SNOWFLAKE,
+    disnake.Permissions:      patterns.STRICTINT,
     # disnake.Emoji:            ID,  # temporarily(?) disabled
     # fmt: on
 }
@@ -429,7 +430,6 @@ class _SelectValue:
         options: t.Union[t.List[disnake.SelectOption], t.List[str], t.Dict[str, str], None] = None,
         disabled: t.Optional[bool] = None,
     ) -> _SelectValue:
-        print(options)
         return type(self)(
             placeholder=self.placeholder if placeholder is None else placeholder,
             min_values=self.min_values if min_values is None else min_values,
@@ -458,8 +458,9 @@ def SelectValue(
     options: t.Union[t.List[disnake.SelectOption], t.List[str], t.Dict[str, str], None] = None,
     disabled: bool = False,
 ) -> t.Any:
-    return _SelectValue(
-        placeholder,
+    return types_.AbstractComponent(
+        type=disnake.ComponentType.select,
+        placeholder=placeholder,
         min_values=min_values,
         max_values=max_values,
         options=options,

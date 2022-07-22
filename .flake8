@@ -6,8 +6,9 @@ max-line-length = 110
 
 per-file-ignores =
     **/__init__.py: F401, F403
-    # Give examples the space they need
+    # Give examples and tests the space they need
     examples/*.py: E501
+    tests/*.py: E501
 
 accept-encodings = utf-8
 docstring-convention = numpy
