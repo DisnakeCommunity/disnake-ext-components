@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import typing as t
 
 import disnake
@@ -68,37 +70,66 @@ async def test_sync_check(
 # utils.build_component_matching_check
 
 
-b = disnake.ui.Button
-s = disnake.ui.Select
+b = disnake.ui.Button[t.Any]
+s = disnake.ui.Select[t.Any]
+bs = disnake.ButtonStyle
 
 
 @pytest.mark.parametrize(
-    "componentA, componentB, expected",
+    "componentA, componentB, kwargsA, kwargsB, expected",
     (
-        (b(custom_id="abc"), b(custom_id="abc"), True),
-        (b(custom_id="abc", label="def"), b(custom_id="abc", label="def"), True),
-        # These should fail, as component matching should require an exact match...
-        (b(custom_id="abc"), b(custom_id="abc", label="def"), False),
-        (b(custom_id="abc", label="def"), b(custom_id="abc"), False),
-        (b(custom_id="abc"), b(custom_id="def"), False),
-        # Same checks with selects for good measure...
-        (s(custom_id="abc"), s(custom_id="abc"), True),
-        (s(custom_id="abc"), s(custom_id="abc", placeholder="def"), False),
-        (s(custom_id="abc", placeholder="def"), s(custom_id="abc"), False),
-        (s(custom_id="abc"), s(custom_id="def"), False),
-        (s(custom_id="abc", placeholder="def"), s(custom_id="abc", placeholder="def"), True),
-        # Ensure component types match...
-        (s(custom_id="abc"), b(custom_id="abc"), False),
-    ),
+        # Check all individual params...
+        # Note that custom_id must be set for comparison, otherwise disnake will randomly
+        # generate them, and they won't match.
+        (b, b, {"custom_id": "abc"},                       {"custom_id": "abc"},                            True),
+        (s, s, {"custom_id": "abc"},                       {"custom_id": "abc"},                            True),
+        (b, s, {"custom_id": "abc"},                       {"custom_id": "abc"},                            False),
+
+        (b, b, {"custom_id": "abc", "disabled": True},     {"custom_id": "abc", "disabled": True},          True),
+        (s, s, {"custom_id": "abc", "disabled": True},     {"custom_id": "abc", "disabled": True},          True),
+        (b, s, {"custom_id": "abc", "disabled": True},     {"custom_id": "abc", "disabled": True},          False),
+
+        (b, b, {"custom_id": "abc", "label": "abc"},       {"custom_id": "abc", "label": "abc"},            True),
+        (b, b, {"custom_id": "abc", "label": "abc"},       {"custom_id": "abc", "label": "def"},            False),
+
+        (b, b, {"custom_id": "abc", "emoji": "abc"},       {"custom_id": "abc", "emoji": "abc"},            True),
+        (b, b, {"custom_id": "abc", "emoji": "abc"},       {"custom_id": "abc", "emoji": "def"},            False),
+
+        (b, b, {"custom_id": "abc", "style": bs.red},      {"custom_id": "abc", "style": bs.red},           True),
+        (b, b, {"custom_id": "abc", "style": bs.red},      {"custom_id": "abc", "style": bs.gray},          False),
+
+        (s, s, {"custom_id": "abc", "max_values": 6},      {"custom_id": "abc", "max_values": 6},           True),
+        (s, s, {"custom_id": "abc", "max_values": 6},      {"custom_id": "abc", "max_values": 9},           False),
+
+        (s, s, {"custom_id": "abc", "min_values": 6},      {"custom_id": "abc", "min_values": 6},           True),
+        (s, s, {"custom_id": "abc", "min_values": 6},      {"custom_id": "abc", "min_values": 9},           False),
+
+        (s, s, {"custom_id": "abc", "placeholder": "abc"}, {"custom_id": "abc", "placeholder": "abc"},      True),
+        (s, s, {"custom_id": "abc", "placeholder": "abc"}, {"custom_id": "abc", "placeholder": "def"},      False),
+
+        (s, s, {"custom_id": "abc", "options": ["abc"]},   {"custom_id": "abc", "options": ["abc"]},        True),
+        (s, s, {"custom_id": "abc", "options": ["abc"]},   {"custom_id": "abc", "options": ["def"]},        False),
+        (s, s, {"custom_id": "abc", "options": ["abc"]},   {"custom_id": "abc", "options": ["abc", "def"]}, False),
+        (s, s, {"custom_id": "abc", "options": ["abc"]},   {"custom_id": "abc", "options": {"abc": "def"}}, False),
+
+        # Confirm that supersets aren't allowed...
+        (b, b, {"custom_id": "abc"},                       {"custom_id": "abc", "label": "abc"},            False),
+        (s, s, {"custom_id": "abc"},                       {"custom_id": "abc", "placeholder": "abc"},      False),
+    ),  # fmt: skip
 )
 def test_build_component_matching_check_component(
-    componentA: t.Union[b[t.Any], s[t.Any]],
-    componentB: t.Union[b[t.Any], s[t.Any]],
+    componentA: t.Union[t.Type[b], t.Type[s]],
+    componentB: t.Union[t.Type[b], t.Type[s]],
+    kwargsA: t.Dict[str, t.Any],
+    kwargsB: t.Dict[str, t.Any],
     expected: bool,
     msg_inter: disnake.MessageInteraction,
 ):
-    check = components.utils.build_component_matching_check(componentA)
-    msg_inter.component = componentB._underlying  # type: ignore
+    actualA = componentA(**kwargsA)
+    actualB = componentB(**kwargsB)
+    check = components.utils.build_component_matching_check(actualA)
+
+    msg_inter.component = actualB._underlying  # type: ignore
 
     assert check(msg_inter) is expected
 
@@ -106,28 +137,48 @@ def test_build_component_matching_check_component(
 @pytest.mark.parametrize(
     "kwargs, component, expected",
     (
-        # These should succeed, as partial matching should succeed as long as the provided
-        # component matches at least the provided kwargs; the rest can be anything.
-        # Note that, since no type is provided, both buttons and selects will work.
-        ({"custom_id": "abc"}, b(custom_id="abc"), True),
-        ({"custom_id": "abc"}, s(custom_id="abc"), True),
-        ({"custom_id": "abc"}, b(custom_id="abc", label="def"), True),
-        ({"custom_id": "abc", "label": "def"}, b(custom_id="abc", label="def"), True),
-        # These should fail, as described above.
-        ({"custom_id": "abc", "label": "def"}, b(custom_id="abc"), False),
-        ({"custom_id": "abc", "label": "def"}, s(custom_id="abc"), False),
-        ({"custom_id": "abc"}, b(custom_id="def"), False),
-        ({"custom_id": "abc"}, s(custom_id="def"), False),
-        # Now setting type...
-        ({"custom_id": "abc", "type": disnake.ComponentType.button}, b(custom_id="abc"), True),
-        ({"custom_id": "abc", "type": disnake.ComponentType.button}, s(custom_id="abc"), False),
-        ({"custom_id": "abc", "type": disnake.ComponentType.select}, b(custom_id="abc"), False),
-        ({"custom_id": "abc", "type": disnake.ComponentType.select}, s(custom_id="abc"), True),
-    ),
+        # Check all individual params...
+        # Note that custom_id must be set for comparison, otherwise disnake will randomly
+        # generate them, and they won't match.
+        ({"custom_id": "abc"},                       b(custom_id="abc"),                         True),
+        ({"custom_id": "abc"},                       s(custom_id="abc"),                         True),
+        ({"custom_id": "abc"},                       b(custom_id="def"),                         False),
+
+        ({"custom_id": "abc", "disabled": True},     b(custom_id="abc", disabled=True),          True),
+        ({"custom_id": "abc", "disabled": True},     s(custom_id="abc", disabled=True),          True),
+        ({"custom_id": "abc", "disabled": True},     b(custom_id="abc", disabled=False),         False),
+
+        ({"custom_id": "abc", "label": "abc"},       b(custom_id="abc", label="abc"),            True),
+        ({"custom_id": "abc", "label": "abc"},       b(custom_id="abc", label="def"),            False),
+
+        ({"custom_id": "abc", "emoji": "abc"},       b(custom_id="abc", emoji="abc"),            True),
+        ({"custom_id": "abc", "emoji": "abc"},       b(custom_id="abc", emoji="def"),            False),
+
+        ({"custom_id": "abc", "style": bs.red},      b(custom_id="abc", style=bs.red),           True),
+        ({"custom_id": "abc", "style": bs.red},      b(custom_id="abc", style=bs.gray),          False),
+
+        ({"custom_id": "abc", "max_values": 6},      s(custom_id="abc", max_values=6),           True),
+        ({"custom_id": "abc", "max_values": 6},      s(custom_id="abc", max_values=9),           False),
+
+        ({"custom_id": "abc", "min_values": 6},      s(custom_id="abc", min_values=6),           True),
+        ({"custom_id": "abc", "min_values": 6},      s(custom_id="abc", min_values=9),           False),
+
+        ({"custom_id": "abc", "placeholder": "abc"}, s(custom_id="abc", placeholder="abc"),      True),
+        ({"custom_id": "abc", "placeholder": "abc"}, s(custom_id="abc", placeholder="def"),      False),
+
+        ({"custom_id": "abc", "options": ["abc"]},   s(custom_id="abc", options=["abc"]),        True),
+        ({"custom_id": "abc", "options": ["abc"]},   s(custom_id="abc", options=["def"]),        False),
+        ({"custom_id": "abc", "options": ["abc"]},   s(custom_id="abc", options=["abc", "def"]), False),
+        ({"custom_id": "abc", "options": ["abc"]},   s(custom_id="abc", options={"abc": "def"}), False),
+
+        # Confirm that supersets are allowed...
+        ({"custom_id": "abc"},                       b(custom_id="abc", label="abc"),            True),
+        ({"custom_id": "abc"},                       s(custom_id="abc", placeholder="abc"),      True),
+    ),  # fmt: skip
 )
 def test_build_component_matching_check_kwargs(  # This should match 'supersets'.
     kwargs: t.Dict[str, t.Any],
-    component: t.Union[b[t.Any], s[t.Any]],
+    component: t.Union[b, s],
     expected: bool,
     msg_inter: disnake.MessageInteraction,
 ):
@@ -154,8 +205,8 @@ def test_build_component_matching_check_kwargs(  # This should match 'supersets'
     ),
 )
 async def test_match_component_with_component(
-    componentA: t.Union[b[t.Any], s[t.Any]],
-    componentB: t.Union[b[t.Any], s[t.Any]],
+    componentA: t.Union[b, s],
+    componentB: t.Union[b, s],
     expected: bool,
     msg_inter: disnake.MessageInteraction,
 ):
@@ -180,7 +231,7 @@ async def test_match_component_with_component(
 )
 async def test_match_component_with_kwargs(
     kwargs: t.Dict[str, t.Any],
-    component: t.Union[b[t.Any], s[t.Any]],
+    component: t.Union[b, s],
     expected: bool,
     msg_inter: disnake.MessageInteraction,
 ):

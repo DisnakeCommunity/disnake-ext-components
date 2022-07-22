@@ -459,6 +459,7 @@ def SelectValue(
     disabled: bool = False,
 ) -> t.Any:
     return types_.AbstractComponent(
+        type=disnake.ComponentType.select,
         placeholder=placeholder,
         min_values=min_values,
         max_values=max_values,

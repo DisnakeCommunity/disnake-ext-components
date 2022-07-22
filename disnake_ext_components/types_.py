@@ -154,6 +154,46 @@ class Converted(_SpecialType, metaclass=_ConvertedMeta):
         )
 
 
+class SelectOption(disnake.SelectOption):
+    __slots__ = ()
+
+    def __eq__(self, other: t.Any) -> bool:
+        if not isinstance(other, disnake.SelectOption):
+            return False
+
+        for slot in disnake.SelectOption.__slots__:
+            value = getattr(self, slot)
+
+            if value is disnake.utils.MISSING and getattr(other, slot) is not disnake.utils.MISSING:
+                return False
+
+            if getattr(other, slot) != value:
+                return False
+
+        return True
+
+    @classmethod
+    def _convert(cls, other: disnake.SelectOption):
+        return cls(**{slot: getattr(other, slot) for slot in disnake.SelectOption.__slots__})
+
+
+def _parse_select_options(
+    options: t.Union[t.List[disnake.SelectOption], t.List[str], t.Dict[str, str]]
+) -> t.List[SelectOption]:
+    # Had to yoink this from disnake as the `ui.select` module is shadowed by the decorator...
+    # Gave me the opportunity to work with custom SelectOptions that support comparison though.
+
+    if isinstance(options, dict):
+        return [SelectOption(label=key, value=val) for key, val in options.items()]
+
+    return [
+        SelectOption._convert(opt)
+        if isinstance(opt, disnake.SelectOption)
+        else SelectOption(label=opt)
+        for opt in options
+    ]
+
+
 class AbstractComponent:
     __sentinel = object()
 
@@ -164,6 +204,13 @@ class AbstractComponent:
     )
 
     def __init__(self, **kwargs: t.Any):
+        # Handle special cases...
+        if "emoji" in kwargs and isinstance(emoji := kwargs["emoji"], str):
+            kwargs["emoji"] = disnake.PartialEmoji.from_str(emoji)
+
+        if "options" in kwargs:
+            kwargs["options"] = _parse_select_options(kwargs["options"] or [])
+
         for k, v in kwargs.items():
             setattr(self, k, v)
 
@@ -182,6 +229,12 @@ class AbstractComponent:
             value = getattr(component, slot, cls.__sentinel)
             if value is not cls.__sentinel:
                 setattr(self, slot, value)
+
+        # Ensure custom SelectOptions
+        options: t.Any = getattr(self, "options", self.__sentinel)
+        if options is not self.__sentinel:
+            setattr(self, "options", _parse_select_options(options))
+
         return self
 
     def __iter__(self) -> t.Generator[t.Tuple[str, t.Any], None, None]:
@@ -204,9 +257,7 @@ class AbstractComponent:
 
     def with_overrides(self, **kwargs: t.Any):
         copy = self.copy()
-        for k, v in kwargs.items():
-            if v is not None:
-                setattr(copy, k, v)
+        copy.__init__(**{k: v for k, v in kwargs.items() if v is not None})
         return copy
 
     def as_component(self, template: t.Type[MessageComponentT]) -> MessageComponentT:

@@ -188,7 +188,7 @@ def build_component_matching_check(
     Callable[[:class:`disnake.MessageInteraction`], :class:`bool`]
         The check function. Takes a message interaction and returns a bool depending on whether the
         component matches.
-    """
+    """  # noqa: E501
     if component is not None:
         if kwargs:
             raise ValueError("Please provide either a component or kwargs.")

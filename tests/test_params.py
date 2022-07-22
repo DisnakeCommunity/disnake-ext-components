@@ -284,14 +284,10 @@ def test_selectvalue():
         "disabled": True,
     }
 
-    from_cls = components.params._SelectValue(**kwargs)  # type: ignore
+    from_cls = components.types_.AbstractComponent(type=disnake.ComponentType.select, **kwargs)
     from_func = components.SelectValue(**kwargs)  # type: ignore
 
-    assert from_cls.placeholder == from_func.placeholder == kwargs["placeholder"]
-    assert from_cls.min_values == from_func.min_values == kwargs["min_values"]
-    assert from_cls.max_values == from_func.max_values == kwargs["max_values"]
-    assert from_cls.options == from_func.options == kwargs["options"]
-    assert from_cls.disabled == from_func.disabled == kwargs["disabled"]
+    assert from_cls == from_func
 
 
 # params.ModalValue
