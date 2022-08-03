@@ -53,7 +53,7 @@ class MyCog(commands.Cog):
     @commands.slash_command()
     async def make_secret(self, inter: disnake.CommandInteraction, secret: str):
         """Store a secret message in a button!"""
-        await ctx.send(
+        await inter.response.send_message(
             "Press this button to reveal the secret!",
             components=disnake.ui.Button(
                 label="Reveal secret...",
@@ -83,7 +83,7 @@ async def secret_listener(inter: disnake.MessageInteraction, *, secret: str, aut
 @commands.slash_command()
 async def make_secret(inter: disnake.CommandInteraction, secret: str):
     """Store a secret message in a button!"""
-    await ctx.send(
+    await inter.response.send_message(
         "Press this button to reveal the secret!",
         components=disnake.ui.Button(
             label="Reveal secret...",
