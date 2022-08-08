@@ -16,7 +16,7 @@ async def dummy_async_check(inter: disnake.MessageInteraction) -> bool:
     return inter.component.custom_id == "success"
 
 
-@pytest.fixture
+@pytest.fixture()
 def listener():
     @components.button_listener()
     async def dummy_listener(inter: disnake.MessageInteraction):
@@ -28,7 +28,7 @@ def listener():
 # abc.BaseListener.add_check
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_add_check(listener: components.SelectListener[t.Any, t.Any]):
 
     listener.add_check(dummy_sync_check)
@@ -43,15 +43,15 @@ async def test_add_check(listener: components.SelectListener[t.Any, t.Any]):
 # utils.assert_all_checks
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 @pytest.mark.parametrize(
-    "custom_id, expected, checks",
-    (
+    ("custom_id", "expected", "checks"),
+    [
         ("success", True, [dummy_sync_check]),
         ("failure", False, [dummy_async_check]),
         ("success", True, [dummy_sync_check, dummy_async_check]),
         ("failure", False, [dummy_sync_check, dummy_async_check]),
-    ),
+    ],
 )
 async def test_sync_check(
     listener: components.SelectListener[t.Any, t.Any],
@@ -76,8 +76,8 @@ bs = disnake.ButtonStyle
 
 
 @pytest.mark.parametrize(
-    "componentA, componentB, kwargsA, kwargsB, expected",
-    (
+    ("componentA", "componentB", "kwargsA", "kwargsB", "expected"),
+    [
         # Check all individual params...
         # Note that custom_id must be set for comparison, otherwise disnake will randomly
         # generate them, and they won't match.
@@ -115,7 +115,7 @@ bs = disnake.ButtonStyle
         # Confirm that supersets aren't allowed...
         (b, b, {"custom_id": "abc"},                       {"custom_id": "abc", "label": "abc"},            False),
         (s, s, {"custom_id": "abc"},                       {"custom_id": "abc", "placeholder": "abc"},      False),
-    ),  # fmt: skip
+    ],  # fmt: skip
 )
 def test_build_component_matching_check_component(
     componentA: t.Union[t.Type[b], t.Type[s]],
@@ -135,8 +135,8 @@ def test_build_component_matching_check_component(
 
 
 @pytest.mark.parametrize(
-    "kwargs, component, expected",
-    (
+    ("kwargs", "component", "expected"),
+    [
         # Check all individual params...
         # Note that custom_id must be set for comparison, otherwise disnake will randomly
         # generate them, and they won't match.
@@ -174,7 +174,7 @@ def test_build_component_matching_check_component(
         # Confirm that supersets are allowed...
         ({"custom_id": "abc"},                       b(custom_id="abc", label="abc"),            True),
         ({"custom_id": "abc"},                       s(custom_id="abc", placeholder="abc"),      True),
-    ),  # fmt: skip
+    ],  # fmt: skip
 )
 def test_build_component_matching_check_kwargs(  # This should match 'supersets'.
     kwargs: t.Dict[str, t.Any],
@@ -194,15 +194,15 @@ def test_build_component_matching_check_kwargs(  # This should match 'supersets'
 # Note that a listener just returns early if it fails to match (for now?).
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 @pytest.mark.parametrize(
-    "componentA, componentB, expected",
-    (
+    ("componentA", "componentB", "expected"),
+    [
         (b(label="abc", custom_id="def"), b(label="abc", custom_id="def"), True),
         (b(label="abc", custom_id="def"), b(label="abc", custom_id="abc"), None),
         (s(custom_id="def"), s(custom_id="def"), True),
         (s(custom_id="def"), s(custom_id="abc"), None),
-    ),
+    ],
 )
 async def test_match_component_with_component(
     componentA: t.Union[b, s],
@@ -219,15 +219,15 @@ async def test_match_component_with_component(
     assert await listener(msg_inter) is expected
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 @pytest.mark.parametrize(
-    "kwargs, component, expected",
-    (
+    ("kwargs", "component", "expected"),
+    [
         ({"custom_id": "abc", "component_type": disnake.ComponentType.button}, b(custom_id="abc"), True),
         ({"custom_id": "abc", "component_type": disnake.ComponentType.button}, s(custom_id="abc"), None),
         ({"custom_id": "abc", "component_type": disnake.ComponentType.select}, b(custom_id="abc"), None),
         ({"custom_id": "abc", "component_type": disnake.ComponentType.select}, s(custom_id="abc"), True),
-    ),  # fmt: skip
+    ],  # fmt: skip
 )
 async def test_match_component_with_kwargs(
     kwargs: t.Dict[str, t.Any],

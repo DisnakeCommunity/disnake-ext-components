@@ -234,7 +234,7 @@ class AbstractComponent:
         # Ensure custom SelectOptions
         options: t.Any = getattr(self, "options", self.__sentinel)
         if options is not self.__sentinel:
-            setattr(self, "options", _parse_select_options(options))
+            setattr(self, "options", _parse_select_options(options))  # noqa: B010
 
         return self
 
