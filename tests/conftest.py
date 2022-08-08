@@ -7,17 +7,17 @@ import pytest
 import disnake_ext_components as components
 
 
-@pytest.fixture
+@pytest.fixture()
 def msg_inter():
     return mock.Mock(spec=disnake.MessageInteraction)
 
 
-@pytest.fixture
+@pytest.fixture()
 def modal_inter():
     return mock.Mock(spec=disnake.MessageInteraction)
 
 
-@pytest.fixture
+@pytest.fixture()
 def button_listener_callback():
     async def button_listener_callback(inter: disnake.MessageInteraction, *, foo: int, bar: str):
         ...
@@ -25,7 +25,7 @@ def button_listener_callback():
     return button_listener_callback
 
 
-@pytest.fixture
+@pytest.fixture()
 def select_listener_callback():
     async def select_listener_callback(
         inter: disnake.MessageInteraction,
@@ -39,7 +39,7 @@ def select_listener_callback():
     return select_listener_callback
 
 
-@pytest.fixture
+@pytest.fixture()
 def modal_listener_callback():
     async def modal_listener_callback(
         inter: disnake.MessageInteraction,

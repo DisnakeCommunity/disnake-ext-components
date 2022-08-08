@@ -306,7 +306,7 @@ CONVERTER_MAP: t.Mapping[type, t.Tuple[ConverterSig, ConverterSig]] = {
     str:                      (str,                                              str),
     int:                      (int,                                              str),
     float:                    (float,                                            str),
-    bool:                     (commands.converter._convert_to_bool,              str),  
+    bool:                     (commands.converter._convert_to_bool,              str),
     disnake.User:             (user_converter,                                   snowflake_to_str),
     disnake.Member:           (member_converter,                                 snowflake_to_str),
     disnake.Role:             (role_converter,                                   snowflake_to_str),

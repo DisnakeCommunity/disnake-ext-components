@@ -1,0 +1,34 @@
+## Pre-commit setup, mostly yoinked from disnake
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.2.0
+    hooks:
+      - id: check-case-conflict
+      - id: check-toml
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.10.1
+    hooks:
+      - id: isort
+        name: Running isort in all files.
+
+  - repo: https://github.com/psf/black
+    rev: 22.3.0
+    hooks:
+      - id: black
+        name: Running black in all files.
+
+  - repo: local
+    hooks:
+      - id: flake8
+        name: flake8
+        description: 'Lint all of our code'
+        entry: flake8
+        language: python
+        types: [python]
+        require_serial: true

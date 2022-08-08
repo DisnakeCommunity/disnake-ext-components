@@ -21,8 +21,9 @@ jobs:
 
       - name: Lint
         run: |
-          python -m black disnake_ext_components examples --check
-          python -m isort disnake_ext_components examples -c
+          python -m black disnake_ext_components examples tests --check
+          python -m isort disnake_ext_components examples tests -c
+          python -m flake8 disnake_ext_components examples tests
 
   test:
     strategy:
@@ -44,7 +45,7 @@ jobs:
       - name: Install requirements
         run: |
           python -m pip install -r requirements_dev.txt
-      
+
       - name: Run tests
         run: |
           python -m pytest

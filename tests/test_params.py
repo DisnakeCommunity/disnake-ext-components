@@ -13,7 +13,7 @@ ParsedParams = t.Tuple[t.Tuple[inspect.Parameter, ...], t.Tuple[inspect.Paramete
 utc = datetime.timezone.utc
 
 
-@pytest.fixture
+@pytest.fixture()
 def button_params(button_listener_callback: t.Callable[..., t.Any]) -> ParsedParams:
     sig = inspect.signature(button_listener_callback)
     return components.utils.extract_listener_params(sig)
@@ -47,7 +47,7 @@ def test_paraminfo_name():
 # params.ParamInfo.convert
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_paraminfo_convert_single():
     param = param_from_annotation(str)
     paraminfo = components.params.ParamInfo.from_param(param)
@@ -56,7 +56,7 @@ async def test_paraminfo_convert_single():
     assert await paraminfo.convert("123") == "123"
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_paraminfo_convert_multi():
     param = param_from_annotation(t.List[str])
     paraminfo = components.params.ParamInfo.from_param(param)
@@ -64,7 +64,7 @@ async def test_paraminfo_convert_multi():
     assert await paraminfo.convert(["abc", "def"]) == ["abc", "def"]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_paraminfo_convert_fail_single():
     param = param_from_annotation(int)
     paraminfo = components.params.ParamInfo.from_param(param)
@@ -73,7 +73,7 @@ async def test_paraminfo_convert_fail_single():
         await paraminfo.convert("abc")
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_paraminfo_convert_fail_multi():
     param = param_from_annotation(t.List[int])
     paraminfo = components.params.ParamInfo.from_param(param)
@@ -87,7 +87,7 @@ async def test_paraminfo_convert_fail_multi():
     assert exc.message == f"Input 'def' did not match r'{components.patterns.INT.pattern}'."
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_paraminfo_convert_skip_validation():
     param = param_from_annotation(int)
     paraminfo = components.params.ParamInfo.from_param(param, validate=False)
@@ -106,7 +106,7 @@ async def test_paraminfo_convert_skip_validation():
 # params.ParamInfo | empty
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_str_paraminfo():
     param = param_from_annotation(inspect.Parameter.empty)
     paraminfo = components.params.ParamInfo.from_param(param)
@@ -120,7 +120,7 @@ async def test_str_paraminfo():
 # params.ParamInfo | t.Optional
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_optional_paraminfo_no_default():
     param = param_from_annotation(t.Optional[int])
     paraminfo = components.params.ParamInfo.from_param(param)
@@ -136,7 +136,7 @@ async def test_optional_paraminfo_no_default():
     assert await paraminfo.convert("") is None
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_optional_paraminfo_with_default():
     default = 3
     param = param_from_annotation(t.Optional[int], default=default)
@@ -156,7 +156,7 @@ async def test_optional_paraminfo_with_default():
 # params.ParamInfo | t.Union
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_union_paraminfo():
     param = param_from_annotation(t.Union[int, bool])
     paraminfo = components.params.ParamInfo.from_param(param)
@@ -179,7 +179,7 @@ async def test_union_paraminfo():
 # params.ParamInfo | t.Literal
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_literal_paraminfo():
     param = param_from_annotation(t.Literal[1, "a", True])
     paraminfo = components.params.ParamInfo.from_param(param)
@@ -197,14 +197,14 @@ async def test_literal_paraminfo():
 # params.ParamInfo | t.Collection
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 @pytest.mark.parametrize(
-    "annotation, expected",
-    (
+    ("annotation", "expected"),
+    [
         (t.Set[int], {1, 2, 3}),
         (t.List[int], [1, 2, 3]),
         (t.Tuple[int], (1, 2, 3)),
-    ),
+    ],
 )
 async def test_collection_paraminfo(annotation: t.Any, expected: t.Collection[int]):
     param = param_from_annotation(annotation)
@@ -237,9 +237,9 @@ async def from_datetime_async(arg: datetime.datetime) -> str:
     return from_datetime(arg)
 
 
-@pytest.mark.asyncio
-@pytest.mark.parametrize("conv_to", (to_datetime, to_datetime_async))
-@pytest.mark.parametrize("conv_from", (from_datetime, from_datetime_async))
+@pytest.mark.asyncio()
+@pytest.mark.parametrize("conv_to", [to_datetime, to_datetime_async])
+@pytest.mark.parametrize("conv_from", [from_datetime, from_datetime_async])
 async def test_converted_paraminfo(
     conv_to: t.Callable[..., t.Any], conv_from: t.Callable[..., t.Any]
 ):

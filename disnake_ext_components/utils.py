@@ -83,7 +83,7 @@ def extract_listener_params(
         - The second tuple contains all remaining parameters, which are parsed from the `custom_id`.
     """
     param_iter = iter(signature.parameters.values())
-    for pos, param in enumerate(param_iter):
+    for _pos, param in enumerate(param_iter):
         if commands.params.issubclass_(param.annotation, disnake.Interaction):
             break
     else:
@@ -92,7 +92,7 @@ def extract_listener_params(
             "Please make sure the interaction parameter is properly annotated in the listener."
         )
 
-    if pos > 1:
+    if _pos > 1:
         raise TypeError("The listener callback's `self` parameter must be the first parameter.")
 
     special_params: t.List[inspect.Parameter] = []
