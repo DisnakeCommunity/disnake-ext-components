@@ -103,4 +103,4 @@ To-Do
 
 Contributing
 ------------
-Any contributions are welcome, feel free to open an issue or submit a pull request if you'd like to see something added. Contribution guidelines will come soon, and hopefully I'll figure out how to do some simple CI to automatic black/pyright/mypy up and running.
+Any contributions are welcome, feel free to open an issue or submit a pull request if you'd like to see something added. Contribution guidelines will come soon.
