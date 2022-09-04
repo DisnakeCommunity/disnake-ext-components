@@ -249,6 +249,7 @@ class ButtonListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
 
 def button_listener(
     *,
+    name: t.Optional[str] = None,
     regex: t.Union[str, t.Pattern[str], None] = None,
     sep: str = ":",
     bot: t.Optional[commands.Bot] = None,
@@ -287,7 +288,13 @@ def button_listener(
     def wrapper(
         func: ButtonListenerCallback[ParentT, P, T],
     ) -> ButtonListener[P, T]:
-        listener = ButtonListener[P, T](func, regex=regex, sep=sep, reference=reference)
+        listener = ButtonListener[P, T](
+            func,
+            name=func.__name__ if name is None else name,
+            regex=regex,
+            sep=sep,
+            reference=reference,
+        )
 
         if bot is not None:
             bot.add_listener(listener, types_.ListenerType.BUTTON)
@@ -518,6 +525,7 @@ class SelectListener(abc.BaseListener[P, T, disnake.MessageInteraction]):
 
 def select_listener(
     *,
+    name: t.Optional[str] = None,
     regex: t.Union[str, t.Pattern[str], None] = None,
     sep: str = ":",
     bot: t.Optional[commands.Bot] = None,
@@ -560,7 +568,13 @@ def select_listener(
     def wrapper(
         func: SelectListenerCallback[ParentT, P, T],
     ) -> SelectListener[P, T]:
-        listener = SelectListener[P, T](func, regex=regex, sep=sep, reference=reference)
+        listener = SelectListener[P, T](
+            func,
+            name=func.__name__ if name is None else name,
+            regex=regex,
+            sep=sep,
+            reference=reference,
+        )
 
         if bot is not None:
             bot.add_listener(listener, types_.ListenerType.SELECT)
@@ -736,6 +750,7 @@ class ModalListener(abc.BaseListener[P, T, disnake.ModalInteraction]):
 
 def modal_listener(
     *,
+    name: t.Optional[str] = None,
     regex: t.Union[str, t.Pattern[str], None] = None,
     sep: str = ":",
     bot: t.Optional[commands.Bot] = None,
@@ -799,7 +814,12 @@ def modal_listener(
     def wrapper(
         func: ModalListenerCallback[ParentT, P, T],
     ) -> ModalListener[P, T]:
-        listener = ModalListener(func, regex=regex, sep=sep)
+        listener = ModalListener[P, T](
+            func,
+            name=func.__name__ if name is None else name,
+            regex=regex,
+            sep=sep,
+        )
 
         if bot is not None:
             bot.add_listener(listener, types_.ListenerType.MODAL)

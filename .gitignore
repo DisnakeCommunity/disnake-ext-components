@@ -1,6 +1,7 @@
 __pycache__
 .vscode
 .mypy_cache
+*.egg-info/
 *env*/
 
 test.py
