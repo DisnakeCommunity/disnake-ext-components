@@ -8,7 +8,6 @@ import pytest
 import disnake_ext_components as components
 from disnake_ext_components import abc
 
-
 # The decorated function...
 ListenerCallback = t.Callable[..., t.Any]
 
@@ -36,7 +35,7 @@ def test_listener_name_default(listener_decorator: ListenerBuilder):
 
 
 def test_listener_name_default_modal():
-    # Modals need a ModalInteraction and at least one textinput field... 
+    # Modals need a ModalInteraction and at least one textinput field...
 
     @components.modal_listener()
     async def callback(inter: disnake.ModalInteraction, field1: str):
