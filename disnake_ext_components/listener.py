@@ -267,6 +267,9 @@ def button_listener(
 
     Parameters
     ----------
+    name: Optional[:class:`str`]
+        A custom name to use as the base for custom ids. If no name is provided, the name of the
+        wrapped callback function will be used instead.
     regex: Union[:class:`str`, :class:`re.Pattern`, None]
         Used to set custom regex for the listener to use, instead of the default automatic parsing.
         Defaults to None, which makes the :class:`ButtonListener` use the default automatic parsing.
@@ -547,6 +550,9 @@ def select_listener(
 
     Parameters
     ----------
+    name: Optional[:class:`str`]
+        A custom name to use as the base for custom ids. If no name is provided, the name of the
+        wrapped callback function will be used instead.
     regex: Union[:class:`str`, :class:`re.Pattern`, None]
         Used to set custom regex for the listener to use, instead of the default automatic parsing.
         Defaults to None, which makes the :class:`SelectListener` use the default automatic parsing.
@@ -793,6 +799,9 @@ def modal_listener(
 
     Parameters
     ----------
+    name: Optional[:class:`str`]
+        A custom name to use as the base for custom ids. If no name is provided, the name of the
+        wrapped callback function will be used instead.
     regex: Union[:class:`str`, :class:`re.Pattern`, None]
         Used to set custom regex for the listener to use, instead of the default automatic parsing.
         Defaults to None, which makes the :class:`ModalListener` use the default automatic parsing.
