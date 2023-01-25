@@ -882,7 +882,6 @@ def match_component(
     max_values: int = ...,
     disabled: bool = ...,
     options: t.List[disnake.SelectOption] = ...,
-    label: str = ...,
     bot: t.Optional[commands.Bot] = None,
 ) -> t.Callable[[SelectListenerCallback[ParentT, P, T]], SelectListener[P, T]]:
     ...
