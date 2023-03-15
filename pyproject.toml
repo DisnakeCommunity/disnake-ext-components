@@ -58,7 +58,7 @@ select = [
     "BLE",
     "FBT",
     "B",
-    "C4",
+    "C40",
     "DTZ",
     "T10",
     "EM",
