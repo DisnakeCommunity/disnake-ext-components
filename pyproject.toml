@@ -38,10 +38,6 @@ python-version = 3.8
 reportMissingTypeStubs = false
 
 
-[tool.pyright.per-file-ignores]
-"__init__.py" = ["reportImportCycles"]
-
-
 [tool.ruff]
 # Taken from https://github.com/ooliver1/mafic/blob/master/pyproject.toml
 # as a baseline, will modify these as desired when deemed necessary.
