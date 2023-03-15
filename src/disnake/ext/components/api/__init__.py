@@ -9,5 +9,6 @@ properly interface with the existing logic, thus maintaining functionality.
 from __future__ import annotations
 
 from disnake.ext.components.api.component import *
+from disnake.ext.components.api.converter import *
 from disnake.ext.components.api.custom_id import *
 from disnake.ext.components.api.parser import *
