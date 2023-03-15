@@ -84,6 +84,7 @@ select = [
 # RET505-RET508 does not allow for any branches where it is an elif and else after a return
 # PLR2004 too much to deal with right now
 # UP007 incorrectly "updates" Union[X, Y] to X | Y
+# PLC0414 doesn't support `import foo as foo` to reexport.
 ignore = [
     "F403",
     "F405",
@@ -98,6 +99,7 @@ ignore = [
     "RET508",
     "PLR2004",
     "UP007",
+    "PLC0414",
 ]
 
 unfixable = ["RET502", "RET503"]
