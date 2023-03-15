@@ -9,7 +9,7 @@ import disnake
 if typing.TYPE_CHECKING:
     import typing_extensions
 
-__all__: typing.Sequence[str] = ("RichComponent", "RichButton")
+__all__: typing.Sequence[str] = ("RichComponent", "RichButton", "ComponentManager")
 
 
 _T = typing.TypeVar("_T")
@@ -116,6 +116,17 @@ class RichComponent(typing.Protocol):
         """
         ...
 
+    @classmethod
+    def set_manager(cls, __manager: typing.Optional[ComponentManager]) -> None:
+        """Set the component manager for this component type.
+
+        Parameters
+        ----------
+        manager: typing.Optional[:class:`ComponentManager`]
+            The component manager to set on this component type.
+        """
+        ...
+
 
 @typing.runtime_checkable
 class RichButton(RichComponent, typing.Protocol):
@@ -147,4 +158,71 @@ class RichButton(RichComponent, typing.Protocol):
 
     async def as_ui_component(self) -> disnake.ui.Button[None]:  # noqa: D102
         # <<Docstring inherited from RichComponent>>
+        ...
+
+
+@typing.runtime_checkable
+class ComponentManager(typing.Protocol):
+    """The baseline protocol for any kind of component manager.
+
+    Any and all component managers must implement this protocol in order to be
+    properly handled by disnake-ext-components.
+
+    Component managers keep track of registered components and manage
+    registering (:meth:`subscribe`) and deregistering (:meth:`unsubscribe`) their
+    callbacks to the bot.
+    """
+
+    __slots__: typing.Sequence[str] = ()
+
+    def subscribe(
+        self,
+        component: type[RichComponent],
+        /,
+        *,
+        recursive: bool = True,
+    ) -> None:
+        """Register a component to this component manager.
+
+        This will automatically register the component callback as a listener
+        to the bot.
+
+        In case recursive is set to ``True``, all of the provided component's
+        subclasses -- and recursively also the subclasses of those -- will also
+        be registered.
+
+        Parameters
+        ----------
+        component:
+            The component to register.
+        recursive:
+            Whether or not to recursively register all subclasses of the component.
+        """
+        ...
+
+    def unsubscribe(
+        self,
+        component: type[RichComponent],
+        /,
+        *,
+        recursive: bool = True,
+    ) -> None:
+        """Deregister a component from this component manager.
+
+        Note that this only works if the component has first been registered.
+
+        This will automatically remove the listener for the provided component
+        from the bot.
+
+        In case recursive is set to ``True``, all of the provided component's
+        subclasses -- and recursively also the subclasses of those -- will also
+        be deregistered.
+
+        Parameters
+        ----------
+        component:
+            The component to register.
+        recursive:
+            Whether or not to recursively register all subclasses of the component.
+        """
         ...

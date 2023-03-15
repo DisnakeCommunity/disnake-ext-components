@@ -1,3 +1,7 @@
+# pyright: reportImportCycles = false
+# pyright: reportWildcardImportFromLibrary = false
+# ^ This is a false positive as it is confused with site-packages' disnake.
+
 """Protocols for disnake-ext-components internals.
 
 These are provided to decouple the implementation details from their respective
