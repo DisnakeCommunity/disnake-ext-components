@@ -82,8 +82,8 @@ select = [
 # D203 and D211, D212 and D213 intentionally clash
 # ANN101, ANN102 ask for `self` and `cls` annotations, what?
 # RET505-RET508 does not allow for any branches where it is an elif and else after a return
-# PLR2004 too much to deal with right now
-# UP007 incorrectly "updates" Union[X, Y] to X | Y
+# PLR2004 too much to deal with right now.
+# UP007 incorrectly "updates" Union[X, Y] to X | Y.
 # PLC0414 doesn't support `import foo as foo` to reexport.
 ignore = [
     "F403",
@@ -103,6 +103,11 @@ ignore = [
 ]
 
 unfixable = ["RET502", "RET503"]
+
+
+[tool.ruff.flake8-annotations]
+# Allow ommitting None return type in __init__ signatures.
+mypy-init-return = true
 
 
 [tool.taskipy.tasks]
