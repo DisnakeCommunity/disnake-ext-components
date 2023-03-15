@@ -21,10 +21,16 @@ repos:
         name: Check for debug statements.
       - id: end-of-file-fixer
         name: Check for only one newline character at EOL.
-        exclude: "^(test_bot/logs/)"
       - id: trailing-whitespace
         name: Check for trailing whitespace.
         args: [--markdown-linebreak-ext=md]
+
+  - repo: https://github.com/charliermarsh/ruff-pre-commit
+    rev: v0.0.256
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+        name: Running ruff in all files.
 
   - repo: https://github.com/psf/black
     rev: 22.3.0
@@ -32,16 +38,10 @@ repos:
       - id: black
         name: Running black in all files.
 
-  - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.0.251
-    hooks:
-      - id: ruff
-        args: [--fix, --exit-non-zero-on-fix]
-        name: Running ruff in all files.
-
   - repo: https://github.com/ariebovenberg/slotscheck
     rev: v0.16.4
     hooks:
       - id: slotscheck
         name: Running slotscheck in all files.
-        exclude: "^(?!disnake/)"
+        entry: poetry run slotscheck
+        language: system
