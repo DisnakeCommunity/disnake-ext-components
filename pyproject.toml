@@ -42,14 +42,9 @@ reportMissingTypeStubs = false
 "__init__.py" = ["reportImportCycles"]
 
 
-[tool.black]
-line-length = 100
-
-
 [tool.ruff]
 # Taken from https://github.com/ooliver1/mafic/blob/master/pyproject.toml
 # as a baseline, will modify these as desired when deemed necessary.
-
 select = [
     "E",
     "F",
