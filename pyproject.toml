@@ -1,28 +1,118 @@
+[tool.poetry]
+name = "disnake-ext-components"
+version = "0.5.0a1"
+description = "An extension for disnake aimed at making component interactions with listeners somewhat less cumbersome."
+authors = ["Chromosomologist <chromosomologist@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+# Note that the src folder only exists so that installation from poetry works
+# and I maintain proper typehinting to the actual disnake installation in
+# site-packages. If you're reading this and know of a better way of doing this,
+# please let me know!
+packages = [{include = "disnake/ext/components", from="src"}]
+
+
+[tool.poetry.dependencies]
+python = "^3.8"
+typing-extensions = "^4.4.0"
+disnake = "^2.5.0"
+
+
+[tool.poetry.group.dev.dependencies]
+pyright = "^1.1.290"
+ruff = "^0.0.255"
+black = "^23.1.0"
+slotscheck = "^0.16.5"
+pre-commit = "^3.1.1"
+taskipy = "^1.10.3"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+
 [tool.pyright]
-include = ["disnake_ext_components"]
-typeCheckingMode = "strict"
+strict = true
+python-version = 3.8
 reportMissingTypeStubs = false
-reportPrivateUsage = false
-reportImportCycles = false
+
+
+[tool.pyright.per-file-ignores]
+"__init__.py" = ["reportImportCycles"]
+
 
 [tool.black]
 line-length = 100
 
-[tool.isort]
-profile = "black"
-skip_gitignore = true
 
-[tool.mypy]
-namespace_packages = true
-files = ["disnake_ext_components/*.py"]
+[tool.ruff]
+# Taken from https://github.com/ooliver1/mafic/blob/master/pyproject.toml
+# as a baseline, will modify these as desired when deemed necessary.
 
-[tool.pytest.ini_options]
-required_plugins = ["pytest-asyncio"]
-asyncio_mode = "strict"
-testpaths = ["tests"]
+select = [
+    "E",
+    "F",
+    "W",
+    "I",
+    "D",
+    "UP",
+    "YTT",
+    "ANN",
+    "S",
+    "BLE",
+    "FBT",
+    "B",
+    "C4",
+    "DTZ",
+    "T10",
+    "EM",
+    "ISC",
+    "G",
+    "PIE",
+    "T20",
+    "Q",
+    "RSE",
+    "RET",
+    "SIM",
+    "TCH",
+    "ARG",
+    "PGH",
+    "PLC",
+    "PLE",
+    "PLR",
+    "PLW",
+    "TRY",
+    "RUF",
+]
 
-[tool.coverage.run]
-branch = true
+# F403, F405 do not need to hate wildcard imports. Pyright can find undefined errors.
+# D107, class docstr is in the class level, may change in future.
+# D203 and D211, D212 and D213 intentionally clash
+# ANN101, ANN102 ask for `self` and `cls` annotations, what?
+# RET505-RET508 does not allow for any branches where it is an elif and else after a return
+# PLR2004 too much to deal with right now
+ignore = [
+    "F403",
+    "F405",
+    "D107",
+    "D203",
+    "D213",
+    "ANN101",
+    "ANN102",
+    "RET505",
+    "RET506",
+    "RET507",
+    "RET508",
+    "PLR2004",
+]
 
-[tool.coverage.report]
-exclude_lines = ["pragma: no cover", "@t.overload"]
+unfixable = ["RET502", "RET503"]
+
+
+[tool.taskipy.tasks]
+pre-commit = "pre-commit install --install-hooks"
+lint = "pre-commit run --all-files"
+black = "task lint black"
+ruff = "task lint ruff"
+slotscheck = "task lint slotscheck"
