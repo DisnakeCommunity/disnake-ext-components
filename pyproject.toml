@@ -78,6 +78,7 @@ select = [
 ]
 
 # F403, F405 do not need to hate wildcard imports. Pyright can find undefined errors.
+# D105, not really any point in documenting magic methods.
 # D107, class docstr is in the class level, may change in future.
 # D203 and D211, D212 and D213 intentionally clash
 # ANN101, ANN102 ask for `self` and `cls` annotations, what?
@@ -88,6 +89,7 @@ select = [
 ignore = [
     "F403",
     "F405",
+    "D105",
     "D107",
     "D203",
     "D213",
