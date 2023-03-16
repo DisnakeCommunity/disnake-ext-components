@@ -7,4 +7,5 @@
 from disnake.ext.components.impl.component import *
 from disnake.ext.components.impl.converter import *
 from disnake.ext.components.impl.custom_id import *
+from disnake.ext.components.impl.manager import *
 from disnake.ext.components.impl.parser import *
