@@ -5,3 +5,6 @@
 """Implementations for all kinds of parser classes."""
 
 from disnake.ext.components.impl.parser.base import *
+from disnake.ext.components.impl.parser.channel import *
+from disnake.ext.components.impl.parser.snowflake import *
+from disnake.ext.components.impl.parser.stdlib import *
