@@ -205,6 +205,8 @@ class WrappedInteractionResponse(disnake.InteractionResponse):
     object by means of a custom :meth:`__getattr__` implementation.
     """  # noqa: E501
 
+    __slots__ = ("_wrapped",)
+
     def __init__(self, wrapped: disnake.InteractionResponse):
         self._wrapped = wrapped
 
@@ -282,6 +284,8 @@ class MessageInteraction(  # pyright: ignore
     Attribute access is simply proxied to the wrapped message interaction
     object by means of a custom :meth:`__getattr__` implementation.
     """  # noqa: E501
+
+    # __slots__ = ()  # No slots on disnake.MessageInteraction...
 
     def __init__(self, wrapped: disnake.MessageInteraction):
         self._wrapped = wrapped
