@@ -23,6 +23,8 @@ class Converter(typing.Protocol):
     a component instance.
     """
 
+    __slots__: typing.Sequence[str] = ()
+
     @classmethod
     def from_component(
         cls,
