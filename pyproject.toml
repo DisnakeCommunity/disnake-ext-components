@@ -27,6 +27,10 @@ pre-commit = "^3.1.1"
 taskipy = "^1.10.3"
 
 
+[tool.poetry.scripts]
+dev-symlink = "scripts.symlink:_main"
+
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
