@@ -29,7 +29,7 @@ class Parser(typing.Protocol[_PT]):
     __slots__: typing.Sequence[str] = ()
 
     def loads(
-        self, __interaction: disnake.Interaction, __argument: object
+        self, __interaction: disnake.Interaction, __argument: str
     ) -> MaybeCoroutine[_PT]:
         """Load a value from a string and apply the necessary conversion logic.
 
