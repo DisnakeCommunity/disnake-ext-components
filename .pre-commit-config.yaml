@@ -38,10 +38,13 @@ repos:
       - id: black
         name: Running black in all files.
 
-  - repo: https://github.com/ariebovenberg/slotscheck
-    rev: v0.16.4
+  - repo: local
     hooks:
       - id: slotscheck
         name: Running slotscheck in all files.
-        entry: poetry run slotscheck
-        language: system
+        language: python
+        entry: python -m scripts.slotscheck
+        types: [python]
+        additional_dependencies:
+        - slotscheck >= 0.16.5
+        - disnake >= 2.5.0

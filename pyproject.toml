@@ -110,6 +110,11 @@ unfixable = ["RET502", "RET503"]
 mypy-init-return = true
 
 
+[tool.ruff.per-file-ignores]
+# Allow print in scripts
+"scripts/*" = ["T201"]
+
+
 [tool.taskipy.tasks]
 pre-commit = "pre-commit install --install-hooks"
 lint = "pre-commit run --all-files"
