@@ -25,10 +25,12 @@ black = "^23.1.0"
 slotscheck = "^0.16.5"
 pre-commit = "^3.1.1"
 taskipy = "^1.10.3"
+python-dotenv = "^1.0.0"
 
 
 [tool.poetry.scripts]
 dev-symlink = "scripts.symlink:_main"
+example = "scripts.example:_main"
 
 
 [build-system]
