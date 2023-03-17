@@ -38,11 +38,53 @@ from disnake.ext import components
 
 Examples
 --------
-Coming soon!
+A very simple component that increments its label each time you click it can be written as follows:
+
+import disnake
+from disnake.ext import commands, components
+
+```py
+import disnake
+from disnake.ext import commands, components
+
+
+bot = commands.InteractionBot()
+manager = components.ComponentManager(bot)
+manager.basic_config()
+
+
+class MyButton(components.RichButton):
+    label = "0"
+
+    count: int
+
+    async def callback(self, interaction: components.MessageInteraction) -> None:
+        self.count += 1
+        self.label = str(self.count)
+
+        await interaction.response.edit_message(components=self)
+
+
+@bot.slash_command()
+async def test_button(inter: disnake.CommandInteraction) -> None:
+    wrapped = components.wrap_interaction(inter)
+    component = MyButton(count=0)
+
+    await wrapped.send(components=component)
+
+
+bot.run("TOKEN")
+```
+
+For extra examples, please see [the examples folder](https://github.com/DisnakeCommunity/disnake-ext-components/tree/rewrite/examples).
 
 To-Do
 -----
+- Implement more parser types,
+- Fix component unloading (see ComponentManager._unsubscribe),
+- Implement selects and modals,
 - Implement customisable RegEx-based custom id,
+- Improve Cog support by somehow injecting the cog instance,
 - PyPI release,
 - Contribution guidelines,
 
