@@ -40,9 +40,6 @@ Examples
 --------
 A very simple component that increments its label each time you click it can be written as follows:
 
-import disnake
-from disnake.ext import commands, components
-
 ```py
 import disnake
 from disnake.ext import commands, components
