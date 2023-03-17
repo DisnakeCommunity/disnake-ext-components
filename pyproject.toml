@@ -119,6 +119,9 @@ mypy-init-return = true
 [tool.ruff.per-file-ignores]
 # Allow print in scripts
 "scripts/*" = ["T201"]
+# D: Don't enforce docstrings in examples except for the module,
+# TCH: Don't enforce type-checking 'optimisation', as it's distracting from the example.
+"examples/*" = ["D101", "D102", "D103", "TCH"]
 
 
 [tool.taskipy.tasks]
