@@ -14,7 +14,7 @@ import typing
 import attr
 import disnake
 import typing_extensions
-from disnake.ext.components import fields as fields_
+from disnake.ext.components import fields as fields
 from disnake.ext.components.api import component as component_api
 from disnake.ext.components.api import converter as converter_api
 from disnake.ext.components.impl import converter as converter_impl
@@ -90,11 +90,11 @@ def _apply_overrides(
     if not attr.has(cls):  # Nothing to override.
         return
 
-    for field in fields_.get_fields(cls, internal=True):
+    # We only check pre-defined internal fields, such as label.
+    for field in fields.get_fields(cls, kind=fields.FieldType.INTERNAL):
         name = field.name
 
-        # We only check pre-defined internal fields, such as label.
-        if name not in namespace or not fields_.is_internal(field):
+        if name not in namespace:
             continue
 
         new = namespace[name]
@@ -118,8 +118,34 @@ def _apply_overrides(
         cls.__annotations__.setdefault(name, field.type)
 
 
+def _set_field_defaults(
+    _: type, attributes: list[attr.Attribute[typing.Any]]
+) -> list[attr.Attribute[typing.Any]]:
+    new_attributes: list[attr.Attribute[typing.Any]] = []
+    for attribute in attributes:
+
+        # Check if the field already has a field type defined.
+        if fields.FieldMetadata.FIELDTYPE in attribute.metadata:
+            new_attributes.append(attribute)
+            continue
+
+        # If not, create a new attribute with field type set to custom id.
+        # NOTE: Metadata is a mapping proxy, which means we can't directly
+        #       mutate it. For this reason, we use evolve to copy and modify it.
+        evolved = attribute.evolve(
+            metadata={
+                **attribute.metadata,  # Copy existing metadata
+                fields.FieldMetadata.FIELDTYPE: fields.FieldType.CUSTOM_ID,
+                fields.FieldMetadata.PARSER: None,
+            },
+        )
+        new_attributes.append(evolved)
+
+    return new_attributes
+
+
 @typing_extensions.dataclass_transform(
-    kw_only_default=True, field_specifiers=(fields_.field, fields_.internal)
+    kw_only_default=True, field_specifiers=(fields.field, fields.internal)
 )
 class ComponentMeta(typing._ProtocolMeta):  # pyright: ignore[reportPrivateUsage]
     """Metaclass for all disnake-ext-components component types.
@@ -168,9 +194,16 @@ class ComponentMeta(typing._ProtocolMeta):  # pyright: ignore[reportPrivateUsage
 
         # Before we pass the class off to attrs, check if any fields were
         # overwritten. If so, update them to proper attrs fields.
+        # This adds support for redefining internal fields as
+        # `label = "foo"` instead of `label = fields.internal("foo")`
         _apply_overrides(cls, namespace)
 
-        cls = attr.define(cls, slots=True, kw_only=True)
+        cls = attr.define(
+            cls,
+            slots=True,
+            kw_only=True,
+            field_transformer=_set_field_defaults,
+        )
 
         # Subscribe the new component to its manager if it inherited one.
         if cls.manager:

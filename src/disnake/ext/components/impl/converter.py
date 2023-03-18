@@ -5,9 +5,10 @@ from __future__ import annotations
 import typing
 
 import attr
-from disnake.ext.components import fields as field_impl
+from disnake.ext.components import fields
 from disnake.ext.components.api import component as component_api
 from disnake.ext.components.api import converter as converter_api
+from disnake.ext.components.api import parser as parser_api
 from disnake.ext.components.impl import custom_id as custom_id_impl
 from disnake.ext.components.impl.parser import base as parser_base
 from disnake.ext.components.internal import aio
@@ -28,7 +29,7 @@ class Converter(converter_api.Converter):
     simply be created using :meth:`from_component`.
     """
 
-    parsers: typing.Mapping[str, parser_base.Parser[typing.Any]]
+    parsers: typing.Mapping[str, parser_api.Parser[typing.Any]]
     component: type[component_api.RichComponent]
 
     @classmethod
@@ -38,16 +39,16 @@ class Converter(converter_api.Converter):
     ) -> typing_extensions.Self:
         # <<docstring inherited from converter_api.Converter>>
 
-        parser: typing.Optional[parser_base.Parser[typing.Any]]
+        parser: typing.Optional[parser_api.Parser[typing.Any]]
 
-        parsers: dict[str, parser_base.Parser[typing.Any]] = {}
-        for attrs_field in field_impl.get_fields(component):
-            parser = attrs_field.metadata.get(field_impl.PARSER)
+        parsers: dict[str, parser_api.Parser[typing.Any]] = {}
+        for field in fields.get_fields(component, kind=fields.FieldType.CUSTOM_ID):
+            parser = fields.get_parser(field)
 
             if not parser:
-                parser = parser_base.get_parser(attrs_field.type or str).default()
+                parser = parser_base.get_parser(field.type or str).default()
 
-            parsers[attrs_field.name] = parser
+            parsers[field.name] = parser
 
         return cls(parsers, component)
 
@@ -121,13 +122,14 @@ class Converter(converter_api.Converter):
         # <<docstring inherited from converter_api.Converter>>
 
         component_type = type(component)
-        fields = field_impl.get_fields(component_type)
 
         kwargs = {
             field.name: await self.dumps_param(
                 field.name, getattr(component, field.name)
             )
-            for field in fields
+            for field in fields.get_fields(
+                component_type, kind=fields.FieldType.CUSTOM_ID
+            )
         }
 
         return typing.cast(

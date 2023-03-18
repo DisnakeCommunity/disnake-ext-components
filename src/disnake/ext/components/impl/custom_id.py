@@ -94,7 +94,7 @@ class CustomID(str, custom_id_api.CustomID):
     ) -> typing_extensions.Self:
         # <<Docstring inherited from custom_id_api.CustomID>>
 
-        fields = field_impl.get_fields(component)
+        fields = field_impl.get_fields(component, kind=field_impl.FieldType.CUSTOM_ID)
         return cls(
             *[field.name for field in fields],
             name=name or component.__name__,
@@ -132,7 +132,12 @@ class CustomID(str, custom_id_api.CustomID):
     ) -> None:
         # <<Docstring inherited from custom_id_api.CustomID>>
 
-        fields = {field.name for field in field_impl.get_fields(component)}
+        fields = {
+            field.name
+            for field in field_impl.get_fields(
+                component, kind=field_impl.FieldType.CUSTOM_ID
+            )
+        }
 
         invalid_fields = fields - set(self.fields)
 

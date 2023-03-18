@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-import sys
+import enum
+import functools
 import typing
 
 import attr
 import typing_extensions
 
 if typing.TYPE_CHECKING:
-    from disnake.ext.components.api import parser as parser_
+    from disnake.ext.components.api import parser as parser_api
 
 __all__: typing.Sequence[str] = ("field",)
 
@@ -17,20 +18,62 @@ __all__: typing.Sequence[str] = ("field",)
 _T = typing_extensions.TypeVar("_T", default=typing.Any)
 
 
-PARSER: typing.Final[str] = sys.intern("parser")
-INTERNAL: typing.Final[str] = sys.intern("internal")
+class FieldMetadata(enum.Enum):
+    """Enum containing keys for field metadata."""
+
+    PARSER = enum.auto()
+    """Metadata key to store parser information."""
+    FIELDTYPE = enum.auto()
+    """Metadata key to store field type information. See :class:`FieldType`."""
 
 
-def is_internal(field: attr.Attribute[typing.Any]) -> bool:
+class FieldType(enum.Flag):
+    """Flag containing field metadata values for the field type.
+
+    Note that a field can only ever be one of these types. This is a flag for
+    the sole reason of facilitating unions in lookups using :func:`get_fields`.
+    """
+
+    INTERNAL = enum.auto()
+    """Internal field that does not show up in the component's init signature."""
+    CUSTOM_ID = enum.auto()
+    """Field parsed into/from the component's custom id."""
+    SELECT = enum.auto()
+    """Field parsed from a select component's selected values."""
+    MODAL = enum.auto()
+    """Field parsed from a modal component's modal values."""
+
+    @classmethod
+    def ALL(cls) -> FieldType:
+        """Meta-value for all field types.
+
+        Mainly intended for use in :func:`get_fields`.
+        """
+        return functools.reduce(FieldType.__or__, cls)
+
+
+_ALL_FIELD_TYPES = FieldType.ALL()
+
+
+def get_parser(field: attr.Attribute[typing.Any]) -> typing.Optional[parser_api.Parser]:
+    """Get the user-provided parser of the provided field.
+
+    If the parser was automatically inferred, this will be ``None``.
+    """
+    return field.metadata.get(FieldMetadata.PARSER)
+
+
+def is_field_of_type(field: attr.Attribute[typing.Any], kind: FieldType) -> bool:
     """Check whether or not a field is marked as internal."""
-    return bool(field.metadata.get(INTERNAL))
+    set_type = field.metadata.get(FieldMetadata.FIELDTYPE)
+    return bool(set_type and set_type & kind)  # Check if not None, then check if match.
 
 
 def get_fields(
     cls: type,
     /,
     *,
-    internal: bool = False,
+    kind: FieldType = _ALL_FIELD_TYPES,
 ) -> typing.Sequence[attr.Attribute[typing.Any]]:
     """Get the attributes of an attrs class.
 
@@ -41,20 +84,17 @@ def get_fields(
     ----------
     cls:
         The class of which to get the fields.
-    internal:
-        Whether or not to include internal fields. Defaults to False.
+    kind:
+        The kind(s) of fields to return. Can be any combination of
+        :class:`FieldType` s.
     """
-    fields = attr.fields(cls)
-    if internal:
-        return fields
-
-    return [field for field in fields if not is_internal(field)]
+    return [field for field in attr.fields(cls) if is_field_of_type(field, kind)]
 
 
 def field(
     default: _T,
     *,
-    parser: typing.Optional[parser_.Parser[_T]] = None,
+    parser: typing.Optional[parser_api.Parser[_T]] = None,
 ) -> _T:
     """Define a custom ID field for the component.
 
@@ -80,7 +120,14 @@ def field(
         A new field with the provided default and parser. Note that a field
         created this way always has ``kw_only=True`` set.
     """
-    return attr.field(default=default, kw_only=True, metadata={PARSER: parser})
+    return attr.field(
+        default=default,
+        kw_only=True,
+        metadata={
+            FieldMetadata.FIELDTYPE: FieldType.CUSTOM_ID,
+            FieldMetadata.PARSER: parser,
+        },
+    )
 
 
 def internal(  # noqa: D417
@@ -118,5 +165,5 @@ def internal(  # noqa: D417
         default=default,
         init=False,
         on_setattr=setter,
-        metadata={INTERNAL: True},
+        metadata={FieldMetadata.FIELDTYPE: FieldType.INTERNAL},
     )
