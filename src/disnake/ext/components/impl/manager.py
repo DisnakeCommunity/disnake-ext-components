@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import typing
 import weakref
 
@@ -57,22 +58,41 @@ class ComponentManager(component_api.ComponentManager):
         The bot to register this manager's components on as listeners.
     """
 
-    __slots__: typing.Sequence[str] = ("bot", "components")
+    __slots__: typing.Sequence[str] = ("bot", "components", "_recursive_guard")
 
     bot: AnyBot
-    components: weakref.WeakSet[type[component_api.RichComponent]]
+    components: weakref.WeakKeyDictionary[
+        type[component_api.RichComponent],
+        typing.Callable[[disnake.Interaction], typing.Coroutine[None, None, None]],
+    ]
+    _recursive_guard: typing.Optional[type[component_api.RichComponent]]
 
     def __init__(self, bot: AnyBot):
         self.bot = bot
-        self.components = weakref.WeakSet()
+        self.components = weakref.WeakKeyDictionary()
+        self._recursive_guard = None
+
+    @contextlib.contextmanager
+    def _guard(
+        self, component: type[component_api.RichComponent]
+    ) -> typing.Generator[None, None, None]:
+        self._recursive_guard = component
+        yield
+        self._recursive_guard = None
 
     def _subscribe(self, component: type[component_api.RichComponent]) -> None:
         if not _assert_componentmeta(component).is_active:
             return
 
-        component.set_manager(self)
-        if not _is_protocol(component):
-            self.bot.add_listener(self.wrap_component(component), component.event)
+        if self._recursive_guard is component:
+            return
+
+        with self._guard(component):
+            component.set_manager(self)
+
+            if not _is_protocol(component):
+                callback = self.components[component] = self.wrap_component(component)
+                self.bot.add_listener(callback, component.event)
 
     # TODO: Consider using Any here so that you can actually pass protocol
     #       classes without pyright getting angry...
@@ -91,9 +111,15 @@ class ComponentManager(component_api.ComponentManager):
     def _unsubscribe(self, component: type[component_api.RichComponent]) -> None:
         _assert_componentmeta(component)
 
-        component.set_manager(None)
+        if self._recursive_guard is component:
+            return
 
-        # TODO: Implement removing the listener from the bot.
+        with self._guard(component):
+            component.set_manager(None)
+
+            if not _is_protocol(component):
+                callback = self.components.pop(component)
+                self.bot.remove_listener(callback, component.event)
 
     def unsubscribe(  # noqa: D102
         self, component: type[component_api.RichComponent], /, *, recursive: bool = True
@@ -124,8 +150,15 @@ class ComponentManager(component_api.ComponentManager):
         typing.Callable[[:class:`disnake.Interaction`], typing.Coroutine[None, None, None]]:
             The generated callable.
         """  # noqa: E501
+        # Ensure we don't keep a hard reference...
+        component_ref = weakref.ref(component)
+        del component
 
         async def component_listener(interaction: disnake.Interaction) -> None:
+            component = component_ref()
+            if not component:
+                return
+
             if not _assert_componentmeta(component).is_active:
                 # In case an extension was unloaded and the component in question
                 # only lingers because it has not yet been garbage collected,

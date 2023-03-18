@@ -250,15 +250,12 @@ class ComponentBase(
     ) -> None:
         # <<docstring inherited from component_api.RichComponent>>
 
-        if cls.manager:
-            # Manager is unchanged, do nothing.
-            if cls.manager is manager:
-                return
+        if cls.manager is manager:
+            return
 
-            # Manager was modified, first unsubscribe from the existing manager.
+        if cls.manager:
             cls.manager.unsubscribe(cls, recursive=False)
 
-        # Finally, set the new manager.
         cls.manager = manager
 
     @classmethod
