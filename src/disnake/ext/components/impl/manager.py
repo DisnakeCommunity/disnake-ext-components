@@ -91,7 +91,9 @@ class ComponentManager(component_api.ComponentManager):
             component.set_manager(self)
 
             if not _is_protocol(component):
-                callback = self.components[component] = self.wrap_component(component)
+                callback = self.wrap_component(weakref.ref(component))
+
+                self.components[component] = callback
                 self.bot.add_listener(callback, component.event)
 
     # TODO: Consider using Any here so that you can actually pass protocol
@@ -133,8 +135,26 @@ class ComponentManager(component_api.ComponentManager):
         for child_component in _recurse_subclasses(component):
             self._unsubscribe(child_component)
 
+    @contextlib.contextmanager
+    def callback_hook(
+        self, component: component_api.RichComponent  # noqa: ARG002
+    ) -> typing.Generator[None, None, None]:
+        """Wrap all component callbacks on this manager with this context manager.
+
+        Any code before the ``yield``-statement will run after validating the
+        component should run, but before its callback is invoked.
+        Any code after the ``yield``-statement will run after the component
+        callback is invoked.
+
+        Parameters
+        ----------
+        component:
+            The component instance that is about to be invoked.
+        """
+        yield
+
     def wrap_component(
-        self, component: type[component_api.RichComponent]
+        self, component_ref: weakref.ReferenceType[type[component_api.RichComponent]]
     ) -> typing.Callable[[disnake.Interaction], typing.Coroutine[None, None, None]]:
         """Wrap a component in a callable that handles instantiating and calling it.
 
@@ -142,17 +162,14 @@ class ComponentManager(component_api.ComponentManager):
 
         Parameters
         ----------
-        component:
-            The component to wrap.
+        component_ref:
+            A :func:`weakref.ref` to the component to wrap.
 
         Returns
         -------
         typing.Callable[[:class:`disnake.Interaction`], typing.Coroutine[None, None, None]]:
             The generated callable.
         """  # noqa: E501
-        # Ensure we don't keep a hard reference...
-        component_ref = weakref.ref(component)
-        del component
 
         async def component_listener(interaction: disnake.Interaction) -> None:
             component = component_ref()
@@ -170,8 +187,9 @@ class ComponentManager(component_api.ComponentManager):
                 return
 
             instance = await component.loads(interaction)
-            await instance.callback(interaction_impl.wrap_interaction(interaction))
-            return
+
+            with self.callback_hook(instance):
+                await instance.callback(interaction_impl.wrap_interaction(interaction))
 
         return component_listener
 
