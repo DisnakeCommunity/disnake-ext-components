@@ -16,9 +16,9 @@ import disnake
 import typing_extensions
 from disnake.ext.components import fields as fields
 from disnake.ext.components.api import component as component_api
-from disnake.ext.components.api import converter as converter_api
-from disnake.ext.components.impl import converter as converter_impl
+from disnake.ext.components.api import factory as factory_api
 from disnake.ext.components.impl import custom_id as custom_id_impl
+from disnake.ext.components.impl import factory as factory_impl
 
 __all__: typing.Sequence[str] = ("ComponentBase",)
 
@@ -155,12 +155,12 @@ class ComponentMeta(typing._ProtocolMeta):  # pyright: ignore[reportPrivateUsage
     disnake-ext-components.
 
     This metaclass handles :mod:`attr` class generation, custom id completion,
-    interfacing with component managers, parser and converter generation, and
+    interfacing with component managers, parser and factory generation, and
     automatic slotting.
     """
 
     custom_id: custom_id_impl.CustomID
-    converter: converter_api.Converter
+    factory: factory_api.ComponentFactory
     _parent: typing.Optional[type[typing.Any]]
     __module_id__: int
 
@@ -216,7 +216,7 @@ class ComponentMeta(typing._ProtocolMeta):  # pyright: ignore[reportPrivateUsage
             return cls
 
         _finalise_custom_id(cls)
-        cls.converter = converter_impl.Converter.from_component(cls)
+        cls.factory = factory_impl.ComponentFactory.from_component(cls)
 
         return cls
 
@@ -270,8 +270,8 @@ class ComponentBase(
     async def dumps(self) -> str:  # noqa: D102
         # <<Docstring inherited from component_api.RichComponent>>
 
-        converter = type(self).converter
-        return await converter.dumps(self)
+        factory = type(self).factory
+        return await factory.dumps(self)
 
     async def as_ui_component(self) -> disnake.ui.WrappedComponent:  # noqa: D102
         # <<Docstring inherited from component_api.RichComponent>>

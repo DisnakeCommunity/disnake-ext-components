@@ -1,4 +1,4 @@
-"""Protocols for overarching converter types."""
+"""Protocols for overarching component factory types."""
 
 from __future__ import annotations
 
@@ -9,17 +9,17 @@ if typing.TYPE_CHECKING:
     import typing_extensions
     from disnake.ext.components.api import component as component_api
 
-__all__: typing.Sequence[str] = ("Converter",)
+__all__: typing.Sequence[str] = ("ComponentFactory",)
 
 
-class Converter(typing.Protocol):
-    """The baseline protocol for any kind of converter.
+class ComponentFactory(typing.Protocol):
+    """The baseline protocol for any kind of component factory.
 
-    Any and all converters must implement this protocol in order to be properly
-    handled by disnake-ext-components.
+    Any and all component factories must implement this protocol in order to be
+    properly handled by disnake-ext-components.
 
-    A converter handles creating a component instance from a custom id by
-    running all individual fields' parsers and aggregating the result into
+    A component factory handles creating a component instance from a custom id
+    by running all individual fields' parsers and aggregating the result into
     a component instance.
     """
 
@@ -30,7 +30,7 @@ class Converter(typing.Protocol):
         cls,
         component: type[component_api.RichComponent],
     ) -> typing_extensions.Self:
-        """Create a converter from the provided component.
+        """Create a component factory from the provided component.
 
         This takes the component's fields into account and generates the
         corresponding parser types for each field if a parser was not provided
@@ -39,7 +39,7 @@ class Converter(typing.Protocol):
         Parameters
         ----------
         component:
-            The component for which to create a converter.
+            The component for which to create a component factory.
         """
         ...
 

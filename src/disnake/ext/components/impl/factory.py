@@ -1,4 +1,4 @@
-"""Standard implementation of the overarching converter type."""
+"""Standard implementation of the overarching component factory type."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import typing
 import attr
 from disnake.ext.components import fields
 from disnake.ext.components.api import component as component_api
-from disnake.ext.components.api import converter as converter_api
+from disnake.ext.components.api import factory as factory_api
 from disnake.ext.components.api import parser as parser_api
 from disnake.ext.components.impl import custom_id as custom_id_impl
 from disnake.ext.components.impl.parser import base as parser_base
@@ -17,16 +17,16 @@ if typing.TYPE_CHECKING:
     import disnake
     import typing_extensions
 
-__all__: typing.Sequence[str] = ("Converter",)
+__all__: typing.Sequence[str] = ("ComponentFactory",)
 
 
 @attr.define(slots=True)
-class Converter(converter_api.Converter):
-    """Implementation of the overarching converter type.
+class ComponentFactory(factory_api.ComponentFactory):
+    """Implementation of the overarching component factory type.
 
-    A converter holds information about all the custom id fields of a component,
-    and contains that component's parsers. In most situations, a converter can
-    simply be created using :meth:`from_component`.
+    A component factory holds information about all the custom id fields of a
+    component, and contains that component's parsers. In most situations, a
+    component factory can simply be created using :meth:`from_component`.
     """
 
     parsers: typing.Mapping[str, parser_api.Parser[typing.Any]]
@@ -37,7 +37,7 @@ class Converter(converter_api.Converter):
         cls,
         component: type[component_api.RichComponent],
     ) -> typing_extensions.Self:
-        # <<docstring inherited from converter_api.Converter>>
+        # <<docstring inherited from factory_api.ComponentFactory>>
 
         parser: typing.Optional[parser_api.Parser[typing.Any]]
 
@@ -108,7 +108,7 @@ class Converter(converter_api.Converter):
         interaction: disnake.Interaction,
         params: typing.Mapping[str, str],
     ) -> component_api.RichComponent:
-        # <<docstring inherited from converter_api.Converter>>
+        # <<docstring inherited from factory_api.ComponentFactory>>
 
         kwargs = {
             param: await self.loads_param(interaction, param, value)
@@ -119,7 +119,7 @@ class Converter(converter_api.Converter):
         return self.component(**kwargs)
 
     async def dumps(self, component: component_api.RichComponent) -> str:  # noqa: D102
-        # <<docstring inherited from converter_api.Converter>>
+        # <<docstring inherited from factory_api.ComponentFactory>>
 
         component_type = type(component)
 

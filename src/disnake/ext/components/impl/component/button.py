@@ -74,7 +74,7 @@ class RichButton(
 
         return typing.cast(
             typing_extensions.Self,
-            await cls.converter.loads(interaction, match.groupdict()),
+            await cls.factory.loads(interaction, match.groupdict()),
         )
 
     async def callback(  # pyright: ignore[reportIncompatibleMethodOverride]  # noqa: D102, E501
