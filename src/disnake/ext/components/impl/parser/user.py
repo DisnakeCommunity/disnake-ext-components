@@ -21,8 +21,9 @@ def _get_user(inter: disnake.Interaction, argument: str) -> disnake.User:
     if user is None:
         msg = f"Could not find a user with id {argument!r}."
         raise LookupError(msg)
-    
+
     return user
+
 
 def _get_member(inter: disnake.Interaction, argument: str) -> disnake.Member:
     member = inter.guild.get_member(int(argument)) if inter.guild else None
@@ -33,6 +34,7 @@ def _get_member(inter: disnake.Interaction, argument: str) -> disnake.Member:
 
     return member
 
+
 GetUserParser = base.Parser.from_funcs(
     _get_user, snowflake.snowflake_dumps, is_default_for=(disnake.User,)
 )
@@ -40,14 +42,17 @@ GetMemberParser = base.Parser.from_funcs(
     _get_member, snowflake.snowflake_dumps, is_default_for=(disnake.Member,)
 )
 
+
 async def _fetch_user(inter: disnake.Interaction, argument: str) -> disnake.User:
     return await inter.bot.fetch_user(int(argument))
 
+
 async def _fetch_member(inter: disnake.Interaction, argument: str) -> disnake.Member:
     # annotating inter as GuildCommandInteraction results in a typing error
-    # since Parser.from_funcs is accepting Interaction so we cast here 
+    # since Parser.from_funcs is accepting Interaction so we cast here
     guild = typing.cast(disnake.Guild, inter.guild)
     return await guild.fetch_member(int(argument))
+
 
 UserParser = base.Parser.from_funcs(
     _fetch_user, snowflake.snowflake_dumps, is_default_for=(disnake.User,)

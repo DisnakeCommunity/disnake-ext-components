@@ -23,8 +23,10 @@ def _get_message(inter: disnake.Interaction, argument: str) -> disnake.Message:
 
     return message
 
+
 async def _fetch_message(inter: disnake.Interaction, argument: str) -> disnake.Message:
     return await inter.channel.fetch_message(int(argument))
+
 
 GetMessageParser = base.Parser.from_funcs(
     _get_message, snowflake.snowflake_dumps, is_default_for=(disnake.Message,)
@@ -34,9 +36,8 @@ MessageParser = base.Parser.from_funcs(
 )
 PartialMessageParser = base.Parser.from_funcs(
     lambda inter, argument: disnake.PartialMessage(
-        channel=inter.channel,
-        id=int(argument)
+        channel=inter.channel, id=int(argument)
     ),
     snowflake.snowflake_dumps,
-    is_default_for=(disnake.PartialMessage,)
+    is_default_for=(disnake.PartialMessage,),
 )
