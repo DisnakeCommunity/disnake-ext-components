@@ -7,10 +7,7 @@ import typing
 import disnake
 from disnake.ext.components.impl.parser import base, snowflake
 
-__all__: typing.Sequence[str] = (
-    "GuildParser",
-    "GetGuildParser"
-)
+__all__: typing.Sequence[str] = ("GuildParser", "GetGuildParser")
 
 
 def _get_guild(inter: disnake.Interaction, argument: str) -> disnake.Guild:
@@ -22,9 +19,11 @@ def _get_guild(inter: disnake.Interaction, argument: str) -> disnake.Guild:
 
     return guild
 
+
 async def _fetch_guild(inter: disnake.Interaction, argument: str) -> disnake.Guild:
     guild = await inter.bot.fetch_guild(int(argument))
     return guild
+
 
 GetGuildParser = base.Parser.from_funcs(
     _get_guild, snowflake.snowflake_dumps, is_default_for=(disnake.Guild,)
