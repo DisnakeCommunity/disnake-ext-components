@@ -78,7 +78,6 @@ For extra examples, please see [the examples folder](https://github.com/DisnakeC
 To-Do
 -----
 - Implement more parser types,
-- Fix component unloading (see ComponentManager._unsubscribe),
 - Implement selects and modals,
 - Implement customisable RegEx-based custom id,
 - Improve Cog support by somehow injecting the cog instance,
