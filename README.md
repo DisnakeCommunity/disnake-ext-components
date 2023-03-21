@@ -87,3 +87,5 @@ To-Do
 Contributing
 ------------
 Any contributions are welcome, feel free to open an issue or submit a pull request if you would like to see something added. Contribution guidelines will come soon.
+
+Note: due to the file structure of disnake, poetry is unable to install disnake-ext-components into the disnake package in editable mode when you run `poetry install`. For this reason, I included the script [`scripts.symlink`](https://github.com/DisnakeCommunity/disnake-ext-components/blob/rewrite/scripts/symlink.py) that automatically symlinks disnake-ext-components into the disnake installation of the python environment you used to run the script. It is exposed as a poetry entrypoint under the name `dev-symlink`. In other words, running `poetry run dev-symlink` will automatically symlink disnake-ext-components into your poetry virtual environment's disnake installation, which should circumvent the issue.
