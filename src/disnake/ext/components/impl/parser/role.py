@@ -20,16 +20,17 @@ def _get_role(inter: disnake.Interaction, argument: str) -> disnake.Role:
     if role is None:
         msg = f"Could not find a role with id {argument!r}."
         raise LookupError(msg)
-    
+
     return role
+
 
 async def _fetch_role(inter: disnake.Interaction, argument: str) -> disnake.Role:
     # same problem as user.py with all these cast
     guild = typing.cast(disnake.Guild, inter.guild)
     return typing.cast(
-        disnake.Role,
-        disnake.utils.get(await guild.fetch_roles(), id=int(argument))
+        disnake.Role, disnake.utils.get(await guild.fetch_roles(), id=int(argument))
     )
+
 
 GetRoleParser = base.Parser.from_funcs(
     _get_role, snowflake.snowflake_dumps, is_default_for=(disnake.Role,)
