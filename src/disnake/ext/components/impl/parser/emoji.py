@@ -11,7 +11,12 @@ __all__: typing.Sequence[str] = (
     "GetEmojiParser",
     "EmojiParser",
     "PartialEmojiParser",
+    "GetStickerParser",
+    "StickerParser",
 )
+
+
+# GET_ONLY
 
 
 def _get_emoji(inter: disnake.Interaction, argument: str) -> disnake.Emoji:
@@ -24,14 +29,39 @@ def _get_emoji(inter: disnake.Interaction, argument: str) -> disnake.Emoji:
     return emoji
 
 
+def _get_sticker(inter: disnake.Interaction, argument: str) -> disnake.Sticker:
+    sticker = inter.bot.get_sticker(int(argument))
+
+    if sticker is None:
+        msg = f"Could not find an emoji with id {argument!r}."
+        raise LookupError(msg)
+
+    return sticker
+
+
+# GET AND FETCH
+
+
 async def _fetch_emoji(inter: disnake.Interaction, argument: str) -> disnake.Emoji:
     guild = typing.cast(disnake.Guild, inter.guild)
-    return await guild.fetch_emoji(int(argument))
+    return inter.bot.get_emoji(int(argument)) or await guild.fetch_emoji(int(argument))
+
+
+async def _fetch_sticker(inter: disnake.Interaction, argument: str) -> disnake.Sticker:
+    guild = typing.cast(disnake.Guild, inter.guild)
+    return inter.bot.get_sticker(int(argument)) or await guild.fetch_sticker(
+        int(argument)
+    )
 
 
 GetEmojiParser = base.Parser.from_funcs(
     _get_emoji, snowflake.snowflake_dumps, is_default_for=(disnake.Emoji,)
 )
+GetStickerParser = base.Parser.from_funcs(
+    _get_sticker, snowflake.snowflake_dumps, is_default_for=(disnake.Sticker,)
+)
+
+
 EmojiParser = base.Parser.from_funcs(
     _fetch_emoji, snowflake.snowflake_dumps, is_default_for=(disnake.Emoji,)
 )
@@ -39,4 +69,7 @@ PartialEmojiParser = base.Parser.from_funcs(
     lambda _, argument: disnake.PartialEmoji.from_dict({"id": int(argument)}),
     lambda argument: str(argument.id),
     is_default_for=(disnake.PartialEmoji,),
+)
+StickerParser = base.Parser.from_funcs(
+    _fetch_sticker, snowflake.snowflake_dumps, is_default_for=(disnake.Sticker,)
 )
