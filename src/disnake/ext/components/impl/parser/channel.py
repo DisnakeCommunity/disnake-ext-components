@@ -17,6 +17,7 @@ __all__: typing.Sequence[str] = (
     "StageChannelParser",
     "TextChannelParser",
     "VoiceChannelParser",
+    "CategoryParser",
     "GetDMChannelParser",
     "GetForumChannelParser",
     "GetGroupChannelParser",
@@ -26,6 +27,8 @@ __all__: typing.Sequence[str] = (
     "GetStageChannelParser",
     "GetTextChannelParser",
     "GetVoiceChannelParser",
+    "GetCategoryParser",
+    "PartialMessageableParser",
 )
 
 
@@ -84,6 +87,7 @@ GetVoiceChannelParser = _build_sync_channel_parser(disnake.VoiceChannel)
 GetStageChannelParser = _build_sync_channel_parser(disnake.StageChannel)
 GetTextChannelParser = _build_sync_channel_parser(disnake.TextChannel)
 GetThreadParser = _build_sync_channel_parser(disnake.Thread)
+GetCategoryParser = _build_sync_channel_parser(disnake.CategoryChannel)
 
 
 # GET AND FETCH
@@ -137,3 +141,22 @@ VoiceChannelParser = _build_async_channel_parser(disnake.VoiceChannel)
 StageChannelParser = _build_async_channel_parser(disnake.StageChannel)
 TextChannelParser = _build_async_channel_parser(disnake.TextChannel)
 ThreadParser = _build_async_channel_parser(disnake.Thread)
+CategoryParser = _build_async_channel_parser(disnake.CategoryChannel)
+
+
+class PartialMessageableParser(  # noqa: D101
+    base.Parser, is_default_for=(disnake.PartialMessageable,)
+):
+    # <<docstring inherited from parser_api.Parser>>
+
+    def __init__(
+        self, channel_type: typing.Optional[disnake.ChannelType] = None
+    ) -> None:
+        self.channel_type = channel_type
+        self.dumps = snowflake.snowflake_dumps
+
+    def loads(  # noqa: D102
+        self, inter: disnake.Interaction, argument: str
+    ) -> disnake.PartialMessageable:
+        # <<docstring inherited from parser_api.Parser>>
+        return inter.bot.get_partial_messageable(int(argument), type=self.channel_type)
