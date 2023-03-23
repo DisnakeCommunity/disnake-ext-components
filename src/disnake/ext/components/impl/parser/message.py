@@ -25,9 +25,10 @@ def _get_message(inter: disnake.Interaction, argument: str) -> disnake.Message:
 
 
 async def _fetch_message(inter: disnake.Interaction, argument: str) -> disnake.Message:
-    return inter.bot.get_message(int(argument)) or await inter.channel.fetch_message(
-        int(argument)
-    )
+    return (
+        inter.bot.get_message(int(argument))
+        or await inter.channel.fetch_message(int(argument))
+    )  # fmt: skip
 
 
 GetMessageParser = base.Parser.from_funcs(

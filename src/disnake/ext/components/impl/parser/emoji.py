@@ -44,14 +44,18 @@ def _get_sticker(inter: disnake.Interaction, argument: str) -> disnake.Sticker:
 
 async def _fetch_emoji(inter: disnake.Interaction, argument: str) -> disnake.Emoji:
     guild = typing.cast(disnake.Guild, inter.guild)
-    return inter.bot.get_emoji(int(argument)) or await guild.fetch_emoji(int(argument))
+    return (
+        inter.bot.get_emoji(int(argument))
+        or await guild.fetch_emoji(int(argument))
+    )  # fmt: skip
 
 
 async def _fetch_sticker(inter: disnake.Interaction, argument: str) -> disnake.Sticker:
     guild = typing.cast(disnake.Guild, inter.guild)
-    return inter.bot.get_sticker(int(argument)) or await guild.fetch_sticker(
-        int(argument)
-    )
+    return (
+        inter.bot.get_sticker(int(argument))
+        or await guild.fetch_sticker(int(argument))
+    )  # fmt: skip
 
 
 GetEmojiParser = base.Parser.from_funcs(
