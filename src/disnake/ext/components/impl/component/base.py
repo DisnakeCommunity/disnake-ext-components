@@ -160,7 +160,11 @@ class ComponentMeta(typing._ProtocolMeta):  # pyright: ignore[reportPrivateUsage
     """
 
     custom_id: custom_id_impl.CustomID
-    factory: factory_api.ComponentFactory
+
+    # HACK: Pyright doesn't like this but it does seem to work with typechecking
+    #       down the line. I might change this later (e.g. define it on
+    #       BaseComponent instead, but that comes with its own challenges).
+    factory: factory_api.ComponentFactory[typing_extensions.Self]  # pyright: ignore
     _parent: typing.Optional[type[typing.Any]]
     __module_id__: int
 
@@ -216,7 +220,11 @@ class ComponentMeta(typing._ProtocolMeta):  # pyright: ignore[reportPrivateUsage
             return cls
 
         _finalise_custom_id(cls)
-        cls.factory = factory_impl.ComponentFactory.from_component(cls)
+
+        # Pyright ignore is necessary as explained above.
+        cls.factory = factory_impl.ComponentFactory.from_component(  # pyright: ignore
+            cls
+        )
 
         return cls
 

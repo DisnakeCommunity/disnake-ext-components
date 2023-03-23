@@ -4,15 +4,23 @@ from __future__ import annotations
 
 import typing
 
+import typing_extensions
+from disnake.ext.components.api import component as component_api
+
 if typing.TYPE_CHECKING:
     import disnake
-    import typing_extensions
-    from disnake.ext.components.api import component as component_api
 
 __all__: typing.Sequence[str] = ("ComponentFactory",)
 
 
-class ComponentFactory(typing.Protocol):
+ComponentT = typing_extensions.TypeVar(
+    "ComponentT",
+    bound=component_api.RichComponent,
+    default=component_api.RichComponent,
+)
+
+
+class ComponentFactory(typing.Protocol[ComponentT]):
     """The baseline protocol for any kind of component factory.
 
     Any and all component factories must implement this protocol in order to be
@@ -47,7 +55,7 @@ class ComponentFactory(typing.Protocol):
         self,
         interaction: disnake.Interaction,
         params: typing.Mapping[str, str],
-    ) -> component_api.RichComponent:
+    ) -> ComponentT:
         """Create a new component instance from the provided custom id.
 
         This requires the custom id to already have been decomposed into
@@ -64,7 +72,7 @@ class ComponentFactory(typing.Protocol):
         # TODO: Return an ext-components specific conversion error.
         ...
 
-    async def dumps(self, component: component_api.RichComponent) -> str:
+    async def dumps(self, component: ComponentT) -> str:
         """Dump a component into a new custom id string.
 
         This converts the component's individual fields back into strings and

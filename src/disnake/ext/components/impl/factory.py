@@ -21,7 +21,7 @@ __all__: typing.Sequence[str] = ("ComponentFactory",)
 
 
 @attr.define(slots=True)
-class ComponentFactory(factory_api.ComponentFactory):
+class ComponentFactory(factory_api.ComponentFactory[factory_api.ComponentT]):
     """Implementation of the overarching component factory type.
 
     A component factory holds information about all the custom id fields of a
@@ -30,7 +30,7 @@ class ComponentFactory(factory_api.ComponentFactory):
     """
 
     parsers: typing.Mapping[str, parser_api.Parser[typing.Any]]
-    component: type[component_api.RichComponent]
+    component: type[factory_api.ComponentT]
 
     @classmethod
     def from_component(  # noqa: D102
@@ -107,7 +107,7 @@ class ComponentFactory(factory_api.ComponentFactory):
         self,
         interaction: disnake.Interaction,
         params: typing.Mapping[str, str],
-    ) -> component_api.RichComponent:
+    ) -> factory_api.ComponentT:
         # <<docstring inherited from factory_api.ComponentFactory>>
 
         kwargs = {
@@ -118,7 +118,7 @@ class ComponentFactory(factory_api.ComponentFactory):
 
         return self.component(**kwargs)
 
-    async def dumps(self, component: component_api.RichComponent) -> str:  # noqa: D102
+    async def dumps(self, component: factory_api.ComponentT) -> str:  # noqa: D102
         # <<docstring inherited from factory_api.ComponentFactory>>
 
         component_type = type(component)
