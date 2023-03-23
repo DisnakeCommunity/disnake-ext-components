@@ -31,7 +31,7 @@ Components = typing.Union[
 MessageComponents = typing.Union[
     component_api.RichButton,
     disnake.ui.Button[typing.Any],
-    # select.RichSelect,
+    component_api.RichSelect,
     disnake.ui.Select[typing.Any],
 ]
 
@@ -40,7 +40,9 @@ MISSING = disnake.utils.MISSING
 
 
 async def _prepare(component: MessageComponents) -> disnake.ui.MessageUIComponent:
-    if isinstance(component, component_api.RichButton):  # TODO: add select
+    if isinstance(
+        component, (component_api.RichButton, component_api.RichSelect)
+    ):  # TODO: add select
         return await component.as_ui_component()
 
     return component

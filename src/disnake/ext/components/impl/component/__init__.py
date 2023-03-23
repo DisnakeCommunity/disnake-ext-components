@@ -6,3 +6,4 @@
 
 from disnake.ext.components.impl.component.base import *
 from disnake.ext.components.impl.component.button import *
+from disnake.ext.components.impl.component.select import *
