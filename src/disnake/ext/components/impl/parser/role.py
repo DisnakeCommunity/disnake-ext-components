@@ -32,6 +32,8 @@ async def _fetch_role(inter: disnake.Interaction, argument: str) -> disnake.Role
         or disnake.utils.get(await guild.fetch_roles(), id=int(argument))
     )
 
+    # a role id coming from a custom_id could be of a deleted role object
+    # so we're handling that possibility
     if role is None:
         msg = f"Could not find a role with id {argument!r}."
         raise LookupError(msg)
