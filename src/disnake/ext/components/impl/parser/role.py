@@ -27,8 +27,9 @@ def _get_role(inter: disnake.Interaction, argument: str) -> disnake.Role:
 async def _fetch_role(inter: disnake.Interaction, argument: str) -> disnake.Role:
     # same problem as user.py with all these cast
     guild = typing.cast(disnake.Guild, inter.guild)
-    return guild.get_role(int(argument)) or typing.cast(
-        disnake.Role, disnake.utils.get(await guild.fetch_roles(), id=int(argument))
+    return (
+        guild.get_role(int(argument))
+        or typing.cast(disnake.Role, disnake.utils.get(await guild.fetch_roles(), id=int(argument)))
     )
 
 
