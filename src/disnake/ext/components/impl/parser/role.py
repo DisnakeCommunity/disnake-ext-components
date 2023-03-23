@@ -27,9 +27,8 @@ def _get_role(inter: disnake.Interaction, argument: str) -> disnake.Role:
 async def _fetch_role(inter: disnake.Interaction, argument: str) -> disnake.Role:
     # same problem as user.py with all these cast
     guild = typing.cast(disnake.Guild, inter.guild)
-    role = (
-        guild.get_role(int(argument))
-        or disnake.utils.get(await guild.fetch_roles(), id=int(argument))
+    role = guild.get_role(int(argument)) or disnake.utils.get(
+        await guild.fetch_roles(), id=int(argument)
     )
 
     # a role id coming from a custom_id could be of a deleted role object
@@ -38,7 +37,7 @@ async def _fetch_role(inter: disnake.Interaction, argument: str) -> disnake.Role
         msg = f"Could not find a role with id {argument!r}."
         raise LookupError(msg)
 
-    return role 
+    return role
 
 
 GetRoleParser = base.Parser.from_funcs(

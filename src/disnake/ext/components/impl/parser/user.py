@@ -44,9 +44,8 @@ GetMemberParser = base.Parser.from_funcs(
 
 
 async def _fetch_user(inter: disnake.Interaction, argument: str) -> disnake.User:
-    return (
-        inter.bot.get_user(int(argument))
-        or await inter.bot.fetch_user(int(argument))
+    return inter.bot.get_user(int(argument)) or await inter.bot.fetch_user(
+        int(argument)
     )
 
 
@@ -54,10 +53,7 @@ async def _fetch_member(inter: disnake.Interaction, argument: str) -> disnake.Me
     # annotating inter as GuildCommandInteraction results in a typing error
     # since Parser.from_funcs is accepting Interaction so we cast here
     guild = typing.cast(disnake.Guild, inter.guild)
-    return (
-        guild.get_member(int(argument))
-        or await guild.fetch_member(int(argument))
-    )
+    return guild.get_member(int(argument)) or await guild.fetch_member(int(argument))
 
 
 UserParser = base.Parser.from_funcs(
