@@ -99,9 +99,8 @@ def _build_async_channel_parser(
 ) -> type[base.Parser[_ChannelT]]:
     async def _fetch_channel(inter: disnake.Interaction, argument: str) -> _ChannelT:
         channel_id = int(argument)
-        channel = (
-            inter.bot.get_channel(channel_id)
-            or await inter.bot.fetch_channel(channel_id)
+        channel = inter.bot.get_channel(channel_id) or await inter.bot.fetch_channel(
+            channel_id
         )
 
         if types and not isinstance(channel, types):

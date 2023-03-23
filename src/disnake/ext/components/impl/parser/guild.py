@@ -21,9 +21,8 @@ def _get_guild(inter: disnake.Interaction, argument: str) -> disnake.Guild:
 
 
 async def _fetch_guild(inter: disnake.Interaction, argument: str) -> disnake.Guild:
-    return (
-        inter.bot.get_guild(int(argument))
-        or await inter.bot.fetch_guild(int(argument))
+    return inter.bot.get_guild(int(argument)) or await inter.bot.fetch_guild(
+        int(argument)
     )
 
 
