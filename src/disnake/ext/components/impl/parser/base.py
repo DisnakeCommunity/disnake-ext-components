@@ -77,7 +77,7 @@ def get_parser(type_: type[_T]) -> type[Parser[_T]]:
     return _PARSERS[type_]
 
 
-class Parser(parser_api.Parser, typing.Protocol[_T]):
+class Parser(parser_api.Parser[_T], typing.Protocol[_T]):
     """Class that handles parsing of one custom id field to and from a desired type.
 
     A parser contains two main methods, :meth:`loads` and :meth:`dumps`.
