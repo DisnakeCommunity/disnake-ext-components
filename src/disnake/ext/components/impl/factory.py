@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import types
 import typing
 
 import attr
@@ -20,8 +21,69 @@ if typing.TYPE_CHECKING:
 __all__: typing.Sequence[str] = ("ComponentFactory",)
 
 
+_T = typing.TypeVar("_T")
+
+ParserMapping = typing.Mapping[str, parser_api.Parser[typing.Any]]
+MutableParserMapping = typing.MutableMapping[str, parser_api.Parser[typing.Any]]
+
+
 @attr.define(slots=True)
-class ComponentFactory(factory_api.ComponentFactory[factory_api.ComponentT]):
+class ComponentFactoryBuilder(typing.Generic[factory_api.ComponentT]):
+    """A builder for component factories that support stepwise creation.
+
+    Individually register parameters and return their parser. This is used in
+    :class:`component_base.ComponentMeta` to register the parsers on each field
+    as they are created.
+
+    Call :meth:`build` to finalise the :class:`ComponentFactory`.
+    """
+
+    parsers: MutableParserMapping = attr.field(factory=dict, init=False)
+    component: type[factory_api.ComponentT]
+
+    def add_field(self, field: attr.Attribute[_T]) -> parser_api.Parser[_T]:
+        """Register a new field, add its parser and return it.
+
+        In case the field already has a parser, return it as-is. Otherwise,
+        build a new parser and return it.
+
+        Parameters
+        ----------
+        field:
+            The field to add to the :class:`ComponentFactory`.
+
+        Returns
+        -------
+        :class:`parser_api.Parser`[typing.Any]
+            The parser for the provided field.
+        """
+        parser = fields.get_parser(field)
+
+        if not parser:
+            field_type = field.type or str  # TODO: also pass to default
+            parser = parser_base.get_parser(field_type).default()
+
+        self.parsers[field.name] = parser
+        return parser
+
+    def build(self) -> ComponentFactory[factory_api.ComponentT]:
+        """Finalise the :class:`ComponentFactory` and return it.
+
+        This makes the mapping in :attr:`self.parsers` read-only.
+
+        Returns
+        -------
+        :class:`ComponentFactory`[:class:`RichComponent`]
+            The newly created component factory.
+        """
+        return ComponentFactory(types.MappingProxyType(self.parsers), self.component)
+
+
+@attr.define(slots=True)
+class ComponentFactory(
+    factory_api.ComponentFactory[factory_api.ComponentT],
+    typing.Generic[factory_api.ComponentT],
+):
     """Implementation of the overarching component factory type.
 
     A component factory holds information about all the custom id fields of a
@@ -29,7 +91,7 @@ class ComponentFactory(factory_api.ComponentFactory[factory_api.ComponentT]):
     component factory can simply be created using :meth:`from_component`.
     """
 
-    parsers: typing.Mapping[str, parser_api.Parser[typing.Any]]
+    parsers: ParserMapping
     component: type[factory_api.ComponentT]
 
     @classmethod

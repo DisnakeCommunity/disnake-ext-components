@@ -118,28 +118,60 @@ def _apply_overrides(
         cls.__annotations__.setdefault(name, field.type)
 
 
-def _set_field_defaults(
-    _: type, attributes: list[attr.Attribute[typing.Any]]
+def _finalise_fields(
+    cls: type, attributes: list[attr.Attribute[typing.Any]]
 ) -> list[attr.Attribute[typing.Any]]:
+    # Ensure all fields have valid metadata, fill missing parser types, and
+    # build a ComponentFactory given all the attributes' parsers.
+
+    # NOTE: Metadata is a mapping proxy, which means we can't directly
+    #       mutate it. For this reason, we use evolve to copy and modify it.
+
+    cls = typing.cast("type[ComponentBase]", cls)
+
+    factory_builder = factory_impl.ComponentFactoryBuilder(cls)
     new_attributes: list[attr.Attribute[typing.Any]] = []
+
     for attribute in attributes:
 
         # Check if the field already has a field type defined.
         if fields.FieldMetadata.FIELDTYPE in attribute.metadata:
+            if fields.FieldMetadata.PARSER in attribute.metadata:
+                parser = fields.get_parser(attribute)
+                if parser:
+                    # Parser field defined and provided
+                    factory_builder.add_field(attribute)
+                    new_attributes.append(attribute)
+                    continue
+
+                # Parser field defined but None provided (default).
+                parser = factory_builder.add_field(attribute)
+                evolved = attribute.evolve(
+                    metadata={
+                        **attribute.metadata,
+                        fields.FieldMetadata.PARSER: parser,
+                    }
+                )
+                new_attributes.append(evolved)
+                continue
+
+            # Parser field not found, therefore no parser necessary.
             new_attributes.append(attribute)
             continue
 
-        # If not, create a new attribute with field type set to custom id.
-        # NOTE: Metadata is a mapping proxy, which means we can't directly
-        #       mutate it. For this reason, we use evolve to copy and modify it.
+        # No field definition found whatsoever; it's probably a custom id field.
+        parser = factory_builder.add_field(attribute)
         evolved = attribute.evolve(
             metadata={
                 **attribute.metadata,  # Copy existing metadata
                 fields.FieldMetadata.FIELDTYPE: fields.FieldType.CUSTOM_ID,
-                fields.FieldMetadata.PARSER: None,
+                fields.FieldMetadata.PARSER: parser,
             },
         )
         new_attributes.append(evolved)
+
+    factory = factory_builder.build()
+    cls.factory = factory  # pyright: ignore
 
     return new_attributes
 
@@ -182,7 +214,7 @@ class ComponentMeta(typing._ProtocolMeta):  # pyright: ignore[reportPrivateUsage
         namespace.setdefault("__slots__", ())
 
         cls = typing.cast(
-            "typing.Type[ComponentBase]",
+            "type[ComponentBase]",
             super().__new__(mcls, name, bases, namespace),
         )
 
@@ -197,8 +229,8 @@ class ComponentMeta(typing._ProtocolMeta):  # pyright: ignore[reportPrivateUsage
         cls.__module_id__ = id(sys.modules[cls.__module__])
 
         # Before we pass the class off to attrs, check if any fields were
-        # overwritten. If so, update them to proper attrs fields.
-        # This adds support for redefining internal fields as
+        # overwritten. If so, check them for validity and update them to proper
+        # attrs fields. This adds support for redefining internal fields as
         # `label = "foo"` instead of `label = fields.internal("foo")`
         _apply_overrides(cls, namespace)
 
@@ -206,7 +238,7 @@ class ComponentMeta(typing._ProtocolMeta):  # pyright: ignore[reportPrivateUsage
             cls,
             slots=True,
             kw_only=True,
-            field_transformer=_set_field_defaults,
+            field_transformer=_finalise_fields,
         )
 
         # Subscribe the new component to its manager if it inherited one.
@@ -220,12 +252,6 @@ class ComponentMeta(typing._ProtocolMeta):  # pyright: ignore[reportPrivateUsage
             return cls
 
         _finalise_custom_id(cls)
-
-        # Pyright ignore is necessary as explained above.
-        cls.factory = factory_impl.ComponentFactory.from_component(  # pyright: ignore
-            cls
-        )
-
         return cls
 
     # NOTE: This is relevant because classes are removed by gc instead of

@@ -4,19 +4,18 @@ from __future__ import annotations
 
 import typing
 
-import typing_extensions
 from disnake.ext.components.api import component as component_api
 
 if typing.TYPE_CHECKING:
     import disnake
+    import typing_extensions
 
 __all__: typing.Sequence[str] = ("ComponentFactory",)
 
 
-ComponentT = typing_extensions.TypeVar(
+ComponentT = typing.TypeVar(
     "ComponentT",
     bound=component_api.RichComponent,
-    default=component_api.RichComponent,
 )
 
 
