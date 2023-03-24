@@ -91,18 +91,41 @@ def _apply_overrides(
         return
 
     # We only check pre-defined internal fields, such as label.
-    for field in fields.get_fields(cls, kind=fields.FieldType.INTERNAL):
+    for field in fields.get_fields(
+        cls,
+        kind=fields.FieldType.INTERNAL | fields.FieldType.MODAL,
+    ):
         name = field.name
-
         if name not in namespace:
             continue
 
         new = namespace[name]
 
         # Ensure the new field isn't just magically an init-field now.
-        if isinstance(new, _CountingAttr) and new.init is not field.init:
-            msg = f"Field {name!r} must have init set to False."
-            raise ValueError(msg)
+        if isinstance(new, _CountingAttr):
+            # Emulate turning this into an Attribute so that the following checks work.
+            # This may be slightly slow but it's only run once during class creation,
+            # so it should be fine.
+            new = typing.cast(
+                "attr.Attribute[typing.Any]",
+                attr.Attribute.from_counting_attr(name, new),  # pyright: ignore
+            )
+            new_field_type = fields.get_field_type(new)
+            old_field_type = fields.get_field_type(field)
+
+            # Ensure the field type remains unchanged.
+            if new_field_type is not old_field_type:
+                new_type_name = (new_field_type.name or "unknown").lower()
+                old_type_name = (old_field_type.name or "unknown").lower()
+
+                msg = (
+                    f"Field '{cls.__name__}.{name}' is defined as a(n) {old_type_name} "
+                    f"field, but was redefined as a(n) {new_type_name} field."
+                )
+                raise TypeError(msg)
+
+            # Carry over the default value instead of the entire attribute.
+            new = new.default
 
         new_field = attr.field(
             default=new,  # Update the default.
