@@ -43,18 +43,20 @@ def _get_sticker(inter: disnake.Interaction, argument: str) -> disnake.Sticker:
 
 
 async def _fetch_emoji(inter: disnake.Interaction, argument: str) -> disnake.Emoji:
-    guild = typing.cast(disnake.Guild, inter.guild)
+    if inter.guild is None:
+        raise TypeError("Impossible to fetch an emoji from an interaction that doesn't come from a guild.")
     return (
         inter.bot.get_emoji(int(argument))
-        or await guild.fetch_emoji(int(argument))
+        or await inter.guild.fetch_emoji(int(argument))
     )  # fmt: skip
 
 
 async def _fetch_sticker(inter: disnake.Interaction, argument: str) -> disnake.Sticker:
-    guild = typing.cast(disnake.Guild, inter.guild)
+    if inter.guild is None:
+        raise TypeError("Impossible to fetch a sticker from an interaction that doesn't come from a guild.")
     return (
         inter.bot.get_sticker(int(argument))
-        or await guild.fetch_sticker(int(argument))
+        or await inter.guild.fetch_sticker(int(argument))
     )  # fmt: skip
 
 

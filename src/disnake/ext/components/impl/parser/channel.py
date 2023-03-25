@@ -145,7 +145,7 @@ CategoryParser = _build_async_channel_parser(disnake.CategoryChannel)
 
 
 class PartialMessageableParser(  # noqa: D101
-    base.Parser, is_default_for=(disnake.PartialMessageable,)
+    base.Parser[disnake.PartialMessageable], is_default_for=(disnake.PartialMessageable,)
 ):
     # <<docstring inherited from parser_api.Parser>>
 

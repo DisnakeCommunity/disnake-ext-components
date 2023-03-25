@@ -26,7 +26,9 @@ def _get_user(inter: disnake.Interaction, argument: str) -> disnake.User:
 
 
 def _get_member(inter: disnake.Interaction, argument: str) -> disnake.Member:
-    member = inter.guild.get_member(int(argument)) if inter.guild else None
+    if inter.guild is None:
+        raise TypeError("Impossible to get a member from an interaction that doesn't come from a guild.")
+    member = inter.guild.get_member(int(argument))
 
     if member is None:
         msg = f"Could not find a member with id {argument!r}."
@@ -51,12 +53,11 @@ async def _fetch_user(inter: disnake.Interaction, argument: str) -> disnake.User
 
 
 async def _fetch_member(inter: disnake.Interaction, argument: str) -> disnake.Member:
-    # annotating inter as GuildCommandInteraction results in a typing error
-    # since Parser.from_funcs is accepting Interaction so we cast here
-    guild = typing.cast(disnake.Guild, inter.guild)
+    if inter.guild is None:
+        raise TypeError("Impossible to fetch a member from an interaction that doesn't come from a guild.")
     return (
-        guild.get_member(int(argument))
-        or await guild.fetch_member(int(argument))
+        inter.guild.get_member(int(argument))
+        or await inter.guild.fetch_member(int(argument))
     )  # fmt: skip
 
 

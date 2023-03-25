@@ -10,7 +10,7 @@ from disnake.ext.components.impl.parser import base
 __all__: typing.Sequence[str] = ("InviteParser",)
 
 
-class InviteParser(base.Parser, is_default_for=(disnake.Invite,)):  # noqa: D101
+class InviteParser(base.Parser[disnake.Invite], is_default_for=(disnake.Invite,)):  # noqa: D101
     def __init__(
         self,
         *,

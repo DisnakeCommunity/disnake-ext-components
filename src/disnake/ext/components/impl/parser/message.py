@@ -13,6 +13,8 @@ __all__: typing.Sequence[str] = (
     "PartialMessageParser",
 )
 
+AnyChannel = typing.Union[disnake.abc.GuildMessageable, disnake.DMChannel, disnake.PartialMessageable]  # type: ignore
+
 
 def _get_message(inter: disnake.Interaction, argument: str) -> disnake.Message:
     message = inter.bot.get_message(int(argument))
@@ -37,10 +39,12 @@ GetMessageParser = base.Parser.from_funcs(
 MessageParser = base.Parser.from_funcs(
     _fetch_message, snowflake.snowflake_dumps, is_default_for=(disnake.Message,)
 )
-PartialMessageParser = base.Parser.from_funcs(
-    lambda inter, argument: disnake.PartialMessage(
-        channel=inter.channel, id=int(argument)
-    ),
-    snowflake.snowflake_dumps,
-    is_default_for=(disnake.PartialMessage,),
-)
+
+
+class PartialMessageParser(base.Parser, is_default_for=(disnake.PartialMessage,)):
+    def __init__(self, channel: typing.Optional[AnyChannel] = None) -> None:
+        self.channel = channel
+        self.dumps = snowflake.snowflake_dumps
+
+    def loads(self, inter: disnake.Interaction, argument: str) -> disnake.PartialMessage:
+        return disnake.PartialMessage(channel=inter.channel, id=int(argument))

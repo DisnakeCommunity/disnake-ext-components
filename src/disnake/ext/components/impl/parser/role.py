@@ -14,8 +14,9 @@ __all__: typing.Sequence[str] = (
 
 
 def _get_role(inter: disnake.Interaction, argument: str) -> disnake.Role:
-    guild = typing.cast(disnake.Guild, inter.guild)
-    role = guild.get_role(int(argument))
+    if inter.guild is None:
+        raise TypeError("Impossible to get a role from an interaction that doesn't come from a guild.")
+    role = inter.guild.get_role(int(argument))
 
     if role is None:
         msg = f"Could not find a role with id {argument!r}."
@@ -25,11 +26,11 @@ def _get_role(inter: disnake.Interaction, argument: str) -> disnake.Role:
 
 
 async def _fetch_role(inter: disnake.Interaction, argument: str) -> disnake.Role:
-    # same problem as user.py with all these cast
-    guild = typing.cast(disnake.Guild, inter.guild)
+    if inter.guild is None:
+        raise TypeError("Impossible to fetch a role from an interaction that doesn't come from a guild.")
     role = (
-        guild.get_role(int(argument))
-        or disnake.utils.get(await guild.fetch_roles(), id=int(argument))
+        inter.guild.get_role(int(argument))
+        or disnake.utils.get(await inter.guild.fetch_roles(), id=int(argument))
     )  # fmt: skip
 
     # a role id coming from a custom_id could be of a deleted role object
