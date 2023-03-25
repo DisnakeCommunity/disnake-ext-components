@@ -45,7 +45,7 @@ def _get_sticker(inter: disnake.Interaction, argument: str) -> disnake.Sticker:
 async def _fetch_emoji(inter: disnake.Interaction, argument: str) -> disnake.Emoji:
     if inter.guild is None:
         msg = (
-            "Impossible to fetch an emoji from an"
+            "Impossible to fetch an emoji from an "
             "interaction that doesn't come from a guild."
         )
         raise TypeError(msg)
@@ -58,7 +58,7 @@ async def _fetch_emoji(inter: disnake.Interaction, argument: str) -> disnake.Emo
 async def _fetch_sticker(inter: disnake.Interaction, argument: str) -> disnake.Sticker:
     if inter.guild is None:
         msg = (
-            "Impossible to fetch a sticker from an"
+            "Impossible to fetch a sticker from an "
             "interaction that doesn't come from a guild."
         )
         raise TypeError(msg)

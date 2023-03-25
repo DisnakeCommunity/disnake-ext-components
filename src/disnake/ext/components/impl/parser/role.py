@@ -16,7 +16,7 @@ __all__: typing.Sequence[str] = (
 def _get_role(inter: disnake.Interaction, argument: str) -> disnake.Role:
     if inter.guild is None:
         msg = (
-            "Impossible to get a role from an"
+            "Impossible to get a role from an "
             "interaction that doesn't come from a guild."
         )
         raise TypeError(msg)
@@ -32,7 +32,7 @@ def _get_role(inter: disnake.Interaction, argument: str) -> disnake.Role:
 async def _fetch_role(inter: disnake.Interaction, argument: str) -> disnake.Role:
     if inter.guild is None:
         msg = (
-            "Impossible to fetch a role from an"
+            "Impossible to fetch a role from an "
             "interaction that doesn't come from a guild."
         )
         raise TypeError(msg)

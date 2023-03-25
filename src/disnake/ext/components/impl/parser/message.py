@@ -14,7 +14,9 @@ __all__: typing.Sequence[str] = (
 )
 
 AnyChannel = typing.Union[
-    disnake.abc.GuildMessageable,  # type: ignore[reportPrivateImportUsage]
+    disnake.TextChannel,
+    disnake.Thread,
+    disnake.VoiceChannel,
     disnake.DMChannel,
     disnake.PartialMessageable,
 ]
@@ -46,7 +48,7 @@ MessageParser = base.Parser.from_funcs(
 
 
 class PartialMessageParser(  # noqa: D101
-    base.Parser, is_default_for=(disnake.PartialMessage,)
+    base.Parser[disnake.PartialMessage], is_default_for=(disnake.PartialMessage,)
 ):
     # <<docstring inherited from parser_api.Parser>>
 
@@ -59,4 +61,6 @@ class PartialMessageParser(  # noqa: D101
     ) -> disnake.PartialMessage:
         # <<docstring inherited from parser_api.Parser>>
 
-        return disnake.PartialMessage(channel=inter.channel, id=int(argument))
+        return disnake.PartialMessage(
+            channel=self.channel or inter.channel, id=int(argument)
+        )
