@@ -15,10 +15,10 @@ if typing.TYPE_CHECKING:
     import typing_extensions
 
 
-class RichSelect(
+class BaseSelect(
     component_api.RichSelect, component_base.ComponentBase, typing.Protocol
 ):
-    """The default implementation of a disnake-ext-components button.
+    """The default implementation of a disnake-ext-components select.
 
     This works similar to a dataclass, but with some extra things to take into
     account.
@@ -46,21 +46,10 @@ class RichSelect(
     min_values: int = fields.internal(1)
     max_values: int = fields.internal(1)
     disabled: bool = fields.internal(False)  # noqa: FBT003
-    options: list[disnake.SelectOption] = fields.internal(
-        attr.Factory(list)  # pyright: ignore
-    )
 
-    async def as_ui_component(self) -> disnake.ui.StringSelect[None]:  # noqa: D102
+    async def as_ui_component(self) -> disnake.ui.BaseSelect:  # noqa: D102
         # <<docstring inherited from component_api.RichButton>>
-
-        return disnake.ui.StringSelect(
-            placeholder=self.placeholder,
-            min_values=self.min_values,
-            max_values=self.max_values,
-            disabled=self.disabled,
-            options=self.options,
-            custom_id=await self.dumps(),
-        )
+        ...
 
     @classmethod
     async def loads(  # noqa: D102
@@ -86,3 +75,63 @@ class RichSelect(
         # NOTE: We narrow the interaction type down to a disnake.MessageInteraction
         #       here. This isn't typesafe, but it's just cleaner for the user.
         ...
+
+
+class RichStringSelect(BaseSelect, typing.Protocol):
+    options: list[disnake.SelectOption] = fields.internal(
+        attr.Factory(list)  # pyright: ignore
+    )
+
+    async def as_ui_component(self) -> disnake.ui.StringSelect[None]:
+        return disnake.ui.StringSelect(
+            placeholder=self.placeholder,
+            min_values=self.min_values,
+            max_values=self.max_values,
+            disabled=self.disabled,
+            options=self.options,
+            custom_id=await self.dumps(),
+        )
+
+
+class RichUserSelect(BaseSelect, typing.Protocol):
+    async def as_ui_component(self) -> disnake.ui.UserSelect[None]:
+        return disnake.ui.UserSelect(
+            placeholder=self.placeholder,
+            min_values=self.min_values,
+            max_values=self.max_values,
+            disabled=self.disabled,
+            custom_id=await self.dumps(),
+        )
+
+
+class RichRoleSelect(BaseSelect, typing.Protocol):
+    async def as_ui_component(self) -> disnake.ui.RoleSelect[None]:
+        return disnake.ui.RoleSelect(
+            placeholder=self.placeholder,
+            min_values=self.min_values,
+            max_values=self.max_values,
+            disabled=self.disabled,
+            custom_id=await self.dumps(),
+        )
+
+
+class RichMentionableSelect(BaseSelect, typing.Protocol):
+    async def as_ui_component(self) -> disnake.ui.MentionableSelect[None]:
+        return disnake.ui.MentionableSelect(
+            placeholder=self.placeholder,
+            min_values=self.min_values,
+            max_values=self.max_values,
+            disabled=self.disabled,
+            custom_id=await self.dumps(),
+        )
+
+
+class RichChannelSelect(BaseSelect, typing.Protocol):
+    async def as_ui_component(self) -> disnake.ui.ChannelSelect[None]:
+        return disnake.ui.ChannelSelect(
+            placeholder=self.placeholder,
+            min_values=self.min_values,
+            max_values=self.max_values,
+            disabled=self.disabled,
+            custom_id=await self.dumps(),
+        )
