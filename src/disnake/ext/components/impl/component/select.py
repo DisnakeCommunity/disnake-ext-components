@@ -24,7 +24,8 @@ class BaseSelect(
     account.
 
     First and foremost, there are class variables for :attr:`placeholder`,
-    :attr:`min_values`, :attr:`max_values`, :attr:`disabled`, and :attr:`options`.
+    :attr:`min_values`, :attr:`max_values`, :attr:`disabled`, and:attr:`options`
+    (available only when using :class:`RichStringSelect`).
     These set the corresponding attributes on the select class when they are
     sent to discord, and are meant to be overwritten by the user.
 
@@ -78,6 +79,7 @@ class BaseSelect(
 
 
 class RichStringSelect(BaseSelect, typing.Protocol):
+    """The default implementation of a disnake-ext-components string select."""
     options: list[disnake.SelectOption] = fields.internal(
         attr.Factory(list)  # pyright: ignore
     )
@@ -94,6 +96,7 @@ class RichStringSelect(BaseSelect, typing.Protocol):
 
 
 class RichUserSelect(BaseSelect, typing.Protocol):
+    """The default implementation of a disnake-ext-components user select."""
     async def as_ui_component(self) -> disnake.ui.UserSelect[None]:
         return disnake.ui.UserSelect(
             placeholder=self.placeholder,
@@ -105,6 +108,7 @@ class RichUserSelect(BaseSelect, typing.Protocol):
 
 
 class RichRoleSelect(BaseSelect, typing.Protocol):
+    """The default implementation of a disnake-ext-components role select."""
     async def as_ui_component(self) -> disnake.ui.RoleSelect[None]:
         return disnake.ui.RoleSelect(
             placeholder=self.placeholder,
@@ -116,6 +120,7 @@ class RichRoleSelect(BaseSelect, typing.Protocol):
 
 
 class RichMentionableSelect(BaseSelect, typing.Protocol):
+    """The default implementation of a disnake-ext-components mentionable select."""
     async def as_ui_component(self) -> disnake.ui.MentionableSelect[None]:
         return disnake.ui.MentionableSelect(
             placeholder=self.placeholder,
@@ -127,6 +132,7 @@ class RichMentionableSelect(BaseSelect, typing.Protocol):
 
 
 class RichChannelSelect(BaseSelect, typing.Protocol):
+    """The default implementation of a disnake-ext-components channel select."""
     async def as_ui_component(self) -> disnake.ui.ChannelSelect[None]:
         return disnake.ui.ChannelSelect(
             placeholder=self.placeholder,
