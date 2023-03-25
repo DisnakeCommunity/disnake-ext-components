@@ -28,7 +28,7 @@ MutableParserMapping = typing.MutableMapping[str, parser_api.Parser[typing.Any]]
 
 
 @attr.define(slots=True)
-class ComponentFactoryBuilder(typing.Generic[factory_api.ComponentT]):
+class ComponentFactoryBuilder:
     """A builder for component factories that support stepwise creation.
 
     Individually register parameters and return their parser. This is used in
@@ -39,7 +39,6 @@ class ComponentFactoryBuilder(typing.Generic[factory_api.ComponentT]):
     """
 
     parsers: MutableParserMapping = attr.field(factory=dict, init=False)
-    component: type[factory_api.ComponentT]
 
     def add_field(self, field: attr.Attribute[_T]) -> parser_api.Parser[_T]:
         """Register a new field, add its parser and return it.
@@ -66,7 +65,41 @@ class ComponentFactoryBuilder(typing.Generic[factory_api.ComponentT]):
         self.parsers[field.name] = parser
         return parser
 
-    def build(self) -> ComponentFactory[factory_api.ComponentT]:
+    def validate(self, component: type[component_api.RichComponent]) -> None:
+        """Validate whether :meth:`build` will create a valid factory for the provided component.
+
+        This will remove any extraneous parsers.
+
+        Parameters
+        ----------
+        component:
+            The component with which to validate this builder.
+
+        Raises
+        ------
+        KeyError:
+            The provided custom id has a parameter for which no parser is registered.
+        """  # noqa: E501
+        field_names = {
+            field.name
+            for field in fields.get_fields(component, kind=fields.FieldType.CUSTOM_ID)
+        }
+        for name in field_names:
+            if name not in self.parsers:
+                msg = (
+                    f"Component {component.__name__!r} defines field {name!r}, but no"
+                    " parser for this field was found. This is probably due to a bug"
+                    " inside disnake-ext-components."
+                )
+                raise KeyError(msg)
+
+        extraneous = set(self.parsers) - field_names
+        for name in extraneous:
+            self.parsers.pop(name)
+
+    def build(
+        self, component: type[factory_api.ComponentT]
+    ) -> ComponentFactory[factory_api.ComponentT]:
         """Finalise the :class:`ComponentFactory` and return it.
 
         This makes the mapping in :attr:`self.parsers` read-only.
@@ -76,7 +109,8 @@ class ComponentFactoryBuilder(typing.Generic[factory_api.ComponentT]):
         :class:`ComponentFactory`[:class:`RichComponent`]
             The newly created component factory.
         """
-        return ComponentFactory(types.MappingProxyType(self.parsers), self.component)
+        self.validate(component)
+        return ComponentFactory(types.MappingProxyType(self.parsers), component)
 
 
 @attr.define(slots=True)
@@ -197,3 +231,39 @@ class ComponentFactory(
         return typing.cast(
             custom_id_impl.CustomID, component_type.custom_id
         ).format_map(kwargs)
+
+
+class NoopFactory(factory_api.ComponentFactory[typing.Any]):
+    """Factory class to make component protocols typesafe.
+
+    Since component protocols cannot be instantiated, building a factory with
+    parsers for them does not make sense. Instead, they will receive one of
+    these to remain typesafe. Any operation on a NoopFactory will raise
+    :class:`NotImplementedError`.
+    """
+
+    __slots__: typing.Sequence[str] = ()
+
+    @classmethod
+    def from_component(  # noqa: D102
+        cls, _: type[component_api.RichComponent]
+    ) -> typing_extensions.Self:
+        # <<docstring inherited from factory_api.ComponentFactory>>
+
+        return _NoopFactory
+
+    async def loads(self, *_: object) -> typing.NoReturn:  # noqa: D102
+        # <<docstring inherited from factory_api.ComponentFactory>>
+
+        raise NotImplementedError
+
+    async def dumps(self, *_: object) -> typing.NoReturn:  # noqa: D102
+        # <<docstring inherited from factory_api.ComponentFactory>>
+
+        raise NotImplementedError
+
+
+# Have a single instance for all protocol classes to save on memory.
+# This instance will always be returned by from_component.
+# TODO: Check if this causes issues with gc.
+_NoopFactory = NoopFactory()

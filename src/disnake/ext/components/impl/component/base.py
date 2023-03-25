@@ -29,6 +29,7 @@ MaybeCoroutine = typing.Union[_T, typing.Coroutine[None, None, _T]]
 
 
 _CountingAttr: type[typing.Any] = type(attr.field())
+_AnyAttr: typing_extensions.TypeAlias = "attr.Attribute[typing.Any]"
 
 
 def _extract_custom_id(interaction: disnake.Interaction) -> str:
@@ -141,60 +142,89 @@ def _apply_overrides(
         cls.__annotations__.setdefault(name, field.type)
 
 
-def _finalise_fields(
-    cls: type, attributes: list[attr.Attribute[typing.Any]]
-) -> list[attr.Attribute[typing.Any]]:
-    # Ensure all fields have valid metadata, fill missing parser types, and
-    # build a ComponentFactory given all the attributes' parsers.
+def _build_field_transformer_with_parsers(
+    factory_builder: factory_impl.ComponentFactoryBuilder,
+) -> typing.Callable[[type, list[_AnyAttr]], list[_AnyAttr]]:
+    # Provide a ComponentFactoryBuilder to use as builder for the class, then
+    # pass the resulting callback to the `field_transformer`. Finally, build
+    # the full factory object after attrs is done creating the class.
+    # We have a separate field transformer for protocols, as there's no reason
+    # to build parsers for those classes, as they aren't instantiable anyways.
 
-    # NOTE: Metadata is a mapping proxy, which means we can't directly
-    #       mutate it. For this reason, we use evolve to copy and modify it.
+    def _field_transformer(cls: type, attributes: list[_AnyAttr]) -> list[_AnyAttr]:
+        # Ensure all fields have valid metadata, fill missing parser types, and
+        # build a ComponentFactory given all the attributes' parsers.
 
-    cls = typing.cast("type[ComponentBase]", cls)
+        # NOTE: Metadata is a mapping proxy, which means we can't directly
+        #       mutate it. For this reason, we use evolve to copy and modify it.
 
-    factory_builder = factory_impl.ComponentFactoryBuilder(cls)
-    new_attributes: list[attr.Attribute[typing.Any]] = []
+        cls = typing.cast("type[ComponentBase]", cls)
 
+        new_attributes: list[attr.Attribute[typing.Any]] = []
+
+        for attribute in attributes:
+
+            # Check if the field already has a field type defined.
+            if fields.FieldMetadata.FIELDTYPE in attribute.metadata:
+                if fields.FieldMetadata.PARSER in attribute.metadata:
+                    parser = fields.get_parser(attribute)
+                    if parser:
+                        # Parser field defined and provided
+                        factory_builder.add_field(attribute)
+                        new_attributes.append(attribute)
+                        continue
+
+                    # Parser field defined but None provided (default).
+                    parser = factory_builder.add_field(attribute)
+                    evolved = attribute.evolve(
+                        metadata={
+                            **attribute.metadata,
+                            fields.FieldMetadata.PARSER: parser,
+                        }
+                    )
+                    new_attributes.append(evolved)
+                    continue
+
+                # Parser field not found, therefore no parser necessary.
+                new_attributes.append(attribute)
+                continue
+
+            # No field definition found whatsoever; it's probably a custom id field.
+            parser = factory_builder.add_field(attribute)
+            evolved = attribute.evolve(
+                metadata={
+                    **attribute.metadata,  # Copy existing metadata
+                    fields.FieldMetadata.FIELDTYPE: fields.FieldType.CUSTOM_ID,
+                    fields.FieldMetadata.PARSER: parser,
+                },
+            )
+            new_attributes.append(evolved)
+
+        return new_attributes
+
+    return _field_transformer
+
+
+def _field_transformer(_: type, attributes: list[_AnyAttr]) -> list[_AnyAttr]:
+    new_attributes: list[_AnyAttr] = []
     for attribute in attributes:
 
         # Check if the field already has a field type defined.
         if fields.FieldMetadata.FIELDTYPE in attribute.metadata:
-            if fields.FieldMetadata.PARSER in attribute.metadata:
-                parser = fields.get_parser(attribute)
-                if parser:
-                    # Parser field defined and provided
-                    factory_builder.add_field(attribute)
-                    new_attributes.append(attribute)
-                    continue
-
-                # Parser field defined but None provided (default).
-                parser = factory_builder.add_field(attribute)
-                evolved = attribute.evolve(
-                    metadata={
-                        **attribute.metadata,
-                        fields.FieldMetadata.PARSER: parser,
-                    }
-                )
-                new_attributes.append(evolved)
-                continue
-
-            # Parser field not found, therefore no parser necessary.
             new_attributes.append(attribute)
             continue
 
-        # No field definition found whatsoever; it's probably a custom id field.
-        parser = factory_builder.add_field(attribute)
+        # If not, create a new attribute with field type set to custom id.
+        # NOTE: Metadata is a mapping proxy, which means we can't directly
+        #       mutate it. For this reason, we use evolve to copy and modify it.
         evolved = attribute.evolve(
             metadata={
                 **attribute.metadata,  # Copy existing metadata
                 fields.FieldMetadata.FIELDTYPE: fields.FieldType.CUSTOM_ID,
-                fields.FieldMetadata.PARSER: parser,
+                fields.FieldMetadata.PARSER: None,
             },
         )
         new_attributes.append(evolved)
-
-    factory = factory_builder.build()
-    cls.factory = factory  # pyright: ignore
 
     return new_attributes
 
@@ -257,22 +287,36 @@ class ComponentMeta(typing._ProtocolMeta):  # pyright: ignore[reportPrivateUsage
         # `label = "foo"` instead of `label = fields.internal("foo")`
         _apply_overrides(cls, namespace)
 
+        if _is_protocol(cls):
+            cls = attr.define(
+                cls,
+                slots=True,
+                kw_only=True,
+                field_transformer=_field_transformer,
+            )
+
+            cls.factory = factory_impl.NoopFactory.from_component(cls)
+            return cls
+
+        builder = factory_impl.ComponentFactoryBuilder()
         cls = attr.define(
             cls,
             slots=True,
             kw_only=True,
-            field_transformer=_finalise_fields,
+            field_transformer=_build_field_transformer_with_parsers(builder),
         )
 
-        # Subscribe the new component to its manager if it inherited one.
-        if cls.manager:
-            cls.manager.subscribe(cls)
+        cls.factory = builder.build(cls)  # pyright: ignore
 
         # Return as-is in case of a protocol class. As they cannot be
         # instantiated anyways, determining parsers and figuring out the proper
         # custom id implementation is not relevant.
         if _is_protocol(cls):
             return cls
+
+        # Subscribe the new component to its manager if it inherited one.
+        if cls.manager:
+            cls.manager.subscribe(cls)
 
         _finalise_custom_id(cls)
         return cls

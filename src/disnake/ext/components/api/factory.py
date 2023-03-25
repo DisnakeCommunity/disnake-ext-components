@@ -35,7 +35,7 @@ class ComponentFactory(typing.Protocol[ComponentT]):
     @classmethod
     def from_component(
         cls,
-        component: type[component_api.RichComponent],
+        __component: type[component_api.RichComponent],
     ) -> typing_extensions.Self:
         """Create a component factory from the provided component.
 
@@ -52,8 +52,8 @@ class ComponentFactory(typing.Protocol[ComponentT]):
 
     async def loads(
         self,
-        interaction: disnake.Interaction,
-        params: typing.Mapping[str, str],
+        __interaction: disnake.Interaction,
+        __params: typing.Mapping[str, str],
     ) -> ComponentT:
         """Create a new component instance from the provided custom id.
 
@@ -71,7 +71,7 @@ class ComponentFactory(typing.Protocol[ComponentT]):
         # TODO: Return an ext-components specific conversion error.
         ...
 
-    async def dumps(self, component: ComponentT) -> str:
+    async def dumps(self, __component: ComponentT) -> str:
         """Dump a component into a new custom id string.
 
         This converts the component's individual fields back into strings and
