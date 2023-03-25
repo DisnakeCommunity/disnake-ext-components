@@ -16,9 +16,9 @@ import disnake
 import typing_extensions
 from disnake.ext.components import fields as fields
 from disnake.ext.components.api import component as component_api
-from disnake.ext.components.api import converter as converter_api
-from disnake.ext.components.impl import converter as converter_impl
+from disnake.ext.components.api import factory as factory_api
 from disnake.ext.components.impl import custom_id as custom_id_impl
+from disnake.ext.components.impl import factory as factory_impl
 
 __all__: typing.Sequence[str] = ("ComponentBase",)
 
@@ -29,6 +29,7 @@ MaybeCoroutine = typing.Union[_T, typing.Coroutine[None, None, _T]]
 
 
 _CountingAttr: type[typing.Any] = type(attr.field())
+_AnyAttr: typing_extensions.TypeAlias = "attr.Attribute[typing.Any]"
 
 
 def _extract_custom_id(interaction: disnake.Interaction) -> str:
@@ -91,18 +92,41 @@ def _apply_overrides(
         return
 
     # We only check pre-defined internal fields, such as label.
-    for field in fields.get_fields(cls, kind=fields.FieldType.INTERNAL):
+    for field in fields.get_fields(
+        cls,
+        kind=fields.FieldType.INTERNAL | fields.FieldType.MODAL,
+    ):
         name = field.name
-
         if name not in namespace:
             continue
 
         new = namespace[name]
 
         # Ensure the new field isn't just magically an init-field now.
-        if isinstance(new, _CountingAttr) and new.init is not field.init:
-            msg = f"Field {name!r} must have init set to False."
-            raise ValueError(msg)
+        if isinstance(new, _CountingAttr):
+            # Emulate turning this into an Attribute so that the following checks work.
+            # This may be slightly slow but it's only run once during class creation,
+            # so it should be fine.
+            new = typing.cast(
+                "attr.Attribute[typing.Any]",
+                attr.Attribute.from_counting_attr(name, new),  # pyright: ignore
+            )
+            new_field_type = fields.get_field_type(new)
+            old_field_type = fields.get_field_type(field)
+
+            # Ensure the field type remains unchanged.
+            if new_field_type is not old_field_type:
+                new_type_name = (new_field_type.name or "unknown").lower()
+                old_type_name = (old_field_type.name or "unknown").lower()
+
+                msg = (
+                    f"Field '{cls.__name__}.{name}' is defined as a(n) {old_type_name} "
+                    f"field, but was redefined as a(n) {new_type_name} field."
+                )
+                raise TypeError(msg)
+
+            # Carry over the default value instead of the entire attribute.
+            new = new.default
 
         new_field = attr.field(
             default=new,  # Update the default.
@@ -118,10 +142,71 @@ def _apply_overrides(
         cls.__annotations__.setdefault(name, field.type)
 
 
-def _set_field_defaults(
-    _: type, attributes: list[attr.Attribute[typing.Any]]
-) -> list[attr.Attribute[typing.Any]]:
-    new_attributes: list[attr.Attribute[typing.Any]] = []
+def _build_field_transformer_with_parsers(
+    factory_builder: factory_impl.ComponentFactoryBuilder,
+) -> typing.Callable[[type, list[_AnyAttr]], list[_AnyAttr]]:
+    # Provide a ComponentFactoryBuilder to use as builder for the class, then
+    # pass the resulting callback to the `field_transformer`. Finally, build
+    # the full factory object after attrs is done creating the class.
+    # We have a separate field transformer for protocols, as there's no reason
+    # to build parsers for those classes, as they aren't instantiable anyways.
+
+    def _field_transformer(cls: type, attributes: list[_AnyAttr]) -> list[_AnyAttr]:
+        # Ensure all fields have valid metadata, fill missing parser types, and
+        # build a ComponentFactory given all the attributes' parsers.
+
+        # NOTE: Metadata is a mapping proxy, which means we can't directly
+        #       mutate it. For this reason, we use evolve to copy and modify it.
+
+        cls = typing.cast("type[ComponentBase]", cls)
+
+        new_attributes: list[attr.Attribute[typing.Any]] = []
+
+        for attribute in attributes:
+
+            # Check if the field already has a field type defined.
+            if fields.FieldMetadata.FIELDTYPE in attribute.metadata:
+                if fields.FieldMetadata.PARSER in attribute.metadata:
+                    parser = fields.get_parser(attribute)
+                    if parser:
+                        # Parser field defined and provided
+                        factory_builder.add_field(attribute)
+                        new_attributes.append(attribute)
+                        continue
+
+                    # Parser field defined but None provided (default).
+                    parser = factory_builder.add_field(attribute)
+                    evolved = attribute.evolve(
+                        metadata={
+                            **attribute.metadata,
+                            fields.FieldMetadata.PARSER: parser,
+                        }
+                    )
+                    new_attributes.append(evolved)
+                    continue
+
+                # Parser field not found, therefore no parser necessary.
+                new_attributes.append(attribute)
+                continue
+
+            # No field definition found whatsoever; it's probably a custom id field.
+            parser = factory_builder.add_field(attribute)
+            evolved = attribute.evolve(
+                metadata={
+                    **attribute.metadata,  # Copy existing metadata
+                    fields.FieldMetadata.FIELDTYPE: fields.FieldType.CUSTOM_ID,
+                    fields.FieldMetadata.PARSER: parser,
+                },
+            )
+            new_attributes.append(evolved)
+
+        return new_attributes
+
+    return _field_transformer
+
+
+def _field_transformer(_: type, attributes: list[_AnyAttr]) -> list[_AnyAttr]:
+    new_attributes: list[_AnyAttr] = []
     for attribute in attributes:
 
         # Check if the field already has a field type defined.
@@ -155,12 +240,16 @@ class ComponentMeta(typing._ProtocolMeta):  # pyright: ignore[reportPrivateUsage
     disnake-ext-components.
 
     This metaclass handles :mod:`attr` class generation, custom id completion,
-    interfacing with component managers, parser and converter generation, and
+    interfacing with component managers, parser and factory generation, and
     automatic slotting.
     """
 
     custom_id: custom_id_impl.CustomID
-    converter: converter_api.Converter
+
+    # HACK: Pyright doesn't like this but it does seem to work with typechecking
+    #       down the line. I might change this later (e.g. define it on
+    #       BaseComponent instead, but that comes with its own challenges).
+    factory: factory_api.ComponentFactory[typing_extensions.Self]  # pyright: ignore
     _parent: typing.Optional[type[typing.Any]]
     __module_id__: int
 
@@ -178,7 +267,7 @@ class ComponentMeta(typing._ProtocolMeta):  # pyright: ignore[reportPrivateUsage
         namespace.setdefault("__slots__", ())
 
         cls = typing.cast(
-            "typing.Type[ComponentBase]",
+            "type[ComponentBase]",
             super().__new__(mcls, name, bases, namespace),
         )
 
@@ -193,31 +282,37 @@ class ComponentMeta(typing._ProtocolMeta):  # pyright: ignore[reportPrivateUsage
         cls.__module_id__ = id(sys.modules[cls.__module__])
 
         # Before we pass the class off to attrs, check if any fields were
-        # overwritten. If so, update them to proper attrs fields.
-        # This adds support for redefining internal fields as
+        # overwritten. If so, check them for validity and update them to proper
+        # attrs fields. This adds support for redefining internal fields as
         # `label = "foo"` instead of `label = fields.internal("foo")`
         _apply_overrides(cls, namespace)
 
+        if _is_protocol(cls):
+            cls = attr.define(
+                cls,
+                slots=True,
+                kw_only=True,
+                field_transformer=_field_transformer,
+            )
+
+            cls.factory = factory_impl.NoopFactory.from_component(cls)
+            return cls
+
+        builder = factory_impl.ComponentFactoryBuilder()
         cls = attr.define(
             cls,
             slots=True,
             kw_only=True,
-            field_transformer=_set_field_defaults,
+            field_transformer=_build_field_transformer_with_parsers(builder),
         )
+
+        cls.factory = builder.build(cls)  # pyright: ignore
 
         # Subscribe the new component to its manager if it inherited one.
         if cls.manager:
             cls.manager.subscribe(cls)
 
-        # Return as-is in case of a protocol class. As they cannot be
-        # instantiated anyways, determining parsers and figuring out the proper
-        # custom id implementation is not relevant.
-        if _is_protocol(cls):
-            return cls
-
         _finalise_custom_id(cls)
-        cls.converter = converter_impl.Converter.from_component(cls)
-
         return cls
 
     # NOTE: This is relevant because classes are removed by gc instead of
@@ -270,8 +365,8 @@ class ComponentBase(
     async def dumps(self) -> str:  # noqa: D102
         # <<Docstring inherited from component_api.RichComponent>>
 
-        converter = type(self).converter
-        return await converter.dumps(self)
+        factory = type(self).factory
+        return await factory.dumps(self)
 
     async def as_ui_component(self) -> disnake.ui.WrappedComponent:  # noqa: D102
         # <<Docstring inherited from component_api.RichComponent>>

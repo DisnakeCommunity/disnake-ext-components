@@ -1,25 +1,32 @@
-"""Protocols for overarching converter types."""
+"""Protocols for overarching component factory types."""
 
 from __future__ import annotations
 
 import typing
 
+from disnake.ext.components.api import component as component_api
+
 if typing.TYPE_CHECKING:
     import disnake
     import typing_extensions
-    from disnake.ext.components.api import component as component_api
 
-__all__: typing.Sequence[str] = ("Converter",)
+__all__: typing.Sequence[str] = ("ComponentFactory",)
 
 
-class Converter(typing.Protocol):
-    """The baseline protocol for any kind of converter.
+ComponentT = typing.TypeVar(
+    "ComponentT",
+    bound=component_api.RichComponent,
+)
 
-    Any and all converters must implement this protocol in order to be properly
-    handled by disnake-ext-components.
 
-    A converter handles creating a component instance from a custom id by
-    running all individual fields' parsers and aggregating the result into
+class ComponentFactory(typing.Protocol[ComponentT]):
+    """The baseline protocol for any kind of component factory.
+
+    Any and all component factories must implement this protocol in order to be
+    properly handled by disnake-ext-components.
+
+    A component factory handles creating a component instance from a custom id
+    by running all individual fields' parsers and aggregating the result into
     a component instance.
     """
 
@@ -28,9 +35,9 @@ class Converter(typing.Protocol):
     @classmethod
     def from_component(
         cls,
-        component: type[component_api.RichComponent],
+        __component: type[component_api.RichComponent],
     ) -> typing_extensions.Self:
-        """Create a converter from the provided component.
+        """Create a component factory from the provided component.
 
         This takes the component's fields into account and generates the
         corresponding parser types for each field if a parser was not provided
@@ -39,15 +46,15 @@ class Converter(typing.Protocol):
         Parameters
         ----------
         component:
-            The component for which to create a converter.
+            The component for which to create a component factory.
         """
         ...
 
     async def loads(
         self,
-        interaction: disnake.Interaction,
-        params: typing.Mapping[str, str],
-    ) -> component_api.RichComponent:
+        __interaction: disnake.Interaction,
+        __params: typing.Mapping[str, str],
+    ) -> ComponentT:
         """Create a new component instance from the provided custom id.
 
         This requires the custom id to already have been decomposed into
@@ -64,7 +71,7 @@ class Converter(typing.Protocol):
         # TODO: Return an ext-components specific conversion error.
         ...
 
-    async def dumps(self, component: component_api.RichComponent) -> str:
+    async def dumps(self, __component: ComponentT) -> str:
         """Dump a component into a new custom id string.
 
         This converts the component's individual fields back into strings and

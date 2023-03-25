@@ -1,13 +1,17 @@
 """Default implementation of button-based components."""
 
+from __future__ import annotations
+
 import typing
 
 import disnake
-import typing_extensions
 from disnake.ext.components import fields, interaction
 from disnake.ext.components.api import component as component_api
 from disnake.ext.components.impl import custom_id as custom_id_impl
 from disnake.ext.components.impl.component import base as component_base
+
+if typing.TYPE_CHECKING:
+    import typing_extensions
 
 __all__: typing.Sequence[str] = ("RichButton",)
 
@@ -72,10 +76,7 @@ class RichButton(
 
         match = component_custom_id.match(custom_id, strict=True)
 
-        return typing.cast(
-            typing_extensions.Self,
-            await cls.converter.loads(interaction, match.groupdict()),
-        )
+        return await cls.factory.loads(interaction, match.groupdict())
 
     async def callback(  # pyright: ignore[reportIncompatibleMethodOverride]  # noqa: D102, E501
         self,
