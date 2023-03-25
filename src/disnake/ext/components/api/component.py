@@ -162,6 +162,39 @@ class RichButton(RichComponent, typing.Protocol):
 
 
 @typing.runtime_checkable
+class RichSelect(RichComponent, typing.Protocol):
+    """Baseline protocol for Select-like components."""
+
+    __slots__: typing.Sequence[str] = ()
+
+    placeholder: str | None
+    """The placeholder of the component.
+
+    This shows when nothing is selected, or shows nothing if set to ``None``.
+    """
+    min_values: int
+    """The minimum number of values the user must select.
+
+    This must lie between 1 and 25, inclusive.
+    """
+    max_values: int
+    """The maximum number of values the user may select.
+
+    This must lie between 1 and 25, inclusive.
+    """
+    disabled: bool
+    """Whether or not this button is disabled.
+
+    A disabled select is greyed out on discord, and cannot be used.
+    Disabled selects can therefore not cause any interactions, either.
+    """
+
+    async def as_ui_component(self) -> disnake.ui.StringSelect[None]:  # noqa: D102
+        # <<Docstring inherited from RichComponent>>
+        ...
+
+
+@typing.runtime_checkable
 class ComponentManager(typing.Protocol):
     """The baseline protocol for any kind of component manager.
 
