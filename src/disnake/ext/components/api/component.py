@@ -182,8 +182,6 @@ class RichSelect(RichComponent, typing.Protocol):
 
     This must lie between 1 and 25, inclusive.
     """
-    options: typing.Collection[typing.Any]
-    """The options the user can choose from."""
     disabled: bool
     """Whether or not this button is disabled.
 
