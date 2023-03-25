@@ -63,6 +63,23 @@ def get_parser(field: attr.Attribute[typing.Any]) -> typing.Optional[parser_api.
     return field.metadata.get(FieldMetadata.PARSER)
 
 
+def get_field_type(field: attr.Attribute[typing.Any]) -> FieldType:
+    """Get the field type of the field.
+
+    If the field wasn't constructed by disnake-ext-components, this will raise.
+    """
+    if FieldMetadata.FIELDTYPE not in field.metadata:
+        msg = (
+            f"Field {field.name!r} does not contain the proper metadata to be"
+            f" recognised by disnake-ext-components. Please only construct fields"
+            f" through functions provided by disnake-ext-components."
+            f" See the 'disnake.ext.components.fields' submodule for possibilities."
+        )
+        raise TypeError(msg)
+
+    return field.metadata[FieldMetadata.FIELDTYPE]
+
+
 def is_field_of_type(field: attr.Attribute[typing.Any], kind: FieldType) -> bool:
     """Check whether or not a field is marked as internal."""
     set_type = field.metadata.get(FieldMetadata.FIELDTYPE)

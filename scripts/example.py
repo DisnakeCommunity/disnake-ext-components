@@ -33,22 +33,39 @@ def _main() -> typing.NoReturn:
         print(f"Cound not find example {example!r}.")
         sys.exit(1)
 
-    args = ["env", f"{_KEY}={token}", "poetry", "run", "python", "-m", example]
+    # Run example with unbuffered (-u) python.
+    args = ["poetry", "run", "python", "-u", "-m", example]
 
     # Open a subprocess that runs our args list.
     print(f"Running example {example!r}...")
+
     try:
-        process = subprocess.run(args, capture_output=True, cwd=os.getcwd())
+        with subprocess.Popen(
+            args,
+            # Pipe all output to stdout...
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            # Ensure proper cwd...
+            cwd=os.getcwd(),
+            # Set buffer mode to line-buffered...
+            bufsize=1,
+            # Set stdout mode to text...
+            text=True,
+            # Provide bot token environment variable...
+            env={**os.environ, _KEY: token},
+        ) as process:
+            if not process.stdout:
+                print("Failed to open stdout.")
+                sys.exit(1)
+
+            for line in process.stdout:
+                print(line, end="")
+
     except KeyboardInterrupt:
         print("Received KeyboardInterrupt, stopping example.")
         sys.exit(0)
 
-    if process.returncode != 0:
-        print(process.stdout.decode(), process.stderr.decode(), sep="\n")
-    else:
-        print(process.stdout.decode())
-
-    # And finally, propagate slotscheck's return code.
+    # And finally, propagate the return code.
     sys.exit(process.returncode)
 
 
