@@ -10,7 +10,11 @@ from disnake.ext.components.impl.parser import base
 __all__: typing.Sequence[str] = ("InviteParser",)
 
 
-class InviteParser(base.Parser[disnake.Invite], is_default_for=(disnake.Invite,)):  # noqa: D101
+class InviteParser(  # noqa: D101
+    base.Parser[disnake.Invite], is_default_for=(disnake.Invite,)
+):
+    # <<docstring inherited from parser_api.Parser>>
+
     def __init__(
         self,
         *,
@@ -26,6 +30,7 @@ class InviteParser(base.Parser[disnake.Invite], is_default_for=(disnake.Invite,)
         self, inter: disnake.Interaction, argument: str
     ) -> disnake.Invite:
         # <<docstring inherited from parser_api.Parser>>
+
         return await inter.bot.fetch_invite(
             argument,
             with_counts=self.with_counts,
@@ -35,4 +40,5 @@ class InviteParser(base.Parser[disnake.Invite], is_default_for=(disnake.Invite,)
 
     def dumps(self, argument: disnake.Invite) -> str:  # noqa: D102
         # <<docstring inherited from parser_api.Parser>>
+
         return argument.id
