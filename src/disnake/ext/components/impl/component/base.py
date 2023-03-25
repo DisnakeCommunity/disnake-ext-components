@@ -308,12 +308,6 @@ class ComponentMeta(typing._ProtocolMeta):  # pyright: ignore[reportPrivateUsage
 
         cls.factory = builder.build(cls)  # pyright: ignore
 
-        # Return as-is in case of a protocol class. As they cannot be
-        # instantiated anyways, determining parsers and figuring out the proper
-        # custom id implementation is not relevant.
-        if _is_protocol(cls):
-            return cls
-
         # Subscribe the new component to its manager if it inherited one.
         if cls.manager:
             cls.manager.subscribe(cls)
