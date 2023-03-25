@@ -28,8 +28,8 @@ def _get_user(inter: disnake.Interaction, argument: str) -> disnake.User:
 def _get_member(inter: disnake.Interaction, argument: str) -> disnake.Member:
     if inter.guild is None:
         msg = (
-            "Impossible to get a member from an "
-            "interaction that doesn't come from a guild."
+            "Impossible to get a member from an"
+            " interaction that doesn't come from a guild."
         )
         raise TypeError(msg)
     member = inter.guild.get_member(int(argument))
@@ -59,8 +59,8 @@ async def _fetch_user(inter: disnake.Interaction, argument: str) -> disnake.User
 async def _fetch_member(inter: disnake.Interaction, argument: str) -> disnake.Member:
     if inter.guild is None:
         msg = (
-            "Impossible to fetch a member from an "
-            "interaction that doesn't come from a guild."
+            "Impossible to fetch a member from an"
+            " interaction that doesn't come from a guild."
         )
         raise TypeError(msg)
     return (
