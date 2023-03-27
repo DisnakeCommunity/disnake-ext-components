@@ -26,9 +26,12 @@ __all__: typing.Sequence[str] = (
 class BaseSelect(
     component_api.RichSelect, component_base.ComponentBase, typing.Protocol
 ):
-    """The base class of a disnake-ext-components select. This isn't meant
-    to beused directly.
-    """  # noqa: D205
+    """The base class of a disnake-ext-components selects.
+
+    For implementations, see :class:`RichStringSelect`, :class:`RichUserSelect`,
+    :class:`RichRoleSelect`, :class:`RichMentionableSelect`,
+    :class:`RichChannelSelect`.
+    """
 
     event = "on_dropdown"
 
@@ -76,8 +79,7 @@ class RichStringSelect(BaseSelect, typing.Protocol):
     account.
 
     First and foremost, there are class variables for :attr:`placeholder`,
-    :attr:`min_values`, :attr:`max_values`, :attr:`disabled`, and:attr:`options`
-    (available only when using :class:`RichStringSelect`).
+    :attr:`min_values`, :attr:`max_values`, :attr:`disabled`, and:attr:`options`.
     These set the corresponding attributes on the select class when they are
     sent to discord, and are meant to be overwritten by the user.
 
