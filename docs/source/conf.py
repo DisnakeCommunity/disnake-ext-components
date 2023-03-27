@@ -15,6 +15,9 @@ release = "0.5.0a1"
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 # consider to use autosummary
+# consider to use MyST to generates docs directly from .md files
+# this will for example allow us to make the welcome page of our docs
+# exactly the same as the README.md of the github repo
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",
