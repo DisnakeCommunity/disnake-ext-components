@@ -34,6 +34,9 @@ optional = true
 
 [tool.poetry.group.docs.dependencies]
 sphinx = "^6.1.0"
+furo = "^2023.03.23"
+sphinx_copybutton = "0.5.1"
+sphinx_inline_tabs = "2022.1.2b11"
 
 
 [tool.poetry.scripts]
