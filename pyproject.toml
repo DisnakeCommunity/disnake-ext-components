@@ -37,6 +37,8 @@ sphinx = "^6.1.0"
 furo = "^2023.03.23"
 sphinx_copybutton = "0.5.1"
 sphinx_inline_tabs = "2022.1.2b11"
+myst-parser = "1.0.0"
+towncrier = "22.12.0"
 
 
 [tool.poetry.scripts]
@@ -146,3 +148,46 @@ lint = "pre-commit run --all-files"
 black = "task lint black"
 ruff = "task lint ruff"
 slotscheck = "task lint slotscheck"
+
+
+# from disnake UwU
+[tool.towncrier]
+#template = "changelog/_template.rst.jinja"
+start_string = ".. towncrier release notes start"
+package = "disnake.ext.components"
+package_dir = "src/"
+filename = "docs/source/changelog.rst"
+directory = "changelog/"
+underlines = "-~"
+issue_format = ":issue:`{issue}`"
+title_format = "v{version}"
+
+    [[tool.towncrier.type]]
+    directory = "breaking"
+    name = "Breaking Changes"
+    showcontent = true
+
+    [[tool.towncrier.type]]
+    directory = "deprecate"
+    name = "Deprecations"
+    showcontent = true
+
+    [[tool.towncrier.type]]
+    directory = "feature"
+    name = "New Features"
+    showcontent = true
+
+    [[tool.towncrier.type]]
+    directory = "bugfix"
+    name = "Bug Fixes"
+    showcontent = true
+
+    [[tool.towncrier.type]]
+    directory = "doc"
+    name = "Documentation"
+    showcontent = true
+
+    [[tool.towncrier.type]]
+    directory = "misc"
+    name = "Miscellaneous"
+    showcontent = true

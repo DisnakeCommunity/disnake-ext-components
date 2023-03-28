@@ -1,0 +1,30 @@
+/* Newlines (\a) and spaces (\20) before each parameter... */
+.sig-param::before {
+    content: "\a\20\20\20\20";
+    white-space: pre;
+}
+
+/* Comma and newline after the last parameter... */
+dt em.sig-param:last-of-type::after {
+    content: ",\a";
+    white-space: pre;
+}
+
+/*
+Modify padding and indentation such that the closing bracket is on
+the same indentation level as the command definition...
+*/
+dt.sig.sig-object.py {
+    padding: .25rem .5rem .25rem 0.5rem;
+    text-indent: 0em;
+}
+
+/* Modify the [source] buttons such that they do not textwrap */
+dt.sig.sig-object.py a.reference.internal span.viewcode-link span.pre {
+    overflow-wrap: normal;
+}
+
+/* Hide toctree captions */
+div.toctree-wrapper.compound span.caption-text {
+    display: none;
+}

@@ -12,3 +12,5 @@ test.py
 tests/_*.py
 coverage.*
 .coverage
+
+docs/build
