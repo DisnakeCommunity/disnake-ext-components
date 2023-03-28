@@ -5,7 +5,7 @@
 
 import sys
 
-from src.disnake.ext import components 
+from disnake.ext import components
 
 sys.modules["components"] = components
 
