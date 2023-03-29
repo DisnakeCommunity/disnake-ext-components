@@ -42,7 +42,9 @@ class BaseSelect(
     max_values: int = fields.internal(1)
     disabled: bool = fields.internal(False)  # noqa: FBT003
 
-    async def as_ui_component(self) -> disnake.ui.BaseSelect:  # noqa: D102
+    async def as_ui_component(  # noqa: D102
+        self,
+    ) -> disnake.ui.BaseSelect[typing.Any, typing.Any, None]:
         # <<docstring inherited from component_api.RichButton>>
         ...
 
@@ -215,8 +217,8 @@ class RichChannelSelect(BaseSelect, typing.Protocol):
     This works similar to a dataclass, but with some extra things to take into
     account.
 
-    First and foremost, there are class variables for :attr:`placeholder`,
-    :attr:`min_values`, :attr:`max_values`, :attr:`disabled`.
+    First and foremost, there are class variables for :attr:`channel_types`,
+    :attr:`placeholder`, :attr:`min_values`, :attr:`max_values`, :attr:`disabled`.
     These set the corresponding attributes on the select class when they are
     sent to discord, and are meant to be overwritten by the user.
 
@@ -230,10 +232,13 @@ class RichChannelSelect(BaseSelect, typing.Protocol):
     keyword-only arguments.
     """
 
+    channel_types: typing.Optional[list[disnake.ChannelType]] = fields.internal(None)
+
     async def as_ui_component(self) -> disnake.ui.ChannelSelect[None]:  # noqa: D102
         # <<docstring inherited from component_api.RichButton>>
 
         return disnake.ui.ChannelSelect(
+            channel_types=self.channel_types,
             placeholder=self.placeholder,
             min_values=self.min_values,
             max_values=self.max_values,

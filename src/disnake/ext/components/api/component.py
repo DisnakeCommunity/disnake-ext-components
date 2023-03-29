@@ -189,7 +189,9 @@ class RichSelect(RichComponent, typing.Protocol):
     Disabled selects can therefore not cause any interactions, either.
     """
 
-    async def as_ui_component(self) -> disnake.ui.StringSelect[None]:  # noqa: D102
+    async def as_ui_component(  # noqa: D102
+        self,
+    ) -> disnake.ui.BaseSelect[typing.Any, typing.Any, None]:
         # <<Docstring inherited from RichComponent>>
         ...
 
