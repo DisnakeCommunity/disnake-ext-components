@@ -57,7 +57,7 @@ COLOUR_OPTIONS = [
 ]
 
 # Then, we make the select.
-class MySelect(components.RichSelect):
+class MySelect(components.RichStringSelect):
 
     placeholder = "Please select a square."  # Set the placeholder text...
     options = SLOT_OPTIONS  # Set the options...
