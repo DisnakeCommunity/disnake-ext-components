@@ -47,7 +47,7 @@ async def _prepare(component: MessageComponents) -> disnake.ui.MessageUIComponen
     if isinstance(
         component, (component_api.RichButton, component_api.RichSelect)
     ):  # TODO: add select
-        return await component.as_ui_component()  # type: ignore[reportGeneralTypeIssues]  # noqa: E501
+        return await component.as_ui_component()  # pyright: ignore
 
     return component
 
