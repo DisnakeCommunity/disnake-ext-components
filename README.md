@@ -23,7 +23,7 @@ Installing
 
 To install the extension, run the following command in your command prompt/shell:
 
-``` sh
+```sh
 # Linux/macOS
 python3 -m pip install -U git+https://github.com/DisnakeCommunity/disnake-ext-components.git@rewrite
 

@@ -124,16 +124,16 @@ def field(
 
     Parameters
     ----------
-    default:
+    default: Any
         The default value for this field. The type of the default should match
         that of the type annotation.
-    parser:
+    parser: Optional[:class:`parser_api.Parser`]
         The parser to use for converting this field to and from a string.
         The type of the parser should match that of the type annotation.
 
     Returns
     -------
-    attr.Field
+    :meth:`attrs.field`
         A new field with the provided default and parser. Note that a field
         created this way always has ``kw_only=True`` set.
     """

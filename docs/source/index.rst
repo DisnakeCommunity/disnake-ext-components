@@ -10,10 +10,9 @@ Welcome to disnake-ext-components's documentation!
 
 .. toctree::
    :maxdepth: 2
+   :hidden:
 
    changelog
 
-Test
-~~~~
-.. autoclass:: components.field
-   :members:
+.. include:: ../../README.md
+   :parser: myst_parser.sphinx_

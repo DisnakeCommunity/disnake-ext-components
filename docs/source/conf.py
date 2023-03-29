@@ -12,10 +12,10 @@ sys.modules["components"] = components
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = "disnake-ext-components"
-copyright = "2022, Chromosomologist"
-author = "Chromosomologist"
-version = "0.5.0a1"
+project = components.__name__
+copyright = components.__copyright__
+author = components.__author__
+version = components.__version__
 release = version
 
 
@@ -27,6 +27,7 @@ release = version
 # this will for example allow us to make the welcome page of our docs
 # exactly the same as the README.md of the github repo
 extensions = [
+    # sphinx ext
     "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",
     "sphinx.ext.intersphinx",
@@ -35,12 +36,18 @@ extensions = [
     # third party extensions
     "sphinx_copybutton",
     "sphinx_inline_tabs",
+    "myst_parser",
+    "hoverxref.extension"
 ]
+
 
 templates_path = ["_templates"]
 exclude_patterns = ["_build"]
-source_suffix = ".rst"
 master_doc = "index"
+
+# -- MySt settings --
+
+myst_heading_anchors = 3
 
 # -- AutoDoc settings --
 
@@ -56,11 +63,37 @@ autodoc_default_options = {
     "show-inheritance": True,
 }
 
+# -- Hoverxref settings --
+hoverxref_auto_ref = True
+hoverxref_default_type = "tooltip"
+hoverxref_role_types = {
+    "class": "tooltip",
+    "func": "tooltip",
+    "meth": "tooltip",
+    "attr": "tooltip",
+    "ref": "modal",
+    "mod": "modal",
+    "hoverxref": "tooltip",
+}
+hoverxref_domains = ["py"]
+hoverxref_intersphinx = [
+    "python",
+    "disnake",
+    "attr",
+    "attrs"
+]
+hoverxref_intersphinx_types = {
+    "python": "tooltip",
+}
+hoverxref_tooltip_theme = ["tooltipster-shadow-custom"]
+
 # -- Intersphinx settings --
 
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "disnake": ("https://docs.disnake.dev/en/latest/", None),
+    "attr": ("https://www.attrs.org/en/stable/", None),
+    "attrs": ("https://www.attrs.org/en/stable/", None)
 }
 
 github_repo = "https://github.com/DisnakeCommunity/disnake-ext-components"

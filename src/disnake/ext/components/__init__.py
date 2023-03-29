@@ -8,6 +8,13 @@ An extension for disnake aimed at making component interactions with
 listeners somewhat less cumbersome.
 """
 
+__title__ = "disnake-ext-components"
+__author__ = "Chromosomologist"
+__version__ = "0.5.0a1"
+__license__ = "MIT"
+__copyright__ = "2022, Chromosomologist"
+
+
 from disnake.ext.components import api as api
 from disnake.ext.components import internal as internal
 from disnake.ext.components.fields import *
