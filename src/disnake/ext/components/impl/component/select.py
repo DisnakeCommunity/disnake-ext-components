@@ -42,12 +42,6 @@ class BaseSelect(
     max_values: int = fields.internal(1)
     disabled: bool = fields.internal(False)  # noqa: FBT003
 
-    async def as_ui_component(  # noqa: D102
-        self,
-    ) -> disnake.ui.BaseSelect[typing.Any, typing.Any, None]:
-        # <<docstring inherited from component_api.RichButton>>
-        ...
-
     @classmethod
     async def loads(  # noqa: D102
         cls, interaction: disnake.MessageInteraction, /
