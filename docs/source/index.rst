@@ -3,19 +3,35 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-.. module:: src.disnake.ext
-
 Welcome to disnake-ext-components's documentation!
 ==================================================
 
 .. toctree::
-   :maxdepth: 2
-   :hidden:
+   :maxdepth: 1
+   :caption: Getting Starterd
 
-   changelog
+   quickstart
+
 
 .. include:: ../../README.md
    :parser: myst_parser.sphinx_
 
-.. autoclass::
-   components.impl.component.select.BaseSelect
+
+API reference
+-------------
+
+.. toctree::
+   :maxdepth: 2
+   :caption: API Reference
+
+   api/components
+
+Development
+-----------
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Dev
+
+   dev/base_classes
+   changelog

@@ -57,7 +57,7 @@ autodoc_class_signature = "separated"
 autodoc_preserve_defaults = True
 autoclass_content = "class"
 
-autodoc_type_aliases = {}
+
 autodoc_default_options = {
     "exclude-members": "__init__, __new__",
     "show-inheritance": True,
@@ -125,3 +125,5 @@ html_theme_options = {
         },
     ],
 }
+
+html_show_sourcelink = False

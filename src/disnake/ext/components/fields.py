@@ -133,7 +133,7 @@ def field(
 
     Returns
     -------
-    :meth:`attrs.field`
+    ``attrs.field``
         A new field with the provided default and parser. Note that a field
         created this way always has ``kw_only=True`` set.
     """
