@@ -3,7 +3,7 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-.. module:: src
+.. module:: src.disnake.ext
 
 Welcome to disnake-ext-components's documentation!
 ==================================================
@@ -16,3 +16,6 @@ Welcome to disnake-ext-components's documentation!
 
 .. include:: ../../README.md
    :parser: myst_parser.sphinx_
+
+.. autoclass::
+   components.impl.component.select.BaseSelect
