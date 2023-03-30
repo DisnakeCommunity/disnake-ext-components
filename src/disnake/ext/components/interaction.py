@@ -32,7 +32,11 @@ MessageComponents = typing.Union[
     component_api.RichButton,
     disnake.ui.Button[typing.Any],
     component_api.RichSelect,
-    disnake.ui.Select[typing.Any],
+    disnake.ui.StringSelect[typing.Any],
+    disnake.ui.ChannelSelect[typing.Any],
+    disnake.ui.RoleSelect[typing.Any],
+    disnake.ui.UserSelect[typing.Any],
+    disnake.ui.MentionableSelect[typing.Any],
 ]
 
 
@@ -43,7 +47,7 @@ async def _prepare(component: MessageComponents) -> disnake.ui.MessageUIComponen
     if isinstance(
         component, (component_api.RichButton, component_api.RichSelect)
     ):  # TODO: add select
-        return await component.as_ui_component()
+        return await component.as_ui_component()  # pyright: ignore
 
     return component
 
