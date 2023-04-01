@@ -57,7 +57,7 @@ manager.basic_config()
 # Then we make a simple component. For a more detailed explanation, see the
 # 'button.py' example.
 class MyButton(components.RichButton):
-    label = "0"
+    label: str = "0"
 
     count: int
 

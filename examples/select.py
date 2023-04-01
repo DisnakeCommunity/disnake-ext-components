@@ -6,6 +6,8 @@ slot, the select is modified to instead allow you to select a colour. The
 selected slot and colour are then combined to colour the corresponding square.
 """
 
+from __future__ import annotations
+
 import os
 
 import disnake
@@ -59,8 +61,8 @@ COLOUR_OPTIONS = [
 # Then, we make the select.
 class MySelect(components.RichStringSelect):
 
-    placeholder = "Please select a square."  # Set the placeholder text...
-    options = SLOT_OPTIONS  # Set the options...
+    placeholder: str = "Please select a square."  # Set the placeholder text...
+    options: list[disnake.SelectOption] = SLOT_OPTIONS  # Set the options...
 
     slot: str = "0"  # We store the slot the user is currently working with...
     state: str = "slot"  # We store whether they're picking a slot or a colour...
