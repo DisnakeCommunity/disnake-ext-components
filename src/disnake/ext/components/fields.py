@@ -152,10 +152,9 @@ def field(
     )
 
 
-def internal(  # noqa: D417
+def internal(
     default: _T,
     *,
-    init: typing.Literal[False] = False,  # noqa: ARG001
     frozen: bool = False,
 ) -> _T:
     """Declare a field as internal.
@@ -178,14 +177,9 @@ def internal(  # noqa: D417
         A new field with the provided default and frozen status. Note that an
         internal field always has ``init=False`` set.
     """
-    # NOTE: The init arg is *required* in the signature for typecheckers to
-    #       pick up on it. If it weren't there, each internal field would have
-    #       to manually declare ``init=False``.
-
     setter = attr.setters.frozen if frozen else None
     return attr.field(
         default=default,
-        init=False,
         on_setattr=setter,
         metadata={FieldMetadata.FIELDTYPE: FieldType.INTERNAL},
     )

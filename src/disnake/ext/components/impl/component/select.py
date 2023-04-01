@@ -23,6 +23,12 @@ __all__: typing.Sequence[str] = (
 )
 
 
+# God knows why this is needed, but if I don't do this, classes inheriting from
+# RichSelect see e.g. `placeholder: str = fields.internal(default=None)` in the
+# init signature.
+internal = fields.internal
+
+
 class BaseSelect(
     component_api.RichSelect, component_base.ComponentBase, typing.Protocol
 ):
@@ -37,10 +43,10 @@ class BaseSelect(
 
     custom_id = custom_id_impl.AutoID()
 
-    placeholder: typing.Optional[str] = fields.internal(None)
-    min_values: int = fields.internal(1)
-    max_values: int = fields.internal(1)
-    disabled: bool = fields.internal(False)  # noqa: FBT003
+    placeholder: typing.Optional[str] = fields.internal(default=None)
+    min_values: int = fields.internal(default=1)
+    max_values: int = fields.internal(default=1)
+    disabled: bool = fields.internal(default=False)
 
     @classmethod
     async def loads(  # noqa: D102
@@ -90,7 +96,7 @@ class RichStringSelect(BaseSelect, typing.Protocol):
     """
 
     options: list[disnake.SelectOption] = fields.internal(
-        attr.Factory(list)  # pyright: ignore
+        default=attr.Factory(list)  # pyright: ignore
     )
 
     async def as_ui_component(self) -> disnake.ui.StringSelect[None]:  # noqa: D102
@@ -226,7 +232,9 @@ class RichChannelSelect(BaseSelect, typing.Protocol):
     keyword-only arguments.
     """
 
-    channel_types: typing.Optional[list[disnake.ChannelType]] = fields.internal(None)
+    channel_types: typing.Optional[list[disnake.ChannelType]] = fields.internal(
+        default=None
+    )
 
     async def as_ui_component(self) -> disnake.ui.ChannelSelect[None]:  # noqa: D102
         # <<docstring inherited from component_api.RichButton>>

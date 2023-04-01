@@ -19,6 +19,11 @@ __all__: typing.Sequence[str] = ("RichButton",)
 _AnyEmoji = typing.Union[str, disnake.PartialEmoji, disnake.Emoji]
 
 
+# God knows why this is needed, but if I don't do this, classes inheriting from
+# RichButton see e.g. `fields.internal(default=None)` in the init signature.
+internal = fields.internal
+
+
 @typing.runtime_checkable
 class RichButton(
     component_api.RichButton, component_base.ComponentBase, typing.Protocol
@@ -46,10 +51,10 @@ class RichButton(
 
     custom_id = custom_id_impl.AutoID()
 
-    label: typing.Optional[str] = fields.internal(None)
-    style: disnake.ButtonStyle = fields.internal(disnake.ButtonStyle.secondary)
-    emoji: typing.Optional[_AnyEmoji] = fields.internal(None)
-    disabled: bool = fields.internal(False)  # noqa: FBT003
+    label: typing.Optional[str] = fields.internal(default=None)
+    style: disnake.ButtonStyle = fields.internal(default=disnake.ButtonStyle.secondary)
+    emoji: typing.Optional[_AnyEmoji] = fields.internal(default=None)
+    disabled: bool = fields.internal(default=False)
 
     async def as_ui_component(self) -> disnake.ui.Button[None]:  # noqa: D102
         # <<docstring inherited from component_api.RichButton>>
