@@ -9,7 +9,7 @@ import disnake
 if typing.TYPE_CHECKING:
     import typing_extensions
 
-__all__: typing.Sequence[str] = ("RichComponent", "RichButton", "ComponentManager")
+__all__: typing.Sequence[str] = ("RichComponent", "RichButton", "RichSelect", "ComponentManager")
 
 
 _T = typing.TypeVar("_T")

@@ -57,6 +57,9 @@ autodoc_class_signature = "separated"
 autodoc_preserve_defaults = True
 autoclass_content = "class"
 
+autodoc_type_aliases = {
+    "components.MessageInteraction": "disnake.ext.components.interaction.MessageInteraction"
+}
 
 autodoc_default_options = {
     "exclude-members": "__init__, __new__",
@@ -64,6 +67,7 @@ autodoc_default_options = {
 }
 
 # -- Hoverxref settings --
+
 hoverxref_auto_ref = True
 hoverxref_default_type = "tooltip"
 hoverxref_role_types = {
@@ -92,8 +96,7 @@ hoverxref_tooltip_theme = ["tooltipster-shadow-custom"]
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "disnake": ("https://docs.disnake.dev/en/latest/", None),
-    "attr": ("https://www.attrs.org/en/stable/", None),
-    "attrs": ("https://www.attrs.org/en/stable/", None)
+    "attrs": ("https://www.attrs.org/en/stable/", None),
 }
 
 github_repo = "https://github.com/DisnakeCommunity/disnake-ext-components"

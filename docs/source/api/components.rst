@@ -3,6 +3,17 @@
 Components
 ==========
 
+Button
+------
+
+.. autoclass::
+    components.RichButton
+    :members:
+    :noindex:
+
+
+Select Menu
+-----------
 
 .. autoclass::
     components.RichStringSelect

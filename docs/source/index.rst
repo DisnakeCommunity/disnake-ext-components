@@ -34,4 +34,5 @@ Development
    :caption: Dev
 
    dev/base_classes
+   dev/internal_api
    changelog

@@ -7,6 +7,16 @@ Base classes
 Components
 ----------
 
+Buttons
+-------
+
+.. autoclass::
+    components.api.component.RichButton
+    :members:
+
+Select Menus
+------------
+
 .. autoclass::
     components.api.component.RichComponent
     :members:
