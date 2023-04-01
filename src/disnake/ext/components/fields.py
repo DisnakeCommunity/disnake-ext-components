@@ -63,12 +63,17 @@ def get_parser(field: attr.Attribute[typing.Any]) -> typing.Optional[parser_api.
     return field.metadata.get(FieldMetadata.PARSER)
 
 
-def get_field_type(field: attr.Attribute[typing.Any]) -> FieldType:
+def get_field_type(
+    field: attr.Attribute[typing.Any], default: typing.Optional[FieldType] = None
+) -> FieldType:
     """Get the field type of the field.
 
     If the field wasn't constructed by disnake-ext-components, this will raise.
     """
     if FieldMetadata.FIELDTYPE not in field.metadata:
+        if default:
+            return default
+
         msg = (
             f"Field {field.name!r} does not contain the proper metadata to be"
             f" recognised by disnake-ext-components. Please only construct fields"

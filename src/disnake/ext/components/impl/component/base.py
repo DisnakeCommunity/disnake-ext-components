@@ -17,8 +17,10 @@ import typing_extensions
 from disnake.ext.components import fields as fields
 from disnake.ext.components.api import component as component_api
 from disnake.ext.components.api import factory as factory_api
+from disnake.ext.components.api import parser as parser_api
 from disnake.ext.components.impl import custom_id as custom_id_impl
 from disnake.ext.components.impl import factory as factory_impl
+from disnake.ext.components.impl import parser as parser_impl
 
 __all__: typing.Sequence[str] = ("ComponentBase",)
 
@@ -26,9 +28,6 @@ __all__: typing.Sequence[str] = ("ComponentBase",)
 _T = typing.TypeVar("_T")
 
 MaybeCoroutine = typing.Union[_T, typing.Coroutine[None, None, _T]]
-
-
-_CountingAttr: type[typing.Any] = type(attr.field())
 _AnyAttr: typing_extensions.TypeAlias = "attr.Attribute[typing.Any]"
 
 
@@ -83,150 +82,95 @@ def _finalise_custom_id(component: type[ComponentBase]) -> None:
         raise TypeError(msg)
 
 
-def _apply_overrides(
-    cls: type[ComponentBase],
-    namespace: dict[str, typing.Any],
-) -> None:
-    """Turn malformed overrides into valid attrs fields."""
-    if not attr.has(cls):  # Nothing to override.
+def _determine_parser(
+    attribute: _AnyAttr,
+    overwrite: typing.Optional[_AnyAttr],
+    *,
+    required: bool = True,
+) -> typing.Optional[parser_api.Parser[typing.Any]]:
+    parser = fields.get_parser(attribute)
+    if parser:
+        return parser
+
+    if overwrite:
+        parser = fields.get_parser(overwrite)
+        if parser:
+            return parser
+
+    if required:
+        parser_type = parser_impl.get_parser(attribute.type or str)
+        return parser_type.default()
+
+    return None
+
+
+def _assert_valid_overwrite(attribute: _AnyAttr, overwrite: _AnyAttr) -> None:
+    if fields.FieldMetadata.FIELDTYPE not in overwrite.metadata:
         return
 
-    # We only check pre-defined internal fields, such as label.
-    for field in fields.get_fields(
-        cls,
-        kind=fields.FieldType.INTERNAL | fields.FieldType.MODAL,
-    ):
-        name = field.name
-        if name not in namespace:
-            continue
+    # The field was defined using fields.field / fields.internal / etc.
+    # Ensure the overwrite matches the original field type.
 
-        new = namespace[name]
+    attribute_type = fields.get_field_type(overwrite)
+    overwrite_type = fields.get_field_type(attribute)
 
-        # Ensure the new field isn't just magically an init-field now.
-        if isinstance(new, _CountingAttr):
-            # Emulate turning this into an Attribute so that the following checks work.
-            # This may be slightly slow but it's only run once during class creation,
-            # so it should be fine.
-            new = typing.cast(
-                "attr.Attribute[typing.Any]",
-                attr.Attribute.from_counting_attr(name, new),  # pyright: ignore
-            )
-            new_field_type = fields.get_field_type(new)
-            old_field_type = fields.get_field_type(field)
-
-            # Ensure the field type remains unchanged.
-            if new_field_type is not old_field_type:
-                new_type_name = (new_field_type.name or "unknown").lower()
-                old_type_name = (old_field_type.name or "unknown").lower()
-
-                msg = (
-                    f"Field '{cls.__name__}.{name}' is defined as a(n) {old_type_name} "
-                    f"field, but was redefined as a(n) {new_type_name} field."
-                )
-                raise TypeError(msg)
-
-            # Carry over the default value instead of the entire attribute.
-            new = new.default
-
-        new_field = attr.field(
-            default=new,  # Update the default.
-            init=field.init,
-            metadata=field.metadata,
-            on_setattr=field.on_setattr,
+    if overwrite_type is not attribute_type:
+        new = (attribute_type.name or "<unknown>").lower()
+        old = (overwrite_type.name or "<unknown>").lower()
+        msg = (
+            f"Invalid field override. Field {overwrite.name} is defined as"
+            f" a(n) {new} field, but was overwritten as a(n) {old} field."
         )
-
-        # Update the field information.
-        setattr(cls, name, new_field)
-
-        # Reapply the annotation, otherwise attrs breaks.
-        cls.__annotations__.setdefault(name, field.type)
+        raise TypeError(msg)
 
 
-def _build_field_transformer_with_parsers(
-    factory_builder: factory_impl.ComponentFactoryBuilder,
-) -> typing.Callable[[type, list[_AnyAttr]], list[_AnyAttr]]:
-    # Provide a ComponentFactoryBuilder to use as builder for the class, then
-    # pass the resulting callback to the `field_transformer`. Finally, build
-    # the full factory object after attrs is done creating the class.
-    # We have a separate field transformer for protocols, as there's no reason
-    # to build parsers for those classes, as they aren't instantiable anyways.
+def _field_transformer(cls: type, attributes: list[_AnyAttr]) -> list[_AnyAttr]:
+    is_concrete = not _is_protocol(cls)
 
-    def _field_transformer(cls: type, attributes: list[_AnyAttr]) -> list[_AnyAttr]:
-        # Ensure all fields have valid metadata, fill missing parser types, and
-        # build a ComponentFactory given all the attributes' parsers.
+    super_attributes: dict[str, _AnyAttr]
+    if attr.has(cls):
+        super_attributes = {field.name: field for field in fields.get_fields(cls)}
+    else:
+        super_attributes = {}
 
-        # NOTE: Metadata is a mapping proxy, which means we can't directly
-        #       mutate it. For this reason, we use evolve to copy and modify it.
-
-        cls = typing.cast("type[ComponentBase]", cls)
-
-        new_attributes: list[attr.Attribute[typing.Any]] = []
-
-        for attribute in attributes:
-
-            # Check if the field already has a field type defined.
-            if fields.FieldMetadata.FIELDTYPE in attribute.metadata:
-                if fields.FieldMetadata.PARSER in attribute.metadata:
-                    parser = fields.get_parser(attribute)
-                    if parser:
-                        # Parser field defined and provided
-                        factory_builder.add_field(attribute)
-                        new_attributes.append(attribute)
-                        continue
-
-                    # Parser field defined but None provided (default).
-                    parser = factory_builder.add_field(attribute)
-                    evolved = attribute.evolve(
-                        metadata={
-                            **attribute.metadata,
-                            fields.FieldMetadata.PARSER: parser,
-                        }
-                    )
-                    new_attributes.append(evolved)
-                    continue
-
-                # Parser field not found, therefore no parser necessary.
-                new_attributes.append(attribute)
-                continue
-
-            # No field definition found whatsoever; it's probably a custom id field.
-            parser = factory_builder.add_field(attribute)
-            evolved = attribute.evolve(
-                metadata={
-                    **attribute.metadata,  # Copy existing metadata
-                    fields.FieldMetadata.FIELDTYPE: fields.FieldType.CUSTOM_ID,
-                    fields.FieldMetadata.PARSER: parser,
-                },
-            )
-            new_attributes.append(evolved)
-
-        return new_attributes
-
-    return _field_transformer
-
-
-def _field_transformer(_: type, attributes: list[_AnyAttr]) -> list[_AnyAttr]:
-    new_attributes: list[_AnyAttr] = []
+    finalised_attributes: list[_AnyAttr] = []
     for attribute in attributes:
+        # Fields only need a parser if
+        # - The component is concrete,
+        # - The field is a custom-id field.
+        needs_parser = is_concrete and (
+            fields.get_field_type(attribute, fields.FieldType.CUSTOM_ID)
+            is fields.FieldType.CUSTOM_ID
+        )
+        super_attribute = super_attributes.get(attribute.name)
 
-        # Check if the field already has a field type defined.
-        if fields.FieldMetadata.FIELDTYPE in attribute.metadata:
-            new_attributes.append(attribute)
+        if not super_attribute:
+            # Not an overwrite; ensure there is a parser if there needs to be one.
+            parser = _determine_parser(attribute, None, required=needs_parser)
+            finalised_attributes.append(
+                attribute.evolve(metadata={**attribute.metadata, "parser": parser})
+            )
             continue
 
-        # If not, create a new attribute with field type set to custom id.
-        # NOTE: Metadata is a mapping proxy, which means we can't directly
-        #       mutate it. For this reason, we use evolve to copy and modify it.
-        evolved = attribute.evolve(
-            metadata={
-                **attribute.metadata,  # Copy existing metadata
-                fields.FieldMetadata.FIELDTYPE: fields.FieldType.CUSTOM_ID,
-                fields.FieldMetadata.PARSER: None,
-            },
-        )
-        new_attributes.append(evolved)
+        # This field overwrites a pre-existing field.
+        _assert_valid_overwrite(super_attribute, attribute)
 
-    return new_attributes
+        # Merge metadata and ensure the parser isn't overwritten if the new
+        # value is None.
+        # TODO: Make copy of parser instead of using the same instance
+
+        metadata = {**super_attribute.metadata, **attribute.metadata}
+        parser = _determine_parser(attribute, super_attribute, required=needs_parser)
+        metadata[fields.FieldMetadata.PARSER] = parser
+
+        finalised_attributes.append(
+            attribute.evolve(
+                default=super_attribute.default,
+                metadata=metadata,
+            )
+        )
+
+    return finalised_attributes
 
 
 @typing_extensions.dataclass_transform(
@@ -285,28 +229,20 @@ class ComponentMeta(typing._ProtocolMeta):  # pyright: ignore[reportPrivateUsage
         # overwritten. If so, check them for validity and update them to proper
         # attrs fields. This adds support for redefining internal fields as
         # `label = "foo"` instead of `label = fields.internal("foo")`
-        _apply_overrides(cls, namespace)
+        # _apply_overrides(cls, namespace)
 
-        if _is_protocol(cls):
-            cls = attr.define(
-                cls,
-                slots=True,
-                kw_only=True,
-                field_transformer=_field_transformer,
-            )
-
-            cls.factory = factory_impl.NoopFactory.from_component(cls)
-            return cls
-
-        builder = factory_impl.ComponentFactoryBuilder()
         cls = attr.define(
             cls,
             slots=True,
             kw_only=True,
-            field_transformer=_build_field_transformer_with_parsers(builder),
+            field_transformer=_field_transformer,
         )
 
-        cls.factory = builder.build(cls)  # pyright: ignore
+        if _is_protocol(cls):
+            cls.factory = factory_impl.NoopFactory.from_component(cls)
+            return cls
+
+        cls.factory = factory_impl.ComponentFactory.from_component(cls)
 
         # Subscribe the new component to its manager if it inherited one.
         if cls.manager:
