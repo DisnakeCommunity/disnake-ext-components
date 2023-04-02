@@ -50,7 +50,7 @@ class NumberParser(base.Parser[_NumberT]):
     Defaults to a signed float parser.
     """
 
-    type: typing.Union[type[int], type[float]]
+    type: typing.Union[typing.Type[int], typing.Type[float]]
 
     signed: bool
     base: int = 10

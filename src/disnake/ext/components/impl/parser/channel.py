@@ -42,9 +42,9 @@ _ChannelT = typing.TypeVar("_ChannelT", bound=_AnyChannel)
 
 
 def _build_sync_channel_parser(
-    *types: type[_ChannelT],
-    is_default_for: typing.Optional[typing.Sequence[type[typing.Any]]] = None,
-) -> type[base.Parser[_ChannelT]]:
+    *types: typing.Type[_ChannelT],
+    is_default_for: typing.Optional[typing.Sequence[typing.Type[typing.Any]]] = None,
+) -> typing.Type[base.Parser[_ChannelT]]:
     def _get_channel(inter: disnake.Interaction, argument: str) -> _ChannelT:
         channel = inter.bot.get_channel(int(argument))
 
@@ -94,9 +94,9 @@ GetCategoryParser = _build_sync_channel_parser(disnake.CategoryChannel)
 
 
 def _build_async_channel_parser(
-    *types: type[_ChannelT],
-    is_default_for: typing.Optional[typing.Sequence[type[typing.Any]]] = None,
-) -> type[base.Parser[_ChannelT]]:
+    *types: typing.Type[_ChannelT],
+    is_default_for: typing.Optional[typing.Sequence[typing.Type[typing.Any]]] = None,
+) -> typing.Type[base.Parser[_ChannelT]]:
     async def _fetch_channel(inter: disnake.Interaction, argument: str) -> _ChannelT:
         channel_id = int(argument)
         channel = (

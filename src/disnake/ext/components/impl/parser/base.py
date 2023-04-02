@@ -17,17 +17,18 @@ __all__: typing.Sequence[str] = (
     "Parser",
 )
 
-_PARSERS: dict[type[typing.Any], type[Parser[typing.Any]]] = {}
+_PARSERS: typing.Dict[typing.Type[typing.Any], typing.Type[Parser[typing.Any]]] = {}
 
 
 _T = typing.TypeVar("_T")
 
 MaybeCoroutine = typing.Union[typing.Coroutine[None, None, _T], _T]
+TypeSequence = typing.Sequence[typing.Type[typing.Any]]
 
 
 def register_parser(
-    parser: type[Parser[_T]],
-    *types: type[_T],
+    parser: typing.Type[Parser[_T]],
+    *types: typing.Type[_T],
     force: bool = True,
 ) -> None:
     """Register a parser class as the default parser for the provided type.
@@ -52,7 +53,7 @@ def register_parser(
         strategy(type, parser)
 
 
-def get_parser(type_: type[_T]) -> type[Parser[_T]]:
+def get_parser(type_: typing.Type[_T]) -> typing.Type[Parser[_T]]:
     """Get the default parser for the provided type.
 
     Parameters
@@ -62,7 +63,7 @@ def get_parser(type_: type[_T]) -> type[Parser[_T]]:
 
     Returns
     -------
-    type[:class:`Parser`]:
+    typing.Type[:class:`Parser`]:
         The default parser class for the provided type.
 
     Raises
@@ -92,7 +93,7 @@ class Parser(parser_api.Parser[_T], typing.Protocol[_T]):
     def __init_subclass__(
         cls,
         *,
-        is_default_for: typing.Optional[typing.Sequence[type[typing.Any]]] = None,
+        is_default_for: typing.Optional[TypeSequence] = None,
         **kwargs: object,
     ) -> None:
         # Allows defining a parser with `is_default_for=[type1, ...]` to
@@ -122,8 +123,8 @@ class Parser(parser_api.Parser[_T], typing.Protocol[_T]):
         loads: typing.Callable[[disnake.Interaction, str], MaybeCoroutine[_T]],
         dumps: typing.Callable[[_T], MaybeCoroutine[str]],
         *,
-        is_default_for: typing.Optional[typing.Sequence[type[typing.Any]]] = None,
-    ) -> type[typing_extensions.Self]:
+        is_default_for: typing.Optional[TypeSequence] = None,
+    ) -> typing.Type[typing_extensions.Self]:
         """Generate a parser class from ``loads`` and ``dumps`` functions.
 
         Note that these ``loads`` and ``dumps`` functions must **not** have
@@ -146,11 +147,11 @@ class Parser(parser_api.Parser[_T], typing.Protocol[_T]):
 
         Returns
         -------
-        type[:class:`Parser`]:
+        typing.Type[:class:`Parser`]:
             The newly created parser class.
         """
         new_cls = typing.cast(
-            "type[typing_extensions.Self]",
+            "typing.Type[typing_extensions.Self]",
             types.new_class(
                 f"{type.__name__}Parser",
                 (cls,),

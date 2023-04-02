@@ -21,7 +21,7 @@ class CustomID(typing.Protocol):
     @classmethod
     def from_component(
         cls,
-        component: type[component_api.RichComponent],
+        component: typing.Type[component_api.RichComponent],
         /,
         *,
         name: typing.Optional[str] = None,
@@ -47,7 +47,7 @@ class CustomID(typing.Protocol):
         """
         ...
 
-    def validate(self, __component: type[component_api.RichComponent]) -> None:
+    def validate(self, __component: typing.Type[component_api.RichComponent]) -> None:
         """Validate the custom id with the component.
 
         This ensures that the custom id definition is valid for the component,

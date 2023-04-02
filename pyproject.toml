@@ -26,6 +26,7 @@ slotscheck = "^0.16.5"
 pre-commit = "^3.1.1"
 taskipy = "^1.10.3"
 python-dotenv = "^1.0.0"
+ipykernel = "latest"
 
 
 [tool.poetry.scripts]
@@ -90,6 +91,7 @@ select = [
 # ANN101, ANN102 ask for `self` and `cls` annotations, what?
 # RET505-RET508 does not allow for any branches where it is an elif and else after a return
 # PLR2004 too much to deal with right now.
+# UP006 incorrectly "updates" e.g. typing.Type[x] to type[x], which leads to runtime errors in 3.8
 # UP007 incorrectly "updates" Union[X, Y] to X | Y.
 # UP038 ^ inside isinstance.
 # PLC0414 doesn't support `import foo as foo` to reexport.
@@ -107,6 +109,7 @@ ignore = [
     "RET507",
     "RET508",
     "PLR2004",
+    "UP006",
     "UP007",
     "UP038",
     "PLC0414",
@@ -126,7 +129,7 @@ mypy-init-return = true
 # D: Don't enforce docstrings in examples except for the module,
 # TCH: Don't enforce type-checking 'optimisation', as it's distracting from the example.
 # T201: Allow printing inside examples.
-"examples/*" = ["D101", "D102", "D103", "S101", "TCH", "T201"]
+"examples/*" = ["D101", "D102", "D103", "S101", "TCH", "T201", "UP006"]
 
 
 [tool.taskipy.tasks]

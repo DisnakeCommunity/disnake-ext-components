@@ -212,7 +212,7 @@ class ComponentManager(typing.Protocol):
 
     def subscribe(
         self,
-        component: type[RichComponent],
+        component: typing.Type[RichComponent],
         /,
         *,
         recursive: bool = True,
@@ -237,7 +237,7 @@ class ComponentManager(typing.Protocol):
 
     def unsubscribe(
         self,
-        component: type[RichComponent],
+        component: typing.Type[RichComponent],
         /,
         *,
         recursive: bool = True,

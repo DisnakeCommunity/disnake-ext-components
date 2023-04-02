@@ -65,7 +65,7 @@ class ComponentFactoryBuilder:
         self.parsers[field.name] = parser
         return parser
 
-    def validate(self, component: type[component_api.RichComponent]) -> None:
+    def validate(self, component: typing.Type[component_api.RichComponent]) -> None:
         """Validate whether :meth:`build` will create a valid factory for the provided component.
 
         This will remove any extraneous parsers.
@@ -98,7 +98,7 @@ class ComponentFactoryBuilder:
             self.parsers.pop(name)
 
     def build(
-        self, component: type[factory_api.ComponentT]
+        self, component: typing.Type[factory_api.ComponentT]
     ) -> ComponentFactory[factory_api.ComponentT]:
         """Finalise the :class:`ComponentFactory` and return it.
 
@@ -126,18 +126,18 @@ class ComponentFactory(
     """
 
     parsers: ParserMapping
-    component: type[factory_api.ComponentT]
+    component: typing.Type[factory_api.ComponentT]
 
     @classmethod
     def from_component(  # noqa: D102
         cls,
-        component: type[component_api.RichComponent],
+        component: typing.Type[component_api.RichComponent],
     ) -> typing_extensions.Self:
         # <<docstring inherited from factory_api.ComponentFactory>>
 
         parser: typing.Optional[parser_api.Parser[typing.Any]]
 
-        parsers: dict[str, parser_api.Parser[typing.Any]] = {}
+        parsers: typing.Dict[str, parser_api.Parser[typing.Any]] = {}
         for field in fields.get_fields(component, kind=fields.FieldType.CUSTOM_ID):
             parser = fields.get_parser(field)
 
@@ -246,7 +246,7 @@ class NoopFactory(factory_api.ComponentFactory[typing.Any]):
 
     @classmethod
     def from_component(  # noqa: D102
-        cls, _: type[component_api.RichComponent]
+        cls, _: typing.Type[component_api.RichComponent]
     ) -> typing_extensions.Self:
         # <<docstring inherited from factory_api.ComponentFactory>>
 

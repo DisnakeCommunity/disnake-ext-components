@@ -86,7 +86,7 @@ class CustomID(str, custom_id_api.CustomID):
     @classmethod
     def from_component(  # noqa: D102
         cls,
-        component: type[component_api.RichComponent],
+        component: typing.Type[component_api.RichComponent],
         /,
         *,
         name: typing.Optional[str] = None,
@@ -104,7 +104,7 @@ class CustomID(str, custom_id_api.CustomID):
     @classmethod
     def from_auto_id(
         cls,
-        component: type[component_api.RichComponent],
+        component: typing.Type[component_api.RichComponent],
         auto_id: AutoID,
     ) -> typing_extensions.Self:
         """Create a complete custom id object from a :class:`AutoID`.
@@ -128,7 +128,7 @@ class CustomID(str, custom_id_api.CustomID):
         )
 
     def validate(  # noqa: D102
-        self, component: type[component_api.RichComponent]
+        self, component: typing.Type[component_api.RichComponent]
     ) -> None:
         # <<Docstring inherited from custom_id_api.CustomID>>
 

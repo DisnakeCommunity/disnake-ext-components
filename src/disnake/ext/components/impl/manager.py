@@ -17,7 +17,7 @@ if typing.TYPE_CHECKING:
 __all__: typing.Sequence[str] = ("ComponentManager",)
 
 
-_TypeT = typing.TypeVar("_TypeT", bound="type[typing.Any]")
+_TypeT = typing.TypeVar("_TypeT", bound="typing.Type[typing.Any]")
 AnyBot = typing.Union[commands.Bot, commands.InteractionBot]
 
 
@@ -27,12 +27,12 @@ def _recurse_subclasses(cls: _TypeT) -> typing.Generator[_TypeT, None, None]:
         yield from _recurse_subclasses(subclass)
 
 
-def _is_protocol(cls: type[typing.Any]) -> bool:
+def _is_protocol(cls: typing.Type[typing.Any]) -> bool:
     return bool(getattr(cls, "_is_protocol", False))
 
 
 def _assert_componentmeta(
-    cls: type[typing.Any],
+    cls: typing.Type[typing.Any],
 ) -> component_base_impl.ComponentMeta:
     if isinstance(cls, component_base_impl.ComponentMeta):
         return cls
@@ -62,10 +62,10 @@ class ComponentManager(component_api.ComponentManager):
 
     bot: AnyBot
     components: weakref.WeakKeyDictionary[
-        type[component_api.RichComponent],
+        typing.Type[component_api.RichComponent],
         typing.Callable[[disnake.Interaction], typing.Coroutine[None, None, None]],
     ]
-    _recursive_guard: typing.Optional[type[component_api.RichComponent]]
+    _recursive_guard: typing.Optional[typing.Type[component_api.RichComponent]]
 
     def __init__(self, bot: AnyBot):
         self.bot = bot
@@ -74,13 +74,13 @@ class ComponentManager(component_api.ComponentManager):
 
     @contextlib.contextmanager
     def _guard(
-        self, component: type[component_api.RichComponent]
+        self, component: typing.Type[component_api.RichComponent]
     ) -> typing.Generator[None, None, None]:
         self._recursive_guard = component
         yield
         self._recursive_guard = None
 
-    def _subscribe(self, component: type[component_api.RichComponent]) -> None:
+    def _subscribe(self, component: typing.Type[component_api.RichComponent]) -> None:
         if not _assert_componentmeta(component).is_active:
             return
 
@@ -99,7 +99,11 @@ class ComponentManager(component_api.ComponentManager):
     # TODO: Consider using Any here so that you can actually pass protocol
     #       classes without pyright getting angry...
     def subscribe(  # noqa: D102
-        self, component: type[component_api.RichComponent], /, *, recursive: bool = True
+        self,
+        component: typing.Type[component_api.RichComponent],
+        /,
+        *,
+        recursive: bool = True,
     ) -> None:
         # <<docstring inherited from component_api.ComponentManager>>
 
@@ -110,7 +114,7 @@ class ComponentManager(component_api.ComponentManager):
         for child_component in _recurse_subclasses(component):
             self._subscribe(child_component)
 
-    def _unsubscribe(self, component: type[component_api.RichComponent]) -> None:
+    def _unsubscribe(self, component: typing.Type[component_api.RichComponent]) -> None:
         _assert_componentmeta(component)
 
         if self._recursive_guard is component:
@@ -124,7 +128,11 @@ class ComponentManager(component_api.ComponentManager):
                 self.bot.remove_listener(callback, component.event)
 
     def unsubscribe(  # noqa: D102
-        self, component: type[component_api.RichComponent], /, *, recursive: bool = True
+        self,
+        component: typing.Type[component_api.RichComponent],
+        /,
+        *,
+        recursive: bool = True,
     ) -> None:
         # <<docstring inherited from component_api.ComponentManager>>
 
@@ -154,7 +162,8 @@ class ComponentManager(component_api.ComponentManager):
         yield
 
     def wrap_component(
-        self, component_ref: weakref.ReferenceType[type[component_api.RichComponent]]
+        self,
+        component_ref: weakref.ReferenceType[typing.Type[component_api.RichComponent]],
     ) -> typing.Callable[[disnake.Interaction], typing.Coroutine[None, None, None]]:
         """Wrap a component in a callable that handles instantiating and calling it.
 

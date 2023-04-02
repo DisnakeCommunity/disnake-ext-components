@@ -22,7 +22,6 @@ __all__: typing.Sequence[str] = (
     "RichChannelSelect",
 )
 
-
 # God knows why this is needed, but if I don't do this, classes inheriting from
 # RichSelect see e.g. `placeholder: str = fields.internal(default=None)` in the
 # init signature.
@@ -95,7 +94,7 @@ class RichStringSelect(BaseSelect, typing.Protocol):
     keyword-only arguments.
     """
 
-    options: list[disnake.SelectOption] = fields.internal(
+    options: typing.List[disnake.SelectOption] = fields.internal(
         default=attr.Factory(list)  # pyright: ignore
     )
 
@@ -232,7 +231,7 @@ class RichChannelSelect(BaseSelect, typing.Protocol):
     keyword-only arguments.
     """
 
-    channel_types: typing.Optional[list[disnake.ChannelType]] = fields.internal(
+    channel_types: typing.Optional[typing.List[disnake.ChannelType]] = fields.internal(
         default=None
     )
 

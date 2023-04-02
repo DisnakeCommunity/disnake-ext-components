@@ -42,7 +42,7 @@ def _extract_custom_id(interaction: disnake.Interaction) -> str:
     raise TypeError(msg)
 
 
-def _is_attrs_pass(namespace: dict[str, typing.Any]) -> bool:
+def _is_attrs_pass(namespace: typing.Dict[str, typing.Any]) -> bool:
     """Check if attrs has already influenced the class' namespace.
 
     Note that we check the namespace instead of using `attr.has`, because
@@ -53,11 +53,11 @@ def _is_attrs_pass(namespace: dict[str, typing.Any]) -> bool:
     return namespace.get("__attrs_attrs__") is not None
 
 
-def _is_protocol(cls: type[typing.Any]) -> bool:
+def _is_protocol(cls: typing.Type[typing.Any]) -> bool:
     return getattr(cls, "_is_protocol", False)
 
 
-def _finalise_custom_id(component: type[ComponentBase]) -> None:
+def _finalise_custom_id(component: typing.Type[ComponentBase]) -> None:
     """Turn a string, auto id, or custom id into a fully-fledged custom id."""
     custom_id = component.custom_id
 
@@ -124,16 +124,18 @@ def _assert_valid_overwrite(attribute: _AnyAttr, overwrite: _AnyAttr) -> None:
         raise TypeError(msg)
 
 
-def _field_transformer(cls: type, attributes: list[_AnyAttr]) -> list[_AnyAttr]:
+def _field_transformer(
+    cls: type, attributes: typing.List[_AnyAttr]
+) -> typing.List[_AnyAttr]:
     is_concrete = not _is_protocol(cls)
 
-    super_attributes: dict[str, _AnyAttr]
+    super_attributes: typing.Dict[str, _AnyAttr]
     if attr.has(cls):
         super_attributes = {field.name: field for field in fields.get_fields(cls)}
     else:
         super_attributes = {}
 
-    finalised_attributes: list[_AnyAttr] = []
+    finalised_attributes: typing.List[_AnyAttr] = []
     for attribute in attributes:
         # Fields only need a parser if
         # - The component is concrete,
@@ -194,14 +196,14 @@ class ComponentMeta(typing._ProtocolMeta):  # pyright: ignore[reportPrivateUsage
     #       down the line. I might change this later (e.g. define it on
     #       BaseComponent instead, but that comes with its own challenges).
     factory: factory_api.ComponentFactory[typing_extensions.Self]  # pyright: ignore
-    _parent: typing.Optional[type[typing.Any]]
+    _parent: typing.Optional[typing.Type[typing.Any]]
     __module_id__: int
 
     def __new__(  # noqa: D102
         mcls,  # pyright: ignore[reportSelfClsParameterName]
         name: str,
         bases: tuple[type, ...],
-        namespace: dict[str, typing.Any],
+        namespace: typing.Dict[str, typing.Any],
     ) -> ComponentMeta:
         # NOTE: This is run twice for each new class; once for the actual class
         #       definition, and once more by attr.define(). We ensure we only
@@ -211,7 +213,7 @@ class ComponentMeta(typing._ProtocolMeta):  # pyright: ignore[reportPrivateUsage
         namespace.setdefault("__slots__", ())
 
         cls = typing.cast(
-            "type[ComponentBase]",
+            "typing.Type[ComponentBase]",
             super().__new__(mcls, name, bases, namespace),
         )
 
@@ -272,7 +274,7 @@ class ComponentBase(
 ):
     """Overarching base class for any kind of component."""
 
-    _parent: typing.ClassVar[typing.Optional[type[typing.Any]]] = None
+    _parent: typing.ClassVar[typing.Optional[typing.Type[typing.Any]]] = None
     manager: typing.ClassVar[typing.Optional[component_api.ComponentManager]] = None
 
     @classmethod

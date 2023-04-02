@@ -87,9 +87,7 @@ async def _to_ui_components(
     if not isinstance(components, typing.Sequence):
         return await _prepare(components)
 
-    finalised: list[
-        typing.Union[disnake.ui.MessageUIComponent, list[disnake.ui.MessageUIComponent]]
-    ] = []
+    finalised: disnake.ui.Components[disnake.ui.MessageUIComponent] = []
     for component in components:
         if not isinstance(component, typing.Sequence):
             finalised.append(await _prepare(component))
@@ -141,10 +139,10 @@ class WrappedInteraction(disnake.Interaction):
         content: typing.Optional[str] = MISSING,
         *,
         embed: typing.Optional[disnake.Embed] = MISSING,
-        embeds: list[disnake.Embed] = MISSING,
+        embeds: typing.List[disnake.Embed] = MISSING,
         file: disnake.File = MISSING,
-        files: list[disnake.File] = MISSING,
-        attachments: typing.Optional[list[disnake.Attachment]] = MISSING,
+        files: typing.List[disnake.File] = MISSING,
+        attachments: typing.Optional[typing.List[disnake.Attachment]] = MISSING,
         view: typing.Optional[disnake.ui.View] = MISSING,
         components: typing.Optional[Components[MessageComponents]] = MISSING,
         suppress_embeds: bool = MISSING,
@@ -170,9 +168,9 @@ class WrappedInteraction(disnake.Interaction):
         content: typing.Optional[str] = None,
         *,
         embed: disnake.Embed = MISSING,
-        embeds: list[disnake.Embed] = MISSING,
+        embeds: typing.List[disnake.Embed] = MISSING,
         file: disnake.File = MISSING,
-        files: list[disnake.File] = MISSING,
+        files: typing.List[disnake.File] = MISSING,
         allowed_mentions: disnake.AllowedMentions = MISSING,
         view: disnake.ui.View = MISSING,
         components: Components[MessageComponents] = MISSING,
@@ -221,9 +219,9 @@ class WrappedInteractionResponse(disnake.InteractionResponse):
         content: typing.Optional[str] = None,
         *,
         embed: disnake.Embed = MISSING,
-        embeds: list[disnake.Embed] = MISSING,
+        embeds: typing.List[disnake.Embed] = MISSING,
         file: disnake.File = MISSING,
-        files: list[disnake.File] = MISSING,
+        files: typing.List[disnake.File] = MISSING,
         allowed_mentions: disnake.AllowedMentions = MISSING,
         view: disnake.ui.View = MISSING,
         components: Components[MessageComponents] = MISSING,
@@ -254,10 +252,10 @@ class WrappedInteractionResponse(disnake.InteractionResponse):
         content: typing.Optional[str] = None,
         *,
         embed: disnake.Embed = MISSING,
-        embeds: list[disnake.Embed] = MISSING,
+        embeds: typing.List[disnake.Embed] = MISSING,
         file: disnake.File = MISSING,
-        files: list[disnake.File] = MISSING,
-        attachments: typing.Optional[list[disnake.Attachment]] = MISSING,
+        files: typing.List[disnake.File] = MISSING,
+        attachments: typing.Optional[typing.List[disnake.Attachment]] = MISSING,
         allowed_mentions: disnake.AllowedMentions = MISSING,
         view: disnake.ui.View = MISSING,
         components: typing.Optional[Components[MessageComponents]] = MISSING,
