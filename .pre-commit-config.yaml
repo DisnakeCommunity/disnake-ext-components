@@ -5,7 +5,7 @@ ci:
     style: auto fixes from pre-commit hooks
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.2.0
+    rev: v4.4.0
     hooks:
       - id: check-ast
         name: Check if python files are valid syntax for the ast parser
@@ -26,14 +26,14 @@ repos:
         args: [--markdown-linebreak-ext=md]
 
   - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.0.256
+    rev: v0.0.260
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
         name: Running ruff in all files.
 
   - repo: https://github.com/psf/black
-    rev: 22.3.0
+    rev: 23.3.0
     hooks:
       - id: black
         name: Running black in all files.
