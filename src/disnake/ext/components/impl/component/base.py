@@ -104,6 +104,23 @@ def _determine_parser(
     return None
 
 
+def _eval_type(cls: type, annotation: typing.Any) -> typing.Any:  # noqa: ANN401
+    # Get the module globals in which the class was defined. This is the most
+    # probable candidate in which to find the type annotations' definitions.
+    #
+    # For the most part, this should be safe. Conflicts where e.g. a component
+    # inheriting from RichButton but not defining _AnyEmoji in their own module
+    # are safe, because the type has already been passed through this function
+    # when the RichButton class was initially created.
+    cls_globals = sys.modules[cls.__module__].__dict__
+
+    if isinstance(annotation, str):
+        annotation = typing.ForwardRef(annotation, is_argument=False)
+
+    # Evaluate the typehint with the provided globals.
+    return typing._eval_type(annotation, cls_globals, None)  # pyright: ignore
+
+
 def _assert_valid_overwrite(attribute: _AnyAttr, overwrite: _AnyAttr) -> None:
     if fields.FieldMetadata.FIELDTYPE not in overwrite.metadata:
         return
@@ -124,53 +141,56 @@ def _assert_valid_overwrite(attribute: _AnyAttr, overwrite: _AnyAttr) -> None:
         raise TypeError(msg)
 
 
+def _is_custom_id_field(field: _AnyAttr) -> bool:
+    return (
+        fields.get_field_type(field, fields.FieldType.CUSTOM_ID)
+        is fields.FieldType.CUSTOM_ID
+    )
+
+
 def _field_transformer(
     cls: type, attributes: typing.List[_AnyAttr]
 ) -> typing.List[_AnyAttr]:
     is_concrete = not _is_protocol(cls)
-
-    super_attributes: typing.Dict[str, _AnyAttr]
-    if attr.has(cls):
-        super_attributes = {field.name: field for field in fields.get_fields(cls)}
-    else:
-        super_attributes = {}
+    super_attributes: typing.Dict[str, _AnyAttr] = (
+        {field.name: field for field in fields.get_fields(cls)} if attr.has(cls) else {}
+    )
 
     finalised_attributes: typing.List[_AnyAttr] = []
     for attribute in attributes:
         # Fields only need a parser if
         # - The component is concrete,
         # - The field is a custom-id field.
-        needs_parser = is_concrete and (
-            fields.get_field_type(attribute, fields.FieldType.CUSTOM_ID)
-            is fields.FieldType.CUSTOM_ID
-        )
+        # In case of an overwrite, we check the field type of the super-field.
         super_attribute = super_attributes.get(attribute.name)
+        needs_parser = is_concrete and _is_custom_id_field(super_attribute or attribute)
 
-        if not super_attribute:
-            # Not an overwrite; ensure there is a parser if there needs to be one.
-            parser = _determine_parser(attribute, None, required=needs_parser)
-            finalised_attributes.append(
-                attribute.evolve(metadata={**attribute.metadata, "parser": parser})
-            )
-            continue
+        # Ensure all forward-references are evaluated.
+        evolved = attribute.evolve(type=_eval_type(cls, attribute.type))
 
-        # This field overwrites a pre-existing field.
-        _assert_valid_overwrite(super_attribute, attribute)
+        if super_attribute:
+            # This field overwrites a pre-existing field. Merge metadata and
+            # ensure the parser isn't overwritten if the new value is None.
+            _assert_valid_overwrite(super_attribute, attribute)
+            metadata = {**super_attribute.metadata, **evolved.metadata}
 
-        # Merge metadata and ensure the parser isn't overwritten if the new
-        # value is None.
+        else:
+            # Not an overwrite, ensure the fieldtype is set to CUSTOM_ID if not
+            # already provided.
+            metadata = {
+                fields.FieldMetadata.FIELDTYPE: fields.FieldType.CUSTOM_ID,
+                **evolved.metadata,
+            }
+
         # TODO: Make copy of parser instead of using the same instance
-
-        metadata = {**super_attribute.metadata, **attribute.metadata}
-        parser = _determine_parser(attribute, super_attribute, required=needs_parser)
-        metadata[fields.FieldMetadata.PARSER] = parser
-
-        finalised_attributes.append(
-            attribute.evolve(
-                default=super_attribute.default,
-                metadata=metadata,
-            )
+        metadata[fields.FieldMetadata.PARSER] = _determine_parser(
+            evolved,
+            super_attribute,
+            required=needs_parser,
         )
+
+        # Apply finalised metadata.
+        finalised_attributes.append(evolved.evolve(metadata=metadata))
 
     return finalised_attributes
 
