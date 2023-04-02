@@ -9,6 +9,7 @@ selected slot and colour are then combined to colour the corresponding square.
 from __future__ import annotations
 
 import os
+import typing
 
 import disnake
 from disnake.ext import commands, components
@@ -58,11 +59,11 @@ COLOUR_OPTIONS = [
     disnake.SelectOption(label="Yellow", value=YELLOW_SQUARE, emoji=YELLOW_SQUARE),
 ]
 
+
 # Then, we make the select.
 class MySelect(components.RichStringSelect):
-
     placeholder: str = "Please select a square."  # Set the placeholder text...
-    options: list[disnake.SelectOption] = SLOT_OPTIONS  # Set the options...
+    options: typing.List[disnake.SelectOption] = SLOT_OPTIONS  # Set the options...
 
     slot: str = "0"  # We store the slot the user is currently working with...
     state: str = "slot"  # We store whether they're picking a slot or a colour...
