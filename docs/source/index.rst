@@ -8,9 +8,10 @@ Welcome to disnake-ext-components's documentation!
 
 .. toctree::
    :maxdepth: 1
-   :caption: Getting Starterd
+   :caption: Getting Started
 
    quickstart
+   examples/index
 
 
 .. include:: ../../README.md

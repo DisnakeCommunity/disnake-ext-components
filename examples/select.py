@@ -56,6 +56,7 @@ COLOUR_OPTIONS = [
     disnake.SelectOption(label="Yellow", value=YELLOW_SQUARE, emoji=YELLOW_SQUARE),
 ]
 
+
 # Then, we make the select.
 class MySelect(components.RichStringSelect):
 

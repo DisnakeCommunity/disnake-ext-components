@@ -25,6 +25,7 @@ from disnake.ext import commands, components
 # prefix command capabilities, we opt for an InteractionBot.
 bot = commands.InteractionBot()
 
+
 # Next, we make a custom component manager.
 class MyManager(components.ComponentManager):
 
