@@ -163,6 +163,8 @@ class WrappedInteraction(disnake.Interaction):
             allowed_mentions=allowed_mentions,
         )
 
+    edit_original_message = edit_original_response
+
     async def send(  # pyright: ignore[reportIncompatibleMethodOverride]  # noqa: D102
         self,
         content: typing.Optional[str] = None,
@@ -213,6 +215,13 @@ class WrappedInteractionResponse(disnake.InteractionResponse):
 
     def __init__(self, wrapped: disnake.InteractionResponse):
         self._wrapped = wrapped
+
+    def __getattribute__(self, name: str) -> typing.Any:  # noqa: ANN401
+        """Get an attribute of this class or the wrapped interaction."""
+        try:
+            return super().__getattribute__(name)
+        except AttributeError:
+            return getattr(self._wrapped, name)
 
     async def send_message(  # pyright: ignore[reportIncompatibleMethodOverride]  # noqa: D102, E501
         self,
