@@ -128,11 +128,11 @@ class WrappedInteraction(disnake.Interaction):
 
         return WrappedInteractionResponse(super().response)
 
-    # @disnake.utils.cached_slot_property("_cs_response")
-    # def followup(self) -> disnake.Webhook:
-    #     # <<docstring inherited from disnake.Interaction>>
+    @disnake.utils.cached_slot_property("_cs_followup")
+    def followup(self) -> disnake.Webhook:  # noqa: D102
+        # <<docstring inherited from disnake.Interaction>>
 
-    #     return self._wrapped.followup  # TODO: custom followup object
+        return self._wrapped.followup  # TODO: custom followup object
 
     async def edit_original_response(  # pyright: ignore[reportIncompatibleMethodOverride]  # noqa: D102, E501
         self,
