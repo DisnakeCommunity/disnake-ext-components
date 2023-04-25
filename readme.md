@@ -1,3 +1,11 @@
+NOTICE
+------
+disnake-ext-components is currently undergoing a rewrite. While it is not yet entirely stable, it is recommended to
+use the rewrite version as opposed to this one, as syntax has changed, and this current version will not be updated
+(it will still receive bug fixes, though). Please see the [Rewrite](https://github.com/DisnakeCommunity/disnake-ext-components/tree/rewrite)
+branch for further information.
+
+
 disnake-ext-components
 ======================
 
