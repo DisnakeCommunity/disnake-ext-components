@@ -3,211 +3,468 @@
 from __future__ import annotations
 
 import contextlib
+import logging
 import typing
 import weakref
 
-from disnake.ext import commands
+import disnake
 from disnake.ext.components import interaction as interaction_impl
 from disnake.ext.components.api import component as component_api
-from disnake.ext.components.impl.component import base as component_base_impl
 
 if typing.TYPE_CHECKING:
-    import disnake
+    import typing_extensions
 
 __all__: typing.Sequence[str] = ("ComponentManager",)
 
 
-_TypeT = typing.TypeVar("_TypeT", bound="typing.Type[typing.Any]")
-AnyBot = typing.Union[commands.Bot, commands.InteractionBot]
+_LOGGER = logging.getLogger(__name__)
+_ROOT = "root"
 
 
-def _recurse_subclasses(cls: _TypeT) -> typing.Generator[_TypeT, None, None]:
-    for subclass in cls.__subclasses__():
-        yield subclass
-        yield from _recurse_subclasses(subclass)
+CallbackWrapperFunc = typing.Callable[
+    [component_api.RichComponent, disnake.Interaction],
+    typing.AsyncGenerator[None, None],
+]
+CallbackWrapper = typing.Callable[
+    [component_api.RichComponent, disnake.Interaction],
+    typing.AsyncContextManager[None],
+]
+CallbackWrapperFuncT = typing.TypeVar("CallbackWrapperFuncT", bound=CallbackWrapperFunc)
 
 
-def _is_protocol(cls: typing.Type[typing.Any]) -> bool:
-    return bool(getattr(cls, "_is_protocol", False))
+ExceptionHandlerFunc = typing.Callable[
+    [component_api.RichComponent, disnake.Interaction, Exception],
+    typing.Coroutine[typing.Any, typing.Any, typing.Optional[bool]],
+]
+ExceptionHandlerFuncT = typing.TypeVar(
+    "ExceptionHandlerFuncT", bound=ExceptionHandlerFunc
+)
+
+ComponentType = typing.Type[component_api.RichComponent]
+ComponentTypeT = typing.TypeVar("ComponentTypeT", bound=ComponentType)
 
 
-def _assert_componentmeta(
-    cls: typing.Type[typing.Any],
-) -> component_base_impl.ComponentMeta:
-    if isinstance(cls, component_base_impl.ComponentMeta):
-        return cls
+def _minimise_count(count: int) -> str:
+    # We only need to support counts up to 25, as that is the
+    # maximum number of components that can go on a message.
+    # Byte-length 1 should support a range of 0~255 inclusive.
+    byte = count.to_bytes(1, "little")
+    # Decode into a charset that supports these bytes as a single char.
+    return byte.decode("latin-1")
 
-    msg = (
-        "A valid component must have"
-        f" {component_base_impl.ComponentMeta.__qualname__!r} as its metaclass."
+
+_COUNT_CHARS = tuple(map(_minimise_count, range(25)))
+
+
+@contextlib.asynccontextmanager
+async def default_callback_wrapper(
+    component: component_api.RichComponent,  # noqa: ARG001
+    interaction: disnake.Interaction,  # noqa: ARG001
+) -> typing.AsyncGenerator[None, None]:
+    """Wrap a callback for a component manager.
+
+    This is the default implementation, and is effectively a no-op.
+    """
+    yield
+
+
+async def default_exception_handler(
+    component: component_api.RichComponent,
+    interaction: disnake.Interaction,  # noqa: ARG001
+    exception: Exception,
+) -> bool:
+    """Handle an exception that occurs during execution of a component callback.
+
+    This is the default implementation, and simply passes the exception down.
+    If it is passed down to the root logger, and the root logger also has this
+    default implementation, the exception is logged.
+    """
+    if component.manager and component.manager.name is not _ROOT:
+        # Not the root manager, try passing down.
+        return False
+
+    # We're at the root logger, and the exception remains unhandled. Log it.
+
+    exc_info = (
+        type(exception),
+        exception,
+        exception.__traceback__.tb_next if exception.__traceback__ else None,
     )
-    raise TypeError(msg)
+
+    _LOGGER.exception(
+        "An exception was caught while handling the callback of component"
+        " %r on handler %r.",
+        component,
+        component.manager.name if component.manager else "<unknown>",
+        exc_info=exc_info,
+    )
+
+    return True
 
 
 class ComponentManager(component_api.ComponentManager):
-    """The default implementation of a component manager.
+    """The standard implementation of a component manager.
 
-    This class keeps track of all components defined and their listener
-    functions, and is in charge of registering them to and deregistering them
-    from the bot. Note that by nature of this using :meth:`commands.Bot.listen`
-    under the hood, this class does not support :class:`disnake.Client`-classes.
+    Component managers keep track of disnake-ext-components' special components
+    and ensure they smoothly communicate with disnake's bots. Since this relies
+    on listener functionality, component managers are incompatible with
+    :class:`disnake.Client`-classes.
 
-    Parameters
-    ----------
-    bot:
-        The bot to register this manager's components on as listeners.
+    To register a component to a component manager, use :meth:`register`.
+    Without registering your components, they will remain unresponsive.
+
+    To get an instance of a component manager, use :func:`get_manager`. This
+    will automatically create missing managers if needed, much like
+    :func:`logging.getLogger`. Similarly, managers feature a parent-child
+    hierarchy in the same way loggers do. For example, a manager named
+    "foo.bar" would be a child of the manager named "foo". When a component is
+    invoked on a child, it will wrap the callback using the callback wrappers
+    of all of its parents. Similarly, if an exception occurs, the exception
+    handlers of all parents can be tried until the error was handled
+    successfully.
     """
 
-    __slots__: typing.Sequence[str] = ("bot", "components", "_recursive_guard")
+    _name: str
+    _children: typing.Set[ComponentManager]
+    _components: weakref.WeakValueDictionary[str, ComponentType]
+    _count: bool
+    _counter: int
 
-    bot: AnyBot
-    components: weakref.WeakKeyDictionary[
-        typing.Type[component_api.RichComponent],
-        typing.Callable[[disnake.Interaction], typing.Coroutine[None, None, None]],
-    ]
-    _recursive_guard: typing.Optional[typing.Type[component_api.RichComponent]]
-
-    def __init__(self, bot: AnyBot):
-        self.bot = bot
-        self.components = weakref.WeakKeyDictionary()
-        self._recursive_guard = None
-
-    @contextlib.contextmanager
-    def _guard(
-        self, component: typing.Type[component_api.RichComponent]
-    ) -> typing.Generator[None, None, None]:
-        self._recursive_guard = component
-        yield
-        self._recursive_guard = None
-
-    def _subscribe(self, component: typing.Type[component_api.RichComponent]) -> None:
-        if not _assert_componentmeta(component).is_active:
-            return
-
-        if self._recursive_guard is component:
-            return
-
-        with self._guard(component):
-            component.set_manager(self)
-
-            if not _is_protocol(component):
-                callback = self.wrap_component(weakref.ref(component))
-
-                self.components[component] = callback
-                self.bot.add_listener(callback, component.event)
-
-    # TODO: Consider using Any here so that you can actually pass protocol
-    #       classes without pyright getting angry...
-    def subscribe(  # noqa: D102
+    def __init__(
         self,
-        component: typing.Type[component_api.RichComponent],
-        /,
+        name: str,
         *,
-        recursive: bool = True,
-    ) -> None:
-        # <<docstring inherited from component_api.ComponentManager>>
+        count: bool = True,
+    ):
+        self._name = name
+        self._children = set()
+        self._components = weakref.WeakValueDictionary()
+        self._count = count
+        self._counter = 0
+        self.wrap_callback: CallbackWrapper = default_callback_wrapper
+        self.handle_exception: ExceptionHandlerFunc = default_exception_handler
 
-        self._subscribe(component)
-        if not recursive:
-            return
+    def __repr__(self) -> str:
+        return f"ComponentManager(name={self.name})"
 
-        for child_component in _recurse_subclasses(component):
-            self._subscribe(child_component)
+    @property
+    def name(self) -> str:  # noqa: D102
+        # <<docstring inherited from api.components.ComponentManager>>
 
-    def _unsubscribe(self, component: typing.Type[component_api.RichComponent]) -> None:
-        _assert_componentmeta(component)
+        return self._name
 
-        if self._recursive_guard is component:
-            return
+    @property
+    def children(self) -> typing.Set[ComponentManager]:  # noqa: D102
+        # <<docstring inherited from api.components.ComponentManager>>
 
-        with self._guard(component):
-            component.set_manager(None)
+        return self._children
 
-            if not _is_protocol(component):
-                callback = self.components.pop(component)
-                self.bot.remove_listener(callback, component.event)
+    @property
+    def components(self) -> typing.Mapping[str, ComponentType]:  # noqa: D102
+        # <<docstring inherited from api.components.ComponentManager>>
 
-    def unsubscribe(  # noqa: D102
+        return self._components
+
+    @property
+    def count(self) -> bool:  # noqa: D102
+        # <<docstring inherited from api.components.ComponentManager>>
+
+        return self._count
+
+    @property
+    def counter(self) -> int:  # noqa: D102
+        # <<docstring inherited from api.components.ComponentManager>>
+
+        return self._counter
+
+    @property
+    def parent(self) -> typing.Optional[typing_extensions.Self]:  # noqa: D102
+        # <<docstring inherited from api.components.ComponentManager>>
+
+        if "." not in self.name:
+            # Return the root manager if this is not the root manager already.
+            return None if self.name is _ROOT else get_manager(_ROOT)
+
+        root, _ = self.name.rsplit(".", 1)
+        return get_manager(root)
+
+    def make_identifier(self, component_type: ComponentType) -> str:  # noqa: D102
+        # <<docstring inherited from api.components.ComponentManager>>
+
+        return component_type.__name__
+
+    def get_identifier(  # noqa: D102
+        self, custom_id: str
+    ) -> typing.Tuple[str, typing.Sequence[str]]:
+        # <<docstring inherited from api.components.ComponentManager>>
+
+        name, *params = custom_id.split("|")
+
+        if self.count and name.endswith(_COUNT_CHARS):
+            # Count is always the single last character in the name part.
+            return name[:-1], params
+
+        return name, params
+
+    def increment(self) -> str:  # noqa: D102
+        count = _minimise_count(self.count)
+
+        self._counter += 1
+        if self._counter > 24:
+            self._counter = 0
+
+        return count
+
+    async def make_custom_id(  # noqa: D102
+        self, component: component_api.RichComponent
+    ) -> str:
+        # <<docstring inherited from api.components.ComponentManager>>
+
+        identifier = self.make_identifier(type(component))
+
+        if self.count:
+            identifier = identifier + self.increment()
+
+        dumped_params = await component.factory.dump_params(component)
+
+        return "|".join([identifier, *dumped_params.values()])
+
+    async def parse_interaction(  # noqa: D102
+        self, interaction: disnake.Interaction
+    ) -> typing.Optional[component_api.RichComponent]:
+        # <<docstring inherited from api.components.ComponentManager>>
+
+        custom_id = interaction.data["custom_id"]
+        identifier, params = self.get_identifier(custom_id)
+
+        if identifier not in self._components:
+            return None
+
+        component_type = self._components[identifier]
+
+        return await component_type.factory.build_from_interaction(interaction, params)
+
+    def register(self, component_type: ComponentTypeT) -> ComponentTypeT:  # noqa: D102
+        # <<docstring inherited from api.components.ComponentManager>>
+
+        identifier = self.make_identifier(component_type)
+        component_type.manager = self
+
+        # Register to current manager and all parent managers.
+        for manager in _recurse_parents(self):
+            manager._components[identifier] = component_type
+
+        return component_type
+
+    def deregister(  # noqa: D102
         self,
-        component: typing.Type[component_api.RichComponent],
-        /,
-        *,
-        recursive: bool = True,
+        component_type: ComponentType,
     ) -> None:
-        # <<docstring inherited from component_api.ComponentManager>>
+        # <<docstring inherited from api.components.ComponentManager>>
 
-        self._unsubscribe(component)
-        if not recursive:
-            return
+        identifier = self.make_identifier(component_type)
+        component = self._components[identifier]
 
-        for child_component in _recurse_subclasses(component):
-            self._unsubscribe(child_component)
+        if not component.manager:
+            message = (
+                f"Component {component_type.__name__!r} is not registered to a"
+                " component manager."
+            )
+            raise TypeError(message)
 
-    @contextlib.contextmanager
-    def callback_hook(
-        self, component: component_api.RichComponent  # noqa: ARG002
-    ) -> typing.Generator[None, None, None]:
-        """Wrap all component callbacks on this manager with this context manager.
+        if not isinstance(component.manager, ComponentManager):
+            # This should honestly never happen unless the user does some
+            # really weird stuff.
+            # TODO: Maybe think of an error message for this.
+            raise TypeError
 
-        Any code before the ``yield``-statement will run after validating the
-        component should run, but before its callback is invoked.
-        Any code after the ``yield``-statement will run after the component
-        callback is invoked.
+        # Deregister from the current manager and all parent managers.
+        for manager in _recurse_parents(component.manager):
+            manager._components.pop(identifier)
+
+    def as_callback_wrapper(self, func: CallbackWrapperFuncT) -> CallbackWrapperFuncT:
+        """Register a callback as this managers' callback wrapper.
+
+        By default, this is essentially a no-op.
+
+        A callback wrapper MUST be an async function with ONE yield statement.
+        - Any code before the yield statement is run before the component
+        callback is invoked,
+        - The component is invoked at the yield statement,
+        - Any code after the yield statement is run after the component
+        callback is invoked. This can be used for cleanup.
+
+        It is therefore also possible to use context managers over the yield
+        statement, to automatically handle resource management.
+
+        In case this manager has a parent manager, the parent's callback
+        wrapper will be used first, starting all the way at the root manager.
+        For example, on a manager named "foo.bar", the callback will first be
+        wrapped by the root manager, then by "foo", then by "foo.bar", and only
+        then will the component callback finally be invoked.
+
+        Note that any exceptions raised in any callback wrapper will cancel any
+        other active callback wrappers and propagate the exception to the
+        manager's error handler.
+
+        Examples
+        --------
+        .. code-block:: python3
+            manager = get_manager()
+
+
+            @manager.as_callback_wrapper
+            async def wrapper(component, interaction):
+                print(f"User {inter.author.name} invoked {type(component).__name__}.)
+                yield
+                print(f"Successfully ran callback for {type(component).__name__}.)
 
         Parameters
         ----------
-        component:
-            The component instance that is about to be invoked.
-        """
-        yield
-
-    def wrap_component(
-        self,
-        component_ref: weakref.ReferenceType[typing.Type[component_api.RichComponent]],
-    ) -> typing.Callable[[disnake.Interaction], typing.Coroutine[None, None, None]]:
-        """Wrap a component in a callable that handles instantiating and calling it.
-
-        This is used to generate a callback to register to the bot as a listener.
-
-        Parameters
-        ----------
-        component_ref:
-            A :func:`weakref.ref` to the component to wrap.
+        func: Callable[[:class:`RichComponent`, :class:`disnake.Interaction`], AsyncGenerator[None, None]]
+            The callback to register. This must be an async function that takes
+            the component as the first argument, and the interaction as the
+            second. The function must have a single ``yield``-statement that
+            yields ``None``.
 
         Returns
         -------
-        typing.Callable[[:class:`disnake.Interaction`], typing.Coroutine[None, None, None]]:
-            The generated callable.
+        Callable[[:class:`RichComponent`, :class:`disnake.Interaction`], AsyncGenerator[None, None]]
+            The function that was just registered.
         """  # noqa: E501
+        self.wrap_callback = contextlib.asynccontextmanager(func)
+        return func
 
-        async def component_listener(interaction: disnake.Interaction) -> None:
-            component = component_ref()
-            if not component:
-                return
+    def as_exception_handler(
+        self, func: ExceptionHandlerFuncT
+    ) -> ExceptionHandlerFuncT:
+        """Register a callback as this managers' error handler.
 
-            if not _assert_componentmeta(component).is_active:
-                # In case an extension was unloaded and the component in question
-                # only lingers because it has not yet been garbage collected,
-                # we manually unsubscribe it from the manager to prevent this
-                # from happening again later.
-                self.unsubscribe(component)
+        By default, this simply logs the exception and keeps it from
+        propagating.
 
-            if not component.should_invoke_for(interaction):
-                return
+        An error handler should return a boolean or ``None``:
+        - ``True`` if the error was successfully handled and should not be
+        propagated further.
+        - ``False`` or ``None`` if the error was *not* successfully handled and
+        should be passed to the next error handler in line.
 
-            instance = await component.loads(interaction)
+        Note that it is therefore also possible to use context managers over
+        the yield statement.
 
-            with self.callback_hook(instance):
-                await instance.callback(interaction_impl.wrap_interaction(interaction))
+        In case this manager has a parent manager, the parent's error handler
+        will be used if this one returns ``False`` or ``None``. For example,
+        of a manager named "foo.bar", any exceptions will first be handled by
+        "foo.bar", if that fails it will be handled by "foo", and finally if
+        that also fails it will be handled by the root handler.
 
-        return component_listener
+        Examples
+        --------
+        .. code-block:: python3
+            manager = get_manager()
 
-    def basic_config(self) -> None:
-        """Do basic configuration for this manager.
 
-        This automatically registers **all** current and future components to
-        this manager.
-        """
-        # TODO: Do we keep this? Maybe rename it somehow?
+            @manager.as_exception_handler
+            async def wrapper(component, interaction, exception):
+                if isinstance(exception, TypeError):
+                    return True  # Silently ignore any TypeErrors
 
-        self.subscribe(component_base_impl.ComponentBase)  # pyright: ignore
+                return False  # Propagate all other errors.
+
+        Parameters
+        ----------
+        func: Callable[[:class:`RichComponent`, :class:`disnake.Interaction`, :class:`Exception`], None]
+            The callback to register. This must be an async function that takes
+            the component as the first argument, the interaction as the second,
+            and the exception as the third. The function must return ``True``
+            to indicate that the error was handled successfully, or either
+            ``False`` or ``None`` to indicate the opposite.
+
+        Returns
+        -------
+        Callable[[:class:`RichComponent`, :class:`disnake.Interaction`, :class:`Exception`], None]
+            The function that was just registered.
+        """  # noqa: E501
+        self.handle_exception = func
+        return func
+
+    async def invoke(self, interaction: disnake.Interaction) -> None:  # noqa: D102
+        # <<docstring inherited from api.components.ComponentManager>>
+
+        # First, we check if the component is managed.
+        component = await self.parse_interaction(interaction)
+        if not (component and component.manager):
+            # If the component was found, the manager is guaranteed to be
+            # defined but we need the extra check for type-safety.
+            return
+
+        if not isinstance(component.manager, ComponentManager):
+            # This should honestly never happen unless the user does some
+            # really weird stuff.
+            # TODO: Maybe think of an error message for this.
+            raise TypeError
+
+        # We traverse the managers in reverse: root first, then child, etc.
+        # until we reach the component's actual manager. Therefore, we first
+        # store all managers in a list, so that we can call reversed() on it
+        # later.
+        # This applies only to the callback wrappers. Error handlers are called
+        # starting from the actual manager and propagated down to the root
+        # manager if the error was left unhandled.
+        managers = list(_recurse_parents(component.manager))
+
+        try:
+            async with contextlib.AsyncExitStack() as stack:
+                # Enter all the context managers...
+                for manager in reversed(managers):
+                    wrapper_coro = manager.wrap_callback(component, interaction)
+                    await stack.enter_async_context(wrapper_coro)
+
+                # If none raised, we run the callback.
+                wrapped = interaction_impl.wrap_interaction(interaction)
+                await component.callback(wrapped)
+
+        except Exception as exception:  # noqa: BLE001
+            # Blanket exception catching is desired here as it's meant to
+            # redirect all non-system errors to the error handler.
+
+            for manager in reversed(managers):
+                if manager.handle_exception(component, interaction, exception):
+                    # If an error handler returns True, consider the error
+                    # handled and skip the remaining handlers.
+                    break
+
+
+_MANAGER_STORE: typing.Final[typing.Dict[str, ComponentManager]] = {}
+
+
+def _recurse_parents(manager: ComponentManager) -> typing.Iterator[ComponentManager]:
+    yield manager
+    while manager := manager.parent:  # pyright: ignore
+        yield manager
+
+
+def get_manager(name: typing.Optional[str] = None) -> ComponentManager:
+    """Get a manager by name, or create one if it does not yet exist.
+
+    Managers follow a parent-child hierarchy. For example, a manager "foo.bar"
+    would be a child of "foo". Any components registered to "foo.bar" would
+    also
+    """
+    if name is None:
+        # TODO: Maybe use a sentinel:
+        #       - auto-infer name if sentinel,
+        #       - return root logger if None was passed explicitly.
+        name = _ROOT
+
+    if name in _MANAGER_STORE:
+        return _MANAGER_STORE[name]
+
+    _MANAGER_STORE[name] = manager = ComponentManager(name)
+
+    if "." in name:
+        root, _ = name.rsplit(".", 1)
+        parent = get_manager(root)
+        parent.children.add(manager)
+
+    return manager
