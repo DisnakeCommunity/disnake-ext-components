@@ -316,8 +316,7 @@ class ComponentFactory(typing.Protocol[ComponentT]):
 
     @classmethod
     def from_component(
-        cls,
-        __component: typing.Type[RichComponent],
+        cls, __component: typing.Type[RichComponent]
     ) -> typing_extensions.Self:
         """Create a component factory from the provided component.
 
@@ -332,11 +331,12 @@ class ComponentFactory(typing.Protocol[ComponentT]):
         """
         ...
 
-    async def loads(
+    # TODO: Update docstring
+    async def load_params(
         self,
         __interaction: disnake.Interaction,
-        __params: typing.Mapping[str, str],
-    ) -> ComponentT:
+        __params: typing.Sequence[str],
+    ) -> typing.Mapping[str, object]:
         """Create a new component instance from the provided custom id.
 
         This requires the custom id to already have been decomposed into
@@ -353,7 +353,7 @@ class ComponentFactory(typing.Protocol[ComponentT]):
         # TODO: Return an ext-components specific conversion error.
         ...
 
-    async def dumps(self, __component: ComponentT) -> str:
+    async def dump_params(self, __component: ComponentT) -> typing.Mapping[str, str]:
         """Dump a component into a new custom id string.
 
         This converts the component's individual fields back into strings and
@@ -364,5 +364,24 @@ class ComponentFactory(typing.Protocol[ComponentT]):
         ----------
         component:
             The component to dump into a custom id.
+        """
+        ...
+
+    async def build_from_interaction(
+        self,
+        interaction: disnake.Interaction,
+        params: typing.Sequence[str],
+    ) -> ComponentT:
+        """Create a new component instance from the provided interaction.
+
+        This requires the custom id to already have been decomposed into
+        individual fields. This is generally done by the component manager.
+
+        Parameters
+        ----------
+        interaction:
+            The interaction to use for creating the component instance.
+        params:
+            A mapping of field name to to-be-parsed field values.
         """
         ...

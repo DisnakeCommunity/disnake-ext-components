@@ -94,6 +94,7 @@ select = [
 # UP007 incorrectly "updates" Union[X, Y] to X | Y.
 # UP038 ^ inside isinstance.
 # PLC0414 doesn't support `import foo as foo` to reexport.
+# B905 incompatible with code that should run on py < 3.10.
 ignore = [
     "F403",
     "F405",
@@ -112,6 +113,7 @@ ignore = [
     "UP007",
     "UP038",
     "PLC0414",
+    "B905",
 ]
 
 unfixable = ["RET502", "RET503"]

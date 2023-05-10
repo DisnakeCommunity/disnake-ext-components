@@ -34,7 +34,7 @@ class ComponentFactory(
     component factory can simply be created using :meth:`from_component`.
     """
 
-    parsers: ParserMapping
+    parsers: ParserMapping = attr.field(converter=types.MappingProxyType)
     component: typing.Type[component_api.ComponentT]
 
     @classmethod
@@ -108,36 +108,47 @@ class ComponentFactory(
         result = parser.dumps(value)
         return await aio.eval_maybe_coro(result)
 
-    async def loads(  # noqa: D102
+    async def load_params(  # noqa: D102
         self,
         interaction: disnake.Interaction,
-        params: typing.Mapping[str, str],
-    ) -> factory_api.ComponentT:
+        params: typing.Sequence[str],
+    ) -> typing.Mapping[str, object]:
         # <<docstring inherited from factory_api.ComponentFactory>>
 
-        kwargs = {
+        if len(params) != len(self.parsers):
+            # Ensure params and parsers are of the same length before zipping them.
+            # Equivalent to `zip(..., strict=True)` in py >= 3.10.
+            message = (
+                "Component parameter count mismatch."
+                f" Expected {len(self.parsers)}, got {len(params)}."
+            )
+            raise ValueError(message)
+
+        return {
             param: await self.loads_param(interaction, param, value)
-            for param, value in params.items()
+            for param, value in zip(self.parsers, params)
             if value
         }
 
-    async def dumps(self, component: component_api.ComponentT) -> str:  # noqa: D102
+    async def dump_params(  # noqa: D102
+            self, component: component_api.ComponentT
+        ) -> typing.Mapping[str, str]:
         # <<docstring inherited from factory_api.ComponentFactory>>
 
-        component_type = type(component)
-
-        kwargs = {
-            field.name: await self.dumps_param(
-                field.name, getattr(component, field.name)
-            )
-            for field in fields.get_fields(
-                component_type, kind=fields.FieldType.CUSTOM_ID
-            )
+        return {
+            field: await self.dumps_param(field, getattr(component, field))
+            for field in self.parsers
         }
 
-        return typing.cast(
-            custom_id_impl.CustomID, component_type.custom_id
-        ).format_map(kwargs)
+    async def build_from_interaction(  # noqa: D102
+        self,
+        interaction: disnake.Interaction,
+        params: typing.Sequence[str],
+    ) -> component_api.ComponentT:
+        # <<docstring inherited from factory_api.ComponentFactory>>
+
+        parsed = await self.load_params(interaction, params)
+        return self.component(**parsed)
 
 
 class NoopFactory(component_api.ComponentFactory[typing.Any]):
@@ -159,12 +170,22 @@ class NoopFactory(component_api.ComponentFactory[typing.Any]):
 
         return _NoopFactory
 
-    async def loads(self, *_: object) -> typing.NoReturn:  # noqa: D102
+    async def load_params(self, *_: object) -> typing.NoReturn:  # noqa: D102
         # <<docstring inherited from factory_api.ComponentFactory>>
 
         raise NotImplementedError
 
-    async def dumps(self, *_: object) -> typing.NoReturn:  # noqa: D102
+    async def dump_params(self, *_: object) -> typing.NoReturn:  # noqa: D102
+        # <<docstring inherited from factory_api.ComponentFactory>>
+
+        raise NotImplementedError
+
+
+    async def build_from_interaction(  # noqa: D102
+        self,
+        interaction: disnake.Interaction,
+        params: typing.Sequence[str],
+    ) -> typing.NoReturn:
         # <<docstring inherited from factory_api.ComponentFactory>>
 
         raise NotImplementedError
