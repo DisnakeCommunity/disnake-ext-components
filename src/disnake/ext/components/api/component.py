@@ -144,6 +144,8 @@ class ComponentManager(typing.Protocol):
     Without registering your components, they will remain unresponsive.
     """
 
+    __slots__: typing.Sequence[str] = ()
+
     @property
     def name(self) -> str:
         """The name of this manager.
