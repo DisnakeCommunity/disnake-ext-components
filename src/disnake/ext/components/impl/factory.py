@@ -8,9 +8,7 @@ import typing
 import attr
 from disnake.ext.components import fields
 from disnake.ext.components.api import component as component_api
-from disnake.ext.components.api import factory as factory_api
 from disnake.ext.components.api import parser as parser_api
-from disnake.ext.components.impl import custom_id as custom_id_impl
 from disnake.ext.components.impl.parser import base as parser_base
 from disnake.ext.components.internal import aio
 
@@ -21,102 +19,13 @@ if typing.TYPE_CHECKING:
 __all__: typing.Sequence[str] = ("ComponentFactory",)
 
 
-_T = typing.TypeVar("_T")
-
 ParserMapping = typing.Mapping[str, parser_api.Parser[typing.Any]]
-MutableParserMapping = typing.MutableMapping[str, parser_api.Parser[typing.Any]]
-
-
-@attr.define(slots=True)
-class ComponentFactoryBuilder:
-    """A builder for component factories that support stepwise creation.
-
-    Individually register parameters and return their parser. This is used in
-    :class:`component_base.ComponentMeta` to register the parsers on each field
-    as they are created.
-
-    Call :meth:`build` to finalise the :class:`ComponentFactory`.
-    """
-
-    parsers: MutableParserMapping = attr.field(factory=dict, init=False)
-
-    def add_field(self, field: attr.Attribute[_T]) -> parser_api.Parser[_T]:
-        """Register a new field, add its parser and return it.
-
-        In case the field already has a parser, return it as-is. Otherwise,
-        build a new parser and return it.
-
-        Parameters
-        ----------
-        field:
-            The field to add to the :class:`ComponentFactory`.
-
-        Returns
-        -------
-        :class:`parser_api.Parser`[typing.Any]
-            The parser for the provided field.
-        """
-        parser = fields.get_parser(field)
-
-        if not parser:
-            field_type = field.type or str  # TODO: also pass to default
-            parser = parser_base.get_parser(field_type).default()
-
-        self.parsers[field.name] = parser
-        return parser
-
-    def validate(self, component: typing.Type[component_api.RichComponent]) -> None:
-        """Validate whether :meth:`build` will create a valid factory for the provided component.
-
-        This will remove any extraneous parsers.
-
-        Parameters
-        ----------
-        component:
-            The component with which to validate this builder.
-
-        Raises
-        ------
-        KeyError:
-            The provided custom id has a parameter for which no parser is registered.
-        """  # noqa: E501
-        field_names = {
-            field.name
-            for field in fields.get_fields(component, kind=fields.FieldType.CUSTOM_ID)
-        }
-        for name in field_names:
-            if name not in self.parsers:
-                msg = (
-                    f"Component {component.__name__!r} defines field {name!r}, but no"
-                    " parser for this field was found. This is probably due to a bug"
-                    " inside disnake-ext-components."
-                )
-                raise KeyError(msg)
-
-        extraneous = set(self.parsers) - field_names
-        for name in extraneous:
-            self.parsers.pop(name)
-
-    def build(
-        self, component: typing.Type[factory_api.ComponentT]
-    ) -> ComponentFactory[factory_api.ComponentT]:
-        """Finalise the :class:`ComponentFactory` and return it.
-
-        This makes the mapping in :attr:`self.parsers` read-only.
-
-        Returns
-        -------
-        :class:`ComponentFactory`[:class:`RichComponent`]
-            The newly created component factory.
-        """
-        self.validate(component)
-        return ComponentFactory(types.MappingProxyType(self.parsers), component)
 
 
 @attr.define(slots=True)
 class ComponentFactory(
-    factory_api.ComponentFactory[factory_api.ComponentT],
-    typing.Generic[factory_api.ComponentT],
+    component_api.ComponentFactory[component_api.ComponentT],
+    typing.Generic[component_api.ComponentT],
 ):
     """Implementation of the overarching component factory type.
 
@@ -126,7 +35,7 @@ class ComponentFactory(
     """
 
     parsers: ParserMapping
-    component: typing.Type[factory_api.ComponentT]
+    component: typing.Type[component_api.ComponentT]
 
     @classmethod
     def from_component(  # noqa: D102
@@ -212,9 +121,7 @@ class ComponentFactory(
             if value
         }
 
-        return self.component(**kwargs)
-
-    async def dumps(self, component: factory_api.ComponentT) -> str:  # noqa: D102
+    async def dumps(self, component: component_api.ComponentT) -> str:  # noqa: D102
         # <<docstring inherited from factory_api.ComponentFactory>>
 
         component_type = type(component)
@@ -233,7 +140,7 @@ class ComponentFactory(
         ).format_map(kwargs)
 
 
-class NoopFactory(factory_api.ComponentFactory[typing.Any]):
+class NoopFactory(component_api.ComponentFactory[typing.Any]):
     """Factory class to make component protocols typesafe.
 
     Since component protocols cannot be instantiated, building a factory with
