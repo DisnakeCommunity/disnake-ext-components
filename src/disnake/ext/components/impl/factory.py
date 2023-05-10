@@ -42,7 +42,7 @@ class ComponentFactory(
         cls,
         component: typing.Type[component_api.RichComponent],
     ) -> typing_extensions.Self:
-        # <<docstring inherited from factory_api.ComponentFactory>>
+        # <<docstring inherited from api.components.ComponentFactory>>
 
         parser: typing.Optional[parser_api.Parser[typing.Any]]
 
@@ -113,7 +113,7 @@ class ComponentFactory(
         interaction: disnake.Interaction,
         params: typing.Sequence[str],
     ) -> typing.Mapping[str, object]:
-        # <<docstring inherited from factory_api.ComponentFactory>>
+        # <<docstring inherited from api.components.ComponentFactory>>
 
         if len(params) != len(self.parsers):
             # Ensure params and parsers are of the same length before zipping them.
@@ -131,9 +131,9 @@ class ComponentFactory(
         }
 
     async def dump_params(  # noqa: D102
-            self, component: component_api.ComponentT
-        ) -> typing.Mapping[str, str]:
-        # <<docstring inherited from factory_api.ComponentFactory>>
+        self, component: component_api.ComponentT
+    ) -> typing.Mapping[str, str]:
+        # <<docstring inherited from api.components.ComponentFactory>>
 
         return {
             field: await self.dumps_param(field, getattr(component, field))
@@ -145,7 +145,7 @@ class ComponentFactory(
         interaction: disnake.Interaction,
         params: typing.Sequence[str],
     ) -> component_api.ComponentT:
-        # <<docstring inherited from factory_api.ComponentFactory>>
+        # <<docstring inherited from api.components.ComponentFactory>>
 
         parsed = await self.load_params(interaction, params)
         return self.component(**parsed)
@@ -166,27 +166,26 @@ class NoopFactory(component_api.ComponentFactory[typing.Any]):
     def from_component(  # noqa: D102
         cls, _: typing.Type[component_api.RichComponent]
     ) -> typing_extensions.Self:
-        # <<docstring inherited from factory_api.ComponentFactory>>
+        # <<docstring inherited from api.components.ComponentFactory>>
 
         return _NoopFactory
 
     async def load_params(self, *_: object) -> typing.NoReturn:  # noqa: D102
-        # <<docstring inherited from factory_api.ComponentFactory>>
+        # <<docstring inherited from api.components.ComponentFactory>>
 
         raise NotImplementedError
 
     async def dump_params(self, *_: object) -> typing.NoReturn:  # noqa: D102
-        # <<docstring inherited from factory_api.ComponentFactory>>
+        # <<docstring inherited from api.components.ComponentFactory>>
 
         raise NotImplementedError
-
 
     async def build_from_interaction(  # noqa: D102
         self,
         interaction: disnake.Interaction,
         params: typing.Sequence[str],
     ) -> typing.NoReturn:
-        # <<docstring inherited from factory_api.ComponentFactory>>
+        # <<docstring inherited from api.components.ComponentFactory>>
 
         raise NotImplementedError
 
