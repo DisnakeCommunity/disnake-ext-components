@@ -124,6 +124,16 @@ class ComponentManager(component_api.ComponentManager):
     successfully.
     """
 
+    __slots__: typing.Sequence[str] = (
+        "_name",
+        "_children",
+        "_components",
+        "_count",
+        "_counter",
+        "wrap_callback",
+        "handle_exception",
+    )
+
     _name: str
     _children: typing.Set[ComponentManager]
     _components: weakref.WeakValueDictionary[str, ComponentType]
