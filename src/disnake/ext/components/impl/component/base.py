@@ -12,15 +12,16 @@ import sys
 import typing
 
 import attr
-import disnake
 import typing_extensions
 from disnake.ext.components import fields as fields
 from disnake.ext.components.api import component as component_api
-from disnake.ext.components.api import factory as factory_api
 from disnake.ext.components.api import parser as parser_api
 from disnake.ext.components.impl import custom_id as custom_id_impl
 from disnake.ext.components.impl import factory as factory_impl
 from disnake.ext.components.impl import parser as parser_impl
+
+if typing.TYPE_CHECKING:
+    import disnake
 
 __all__: typing.Sequence[str] = ("ComponentBase",)
 
@@ -29,17 +30,6 @@ _T = typing.TypeVar("_T")
 
 MaybeCoroutine = typing.Union[_T, typing.Coroutine[None, None, _T]]
 _AnyAttr: typing_extensions.TypeAlias = "attr.Attribute[typing.Any]"
-
-
-def _extract_custom_id(interaction: disnake.Interaction) -> str:
-    if isinstance(interaction, disnake.ModalInteraction):
-        return interaction.custom_id
-
-    elif isinstance(interaction, disnake.MessageInteraction):
-        return typing.cast(str, interaction.component.custom_id)  # Guaranteed to exist.
-
-    msg = "The provided interaction object does not have a custom id."
-    raise TypeError(msg)
 
 
 def _is_attrs_pass(namespace: typing.Dict[str, typing.Any]) -> bool:
@@ -215,7 +205,7 @@ class ComponentMeta(typing._ProtocolMeta):  # pyright: ignore[reportPrivateUsage
     # HACK: Pyright doesn't like this but it does seem to work with typechecking
     #       down the line. I might change this later (e.g. define it on
     #       BaseComponent instead, but that comes with its own challenges).
-    factory: factory_api.ComponentFactory[typing_extensions.Self]  # pyright: ignore
+    factory: component_api.ComponentFactory[typing_extensions.Self]  # pyright: ignore
     _parent: typing.Optional[typing.Type[typing.Any]]
     __module_id__: int
 
@@ -266,10 +256,6 @@ class ComponentMeta(typing._ProtocolMeta):  # pyright: ignore[reportPrivateUsage
 
         cls.factory = factory_impl.ComponentFactory.from_component(cls)
 
-        # Subscribe the new component to its manager if it inherited one.
-        if cls.manager:
-            cls.manager.subscribe(cls)
-
         _finalise_custom_id(cls)
         return cls
 
@@ -296,35 +282,6 @@ class ComponentBase(
 
     _parent: typing.ClassVar[typing.Optional[typing.Type[typing.Any]]] = None
     manager: typing.ClassVar[typing.Optional[component_api.ComponentManager]] = None
-
-    @classmethod
-    def set_manager(  # noqa: D102
-        cls, manager: typing.Optional[component_api.ComponentManager], /
-    ) -> None:
-        # <<docstring inherited from component_api.RichComponent>>
-
-        if cls.manager is manager:
-            return
-
-        if cls.manager:
-            cls.manager.unsubscribe(cls, recursive=False)
-
-        cls.manager = manager
-
-    @classmethod
-    def should_invoke_for(  # noqa: D102
-        cls, interaction: disnake.Interaction, /
-    ) -> bool:
-        # <<Docstring inherited from component_api.RichComponent>>
-
-        custom_id = typing.cast(custom_id_impl.CustomID, cls.custom_id)
-        return custom_id.check_name(_extract_custom_id(interaction))
-
-    async def dumps(self) -> str:  # noqa: D102
-        # <<Docstring inherited from component_api.RichComponent>>
-
-        factory = type(self).factory
-        return await factory.dumps(self)
 
     async def as_ui_component(self) -> disnake.ui.WrappedComponent:  # noqa: D102
         # <<Docstring inherited from component_api.RichComponent>>
