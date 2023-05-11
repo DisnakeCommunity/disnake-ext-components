@@ -148,7 +148,11 @@ class ComponentFactory(
         # <<docstring inherited from api.components.ComponentFactory>>
 
         parsed = await self.load_params(interaction, params)
-        return self.component(**parsed)
+
+        # HACK: Easiest way I could think of to get around pyright inconsistency.
+        component = self.component.__new__(self.component)
+        component.__init__(**parsed)
+        return component
 
 
 class NoopFactory(component_api.ComponentFactory[typing.Any]):
