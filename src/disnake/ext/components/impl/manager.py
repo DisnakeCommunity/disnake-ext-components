@@ -474,7 +474,7 @@ class ComponentManager(component_api.ComponentManager):
             # redirect all non-system errors to the error handler.
 
             for manager in reversed(managers):
-                if manager.handle_exception(component, interaction, exception):
+                if await manager.handle_exception(component, interaction, exception):
                     # If an error handler returns True, consider the error
                     # handled and skip the remaining handlers.
                     break
