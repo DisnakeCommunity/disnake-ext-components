@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import sys
 import typing
 import weakref
 
 import disnake
+from disnake.ext import commands
 from disnake.ext.components import interaction as interaction_impl
 from disnake.ext.components.api import component as component_api
 
@@ -18,8 +20,12 @@ __all__: typing.Sequence[str] = ("ComponentManager",)
 
 
 _LOGGER = logging.getLogger(__name__)
-_ROOT = "root"
+_ROOT = sys.intern("root")
+_COMPONENT_EVENT = sys.intern("on_message_interaction")
+_MODAL_EVENT = sys.intern("on_modal_submit")
 
+
+AnyBot = typing.Union[commands.Bot, commands.InteractionBot]
 
 CallbackWrapperFunc = typing.Callable[
     [component_api.RichComponent, disnake.Interaction],
@@ -291,6 +297,35 @@ class ComponentManager(component_api.ComponentManager):
         # Deregister from the current manager and all parent managers.
         for manager in _recurse_parents(component.manager):
             manager._components.pop(identifier)
+
+    def add_to_bot(self, bot: AnyBot) -> None:  # noqa: D102
+        # <<docstring inherited from api.components.ComponentManager>>
+
+        # Ensure we don't duplicate the listeners.
+        if (
+            self.invoke in bot.extra_events.get(_COMPONENT_EVENT, [])
+            or self.invoke in bot.extra_events.get(_MODAL_EVENT, [])
+        ):  # fmt: skip
+            message = "This component manager is already registered to this bot."
+            raise RuntimeError(message)
+
+        bot.add_listener(self.invoke, _COMPONENT_EVENT)
+        bot.add_listener(self.invoke, _MODAL_EVENT)
+
+    def remove_from_bot(self, bot: AnyBot) -> None:  # noqa: D102
+        # <<docstring inherited from api.components.ComponentManager>>
+
+        # Bot.remove_listener silently ignores if the event doesn't exist,
+        # so we manually handle raising an exception for it.
+        if not (
+            self.invoke in bot.extra_events.get(_COMPONENT_EVENT, [])
+            and self.invoke in bot.extra_events.get(_MODAL_EVENT, [])
+        ):
+            message = "This component manager is not yet registered to this bot."
+            raise RuntimeError(message)
+
+        bot.remove_listener(self.invoke, _COMPONENT_EVENT)
+        bot.remove_listener(self.invoke, _MODAL_EVENT)
 
     def as_callback_wrapper(self, func: CallbackWrapperFuncT) -> CallbackWrapperFuncT:
         """Register a callback as this managers' callback wrapper.

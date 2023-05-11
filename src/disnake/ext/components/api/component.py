@@ -5,6 +5,7 @@ from __future__ import annotations
 import typing
 
 import disnake
+from disnake.ext import commands
 
 if typing.TYPE_CHECKING:
     import typing_extensions
@@ -14,6 +15,7 @@ __all__: typing.Sequence[str] = ("RichComponent", "RichButton", "ComponentManage
 
 _T = typing.TypeVar("_T")
 
+AnyBot = typing.Union[commands.Bot, commands.InteractionBot]
 AnyEmoji = typing.Union[str, disnake.PartialEmoji, disnake.Emoji]
 MaybeCoroutine = typing.Union[_T, typing.Coroutine[None, None, _T]]
 
@@ -287,6 +289,52 @@ class ComponentManager(typing.Protocol):
         Type[:class:`RichComponent`]:
             The component class that was just deregistered.
         """
+
+    def add_to_bot(self, bot: AnyBot) -> None:
+        """Register this manager to the provided bot.
+
+        This is required to make components registered to this manager
+        responsive.
+
+        This method registers the :meth:`invoke` callback as an event to the
+        bot for the :obj:`disnake.on_message_interaction` and
+        :obj:`disnake.on_modal_submit` events.
+
+        .. note::
+            There is no need to separately register every manager you make.
+            In general, it is sufficient to only register the root manager as
+            the root manager will contain all components of its children.
+            That is, the root manager contains *all* registered components, as
+            every other manager is a child of the root manager.
+
+        Parameters
+        ----------
+        bot: Union[:class:`commands.Bot`, :class:`commands.InteractionBot`]
+            The bot to which to register this manager.
+
+        Raises
+        ------
+        RuntimeError:
+            This manager has already been registered to the provided bot.
+        """
+        ...
+
+    def remove_from_bot(self, bot: AnyBot) -> None:
+        """Deregister this manager to the provided bot.
+
+        This makes all components registered to this manager unresponsive.
+
+        Parameters
+        ----------
+        bot: Union[:class:`commands.Bot`, :class:`commands.InteractionBot`]
+            The bot from which to deregister this manager.
+
+        Raises
+        ------
+        RuntimeError:
+            This manager is not registered to the provided bot.
+        """
+        ...
 
     async def invoke(self, interaction: disnake.Interaction) -> None:
         """Try to invoke a component with the given interaction.
