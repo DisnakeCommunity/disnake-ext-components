@@ -161,6 +161,14 @@ class NoopFactory(component_api.ComponentFactory[typing.Any]):
     """
 
     __slots__: typing.Sequence[str] = ()
+    __instance: typing.ClassVar[typing.Optional[NoopFactory]] = None
+
+    def __new__(cls) -> typing_extensions.Self:  # noqa: D102
+        if cls.__instance is not None:
+            return cls.__instance
+
+        cls.__instance = self = super().__new__(cls)
+        return self
 
     @classmethod
     def from_component(  # noqa: D102
@@ -168,7 +176,7 @@ class NoopFactory(component_api.ComponentFactory[typing.Any]):
     ) -> typing_extensions.Self:
         # <<docstring inherited from api.components.ComponentFactory>>
 
-        return _NoopFactory
+        return NoopFactory()
 
     async def load_params(self, *_: object) -> typing.NoReturn:  # noqa: D102
         # <<docstring inherited from api.components.ComponentFactory>>
@@ -188,9 +196,3 @@ class NoopFactory(component_api.ComponentFactory[typing.Any]):
         # <<docstring inherited from api.components.ComponentFactory>>
 
         raise NotImplementedError
-
-
-# Have a single instance for all protocol classes to save on memory.
-# This instance will always be returned by from_component.
-# TODO: Check if this causes issues with gc.
-_NoopFactory = NoopFactory()

@@ -282,6 +282,7 @@ class ComponentBase(
 
     _parent: typing.ClassVar[typing.Optional[typing.Type[typing.Any]]] = None
     manager: typing.ClassVar[typing.Optional[component_api.ComponentManager]] = None
+    factory = factory_impl.NoopFactory()
 
     async def as_ui_component(self) -> disnake.ui.WrappedComponent:  # noqa: D102
         # <<Docstring inherited from component_api.RichComponent>>
