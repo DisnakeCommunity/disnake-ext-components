@@ -478,7 +478,7 @@ class ComponentManager(component_api.ComponentManager):
             # Blanket exception catching is desired here as it's meant to
             # redirect all non-system errors to the error handler.
 
-            for manager in reversed(managers):
+            for manager in managers:
                 if await manager.handle_exception(
                     manager, component, interaction, exception
                 ):
