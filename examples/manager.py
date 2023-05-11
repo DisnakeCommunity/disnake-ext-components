@@ -73,7 +73,9 @@ class FooBarBazButton(components.RichButton):
 
 @manager.as_callback_wrapper
 async def wrapper(
-    component: components.api.RichComponent, interaction: disnake.Interaction
+    manager: components.ComponentManager,
+    component: components.api.RichComponent,
+    interaction: disnake.Interaction,
 ):
     # Any code placed before the yield statement runs before the component
     # callback is invoked.
@@ -107,7 +109,9 @@ class InvalidUserError(Exception):
 
 @deeply_nested_manager.as_callback_wrapper
 async def check_wrapper(
-    component: components.api.RichComponent, interaction: disnake.Interaction
+    manager: components.api.ComponentManager,
+    component: components.api.RichComponent,
+    interaction: disnake.Interaction,
 ):
     # For example, let's allow *only* the original slash command author to
     # interact with any components on this manager.
@@ -138,6 +142,7 @@ async def check_wrapper(
 # the `deeply_nested_manager`.
 @deeply_nested_manager.as_exception_handler
 async def error_handler(
+    manager: components.ComponentManager,
     component: components.api.RichComponent,
     interaction: disnake.Interaction,
     exception: Exception,
