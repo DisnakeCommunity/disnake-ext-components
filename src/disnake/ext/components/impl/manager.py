@@ -28,18 +28,18 @@ _MODAL_EVENT = sys.intern("on_modal_submit")
 AnyBot = typing.Union[commands.Bot, commands.InteractionBot]
 
 CallbackWrapperFunc = typing.Callable[
-    [component_api.RichComponent, disnake.Interaction],
+    ["ComponentManager", component_api.RichComponent, disnake.Interaction],
     typing.AsyncGenerator[None, None],
 ]
 CallbackWrapper = typing.Callable[
-    [component_api.RichComponent, disnake.Interaction],
+    ["ComponentManager", component_api.RichComponent, disnake.Interaction],
     typing.AsyncContextManager[None],
 ]
 CallbackWrapperFuncT = typing.TypeVar("CallbackWrapperFuncT", bound=CallbackWrapperFunc)
 
 
 ExceptionHandlerFunc = typing.Callable[
-    [component_api.RichComponent, disnake.Interaction, Exception],
+    ["ComponentManager", component_api.RichComponent, disnake.Interaction, Exception],
     typing.Coroutine[typing.Any, typing.Any, typing.Optional[bool]],
 ]
 ExceptionHandlerFuncT = typing.TypeVar(
@@ -64,6 +64,7 @@ _COUNT_CHARS = tuple(map(_minimise_count, range(25)))
 
 @contextlib.asynccontextmanager
 async def default_callback_wrapper(
+    manager: component_api.ComponentManager,  # noqa: ARG001
     component: component_api.RichComponent,  # noqa: ARG001
     interaction: disnake.Interaction,  # noqa: ARG001
 ) -> typing.AsyncGenerator[None, None]:
@@ -75,6 +76,7 @@ async def default_callback_wrapper(
 
 
 async def default_exception_handler(
+    manager: component_api.ComponentManager,
     component: component_api.RichComponent,
     interaction: disnake.Interaction,  # noqa: ARG001
     exception: Exception,
@@ -85,7 +87,7 @@ async def default_exception_handler(
     If it is passed down to the root logger, and the root logger also has this
     default implementation, the exception is logged.
     """
-    if component.manager and component.manager.name is not _ROOT:
+    if manager.name is not _ROOT:
         # Not the root manager, try passing down.
         return False
 
@@ -98,8 +100,9 @@ async def default_exception_handler(
     )
 
     _LOGGER.exception(
-        "An exception was caught while handling the callback of component"
-        " %r on handler %r.",
+        "An exception was caught on manager %r while handling the callback of"
+        " component %r, registered to manager %r:",
+        manager.name,
         component,
         component.manager.name if component.manager else "<unknown>",
         exc_info=exc_info,
@@ -366,11 +369,11 @@ class ComponentManager(component_api.ComponentManager):
 
         Parameters
         ----------
-        func: Callable[[:class:`RichComponent`, :class:`disnake.Interaction`], AsyncGenerator[None, None]]
+        func: Callable[[:class:`ComponentManager`, :class:`RichComponent`, :class:`disnake.Interaction`], AsyncGenerator[None, None]]
             The callback to register. This must be an async function that takes
-            the component as the first argument, and the interaction as the
-            second. The function must have a single ``yield``-statement that
-            yields ``None``.
+            the component manager as the first argument, the component as the
+            second argument, and the interaction as the last. The function must
+            have a single ``yield``-statement that yields ``None``.
 
         Returns
         -------
@@ -418,12 +421,13 @@ class ComponentManager(component_api.ComponentManager):
 
         Parameters
         ----------
-        func: Callable[[:class:`RichComponent`, :class:`disnake.Interaction`, :class:`Exception`], None]
+        func: Callable[[:class:`ComponentManager`, :class:`RichComponent`, :class:`disnake.Interaction`, :class:`Exception`], None]
             The callback to register. This must be an async function that takes
-            the component as the first argument, the interaction as the second,
-            and the exception as the third. The function must return ``True``
-            to indicate that the error was handled successfully, or either
-            ``False`` or ``None`` to indicate the opposite.
+            the component manager as the first argument, the component as the
+            second, the interaction as the third, and the exception as the last.
+            The function must return ``True`` to indicate that the error was
+            handled successfully, or either ``False`` or ``None`` to indicate
+            the opposite.
 
         Returns
         -------
@@ -462,8 +466,9 @@ class ComponentManager(component_api.ComponentManager):
             async with contextlib.AsyncExitStack() as stack:
                 # Enter all the context managers...
                 for manager in reversed(managers):
-                    wrapper_coro = manager.wrap_callback(component, interaction)
-                    await stack.enter_async_context(wrapper_coro)
+                    await stack.enter_async_context(
+                        manager.wrap_callback(manager, component, interaction)
+                    )
 
                 # If none raised, we run the callback.
                 wrapped = interaction_impl.wrap_interaction(interaction)
@@ -474,7 +479,9 @@ class ComponentManager(component_api.ComponentManager):
             # redirect all non-system errors to the error handler.
 
             for manager in reversed(managers):
-                if await manager.handle_exception(component, interaction, exception):
+                if await manager.handle_exception(
+                    manager, component, interaction, exception
+                ):
                     # If an error handler returns True, consider the error
                     # handled and skip the remaining handlers.
                     break
