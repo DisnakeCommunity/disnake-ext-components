@@ -16,7 +16,6 @@ import typing_extensions
 from disnake.ext.components import fields as fields
 from disnake.ext.components.api import component as component_api
 from disnake.ext.components.api import parser as parser_api
-from disnake.ext.components.impl import custom_id as custom_id_impl
 from disnake.ext.components.impl import factory as factory_impl
 from disnake.ext.components.impl import parser as parser_impl
 
@@ -45,31 +44,6 @@ def _is_attrs_pass(namespace: typing.Dict[str, typing.Any]) -> bool:
 
 def _is_protocol(cls: typing.Type[typing.Any]) -> bool:
     return getattr(cls, "_is_protocol", False)
-
-
-def _finalise_custom_id(component: typing.Type[ComponentBase]) -> None:
-    """Turn a string, auto id, or custom id into a fully-fledged custom id."""
-    custom_id = component.custom_id
-
-    if isinstance(custom_id, custom_id_impl.AutoID):
-        # Make concrete custom id from provided auto-id...
-        component.custom_id = custom_id_impl.CustomID.from_auto_id(component, custom_id)
-
-    elif isinstance(custom_id, custom_id_impl.CustomID):
-        # User-created custom id; ensure validity...
-        custom_id.validate(component)
-
-    elif isinstance(custom_id, str):  # pyright: ignore[reportUnnecessaryIsInstance]
-        # Assume static custom id-- only a name without fields.
-        # TODO: is this a good/"valuable" assumption?
-        component.custom_id = custom_id_impl.CustomID(name=component.__name__)
-
-    else:
-        msg = (
-            "A component's custom id must be of type 'str' or any derivative"
-            f" thereof, got {type(custom_id).__name__!r}."
-        )
-        raise TypeError(msg)
 
 
 def _determine_parser(
@@ -200,8 +174,6 @@ class ComponentMeta(typing._ProtocolMeta):  # pyright: ignore[reportPrivateUsage
     automatic slotting.
     """
 
-    custom_id: custom_id_impl.CustomID
-
     # HACK: Pyright doesn't like this but it does seem to work with typechecking
     #       down the line. I might change this later (e.g. define it on
     #       BaseComponent instead, but that comes with its own challenges).
@@ -255,8 +227,6 @@ class ComponentMeta(typing._ProtocolMeta):  # pyright: ignore[reportPrivateUsage
             return cls
 
         cls.factory = factory_impl.ComponentFactory.from_component(cls)
-
-        _finalise_custom_id(cls)
         return cls
 
     # NOTE: This is relevant because classes are removed by gc instead of
@@ -287,3 +257,32 @@ class ComponentBase(
     async def as_ui_component(self) -> disnake.ui.WrappedComponent:  # noqa: D102
         # <<Docstring inherited from component_api.RichComponent>>
         ...
+
+    async def make_custom_id(self) -> str:
+        """Make a custom id from this component given its current state.
+
+        The generated custom id will contain the full state of the component,
+        such that it be used to entirely reconstruct the component later.
+
+        Because parameter to string conversion supports asynchronous callbacks,
+        this has to be an async function instead of e.g. a property.
+
+        .. note::
+            As the logic for translating a component to and from a custom id
+            resides inside the component manager, the component *must* be
+            registered to a manager to use this method.
+
+        Returns
+        -------
+        str:
+            The custom id representing the full state of this component.
+        """
+        if not self.manager:
+            message = (
+                "A component must be registered to a manager to create a custom"
+                "id. Please register this component to a manager before trying"
+                "to create a custom id for it."
+            )
+            raise RuntimeError(message)
+
+        return await self.manager.make_custom_id(self)

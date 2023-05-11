@@ -7,7 +7,6 @@ import typing
 import disnake
 from disnake.ext.components import fields, interaction
 from disnake.ext.components.api import component as component_api
-from disnake.ext.components.impl import custom_id as custom_id_impl
 from disnake.ext.components.impl.component import base as component_base
 
 __all__: typing.Sequence[str] = ("RichButton",)
@@ -45,8 +44,6 @@ class RichButton(
     """
 
     event = "on_button_click"
-
-    custom_id = custom_id_impl.AutoID()
 
     label: typing.Optional[str] = fields.internal(default=None)
     style: disnake.ButtonStyle = fields.internal(default=disnake.ButtonStyle.secondary)

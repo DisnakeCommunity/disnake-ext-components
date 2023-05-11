@@ -8,7 +8,6 @@ import attr
 import disnake
 from disnake.ext.components import fields, interaction
 from disnake.ext.components.api import component as component_api
-from disnake.ext.components.impl import custom_id as custom_id_impl
 from disnake.ext.components.impl.component import base as component_base
 
 __all__: typing.Sequence[str] = (
@@ -36,8 +35,6 @@ class BaseSelect(
     """
 
     event = "on_dropdown"
-
-    custom_id = custom_id_impl.AutoID()
 
     placeholder: typing.Optional[str] = fields.internal(default=None)
     min_values: int = fields.internal(default=1)

@@ -32,7 +32,6 @@ class RichComponent(typing.Protocol):
 
     __slots__: typing.Sequence[str] = ()
 
-    custom_id: typing.ClassVar[str]
     event: typing.ClassVar[str]
     factory: typing.ClassVar[ComponentFactory[RichComponent]]
     manager: typing.ClassVar[typing.Optional[ComponentManager]]
