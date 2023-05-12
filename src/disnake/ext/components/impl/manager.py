@@ -8,6 +8,7 @@ import sys
 import typing
 import weakref
 
+import attr
 import disnake
 from disnake.ext import commands
 from disnake.ext.components import interaction as interaction_impl
@@ -111,6 +112,26 @@ async def default_exception_handler(
     return True
 
 
+@attr.define
+class _ModuleData:
+    name: str
+    id: int
+
+    @classmethod
+    def from_object(cls, obj: object) -> typing_extensions.Self:
+        module = sys.modules[obj.__module__]
+        return cls(obj.__module__, id(module))
+
+    def is_active(self) -> bool:
+        if self.name not in sys.modules:
+            return False
+
+        return self.id == id(sys.modules[self.name])
+
+    def is_reload_of(self, other: typing_extensions.Self) -> bool:
+        return self.name == other.name and self.id != other.id
+
+
 class ComponentManager(component_api.ComponentManager):
     """The standard implementation of a component manager.
 
@@ -139,6 +160,7 @@ class ComponentManager(component_api.ComponentManager):
         "_components",
         "_count",
         "_counter",
+        "_module_data",
         "wrap_callback",
         "handle_exception",
     )
@@ -148,6 +170,7 @@ class ComponentManager(component_api.ComponentManager):
     _components: weakref.WeakValueDictionary[str, ComponentType]
     _count: bool
     _counter: int
+    _module_data: typing.Dict[str, _ModuleData]
 
     def __init__(
         self,
@@ -160,6 +183,7 @@ class ComponentManager(component_api.ComponentManager):
         self._components = weakref.WeakValueDictionary()
         self._count = count
         self._counter = 0
+        self._module_data = {}
         self.wrap_callback: CallbackWrapper = default_callback_wrapper
         self.handle_exception: ExceptionHandlerFunc = default_exception_handler
 
@@ -260,6 +284,21 @@ class ComponentManager(component_api.ComponentManager):
             return None
 
         component_type = self._components[identifier]
+        module_data = self._module_data[identifier]
+
+        if not module_data.is_active():
+            # NOTE: This occurs if:
+            #       - The module on which the component is defined was unloaded.
+            #       - The module on which the component is defined was reloaded
+            #         and the component was never overwritten. It could either
+            #         have been removed, or simply no longer be registered. The
+            #         component *should* therefore be unresponsive.
+            #
+            #       Since we do not want to fire components that (to the user)
+            #       do not exist anymore, we should remove them from the
+            #       manager and return None.
+            self.deregister(component_type)
+            return None
 
         return await component_type.factory.build_from_interaction(interaction, params)
 
@@ -267,11 +306,37 @@ class ComponentManager(component_api.ComponentManager):
         # <<docstring inherited from api.components.ComponentManager>>
 
         identifier = self.make_identifier(component_type)
-        component_type.manager = self
+        module_data = _ModuleData.from_object(component_type)
+
+        root_manager = get_manager(_ROOT)
+
+        if identifier in root_manager._components:
+            # NOTE: This occurs when a component is registered while another
+            #       component with the same identifier already exists.
+            #
+            #       We now have two options:
+            #       - This is caused by a reload. In this case, we expect the
+            #         module name to remain unchanged and the module id to have
+            #         changed. We can safely overwrite the old component.
+            #       - This is an actual user error. If we were to silently
+            #         overwrite the old component, it would unexpectedly go
+            #         unresponsive. Instead, we raise an exception to the user.
+            old_module_data = root_manager._module_data[identifier]
+            if not module_data.is_reload_of(old_module_data):
+                message = (
+                    "Cannot register component with duplicate identifier"
+                    f" {identifier!r}. (Original defined in module"
+                    f" {old_module_data.name!r}, duplicate defined in module"
+                    f" {module_data.name!r})"
+                )
+                raise RuntimeError(message)
 
         # Register to current manager and all parent managers.
+        component_type.manager = self
+
         for manager in _recurse_parents(self):
             manager._components[identifier] = component_type
+            manager._module_data[identifier] = module_data
 
         return component_type
 
@@ -300,6 +365,7 @@ class ComponentManager(component_api.ComponentManager):
         # Deregister from the current manager and all parent managers.
         for manager in _recurse_parents(component.manager):
             manager._components.pop(identifier)
+            manager._module_data.pop(identifier)
 
     def add_to_bot(self, bot: AnyBot) -> None:  # noqa: D102
         # <<docstring inherited from api.components.ComponentManager>>

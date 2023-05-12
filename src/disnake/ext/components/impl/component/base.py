@@ -203,12 +203,6 @@ class ComponentMeta(typing._ProtocolMeta):  # pyright: ignore[reportPrivateUsage
         if _is_attrs_pass(namespace):
             return cls
 
-        # A reference to the actual module object is needed to ensure the
-        # component is still in scope. In case the referenced module is no
-        # longer in sys.modules, the component should be considered inactive,
-        # and it will (hopefully) soon be GC'ed.
-        cls.__module_id__ = id(sys.modules[cls.__module__])
-
         # Before we pass the class off to attrs, check if any fields were
         # overwritten. If so, check them for validity and update them to proper
         # attrs fields. This adds support for redefining internal fields as
@@ -228,20 +222,6 @@ class ComponentMeta(typing._ProtocolMeta):  # pyright: ignore[reportPrivateUsage
 
         cls.factory = factory_impl.ComponentFactory.from_component(cls)
         return cls
-
-    # NOTE: This is relevant because classes are removed by gc instead of
-    #       reference-counting. This means that, even though a module has been
-    #       unloaded or a class has been `del`'d, it will still stick around
-    #       until gc picks it up. Since we do not want to activate components
-    #       that have gone out-of-scope in this sense, we need to explicitly
-    #       account for this.
-    @property
-    def is_active(self) -> bool:
-        """Determine whether this component is currently in an active module."""
-        return (
-            self.__module__ in sys.modules
-            and self.__module_id__ == id(sys.modules[self.__module__])
-        )  # fmt: skip
 
 
 @typing.runtime_checkable
