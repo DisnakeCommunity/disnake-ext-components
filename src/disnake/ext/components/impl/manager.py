@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import enum
 import logging
 import sys
 import typing
@@ -25,6 +26,8 @@ _ROOT = sys.intern("root")
 _COMPONENT_EVENT = sys.intern("on_message_interaction")
 _MODAL_EVENT = sys.intern("on_modal_submit")
 
+
+T = typing.TypeVar("T")
 
 AnyBot = typing.Union[commands.Bot, commands.InteractionBot]
 
@@ -51,6 +54,24 @@ ComponentType = typing.Type[component_api.RichComponent]
 ComponentTypeT = typing.TypeVar("ComponentTypeT", bound=ComponentType)
 
 
+class NotSetType(enum.Enum):
+    """Typehint for sentinel value."""
+
+    NotSet = enum.auto()
+    """Sentinel value to distinguish whether or not None was explicitly passed."""
+
+
+NotSet = NotSetType.NotSet
+"""Sentinel value to distinguish whether or not None was explicitly passed."""
+
+
+NotSetNoneOr = typing.Union[typing.Literal[NotSet], None, T]
+
+
+def _is_set(obj: NotSetNoneOr[T]) -> typing_extensions.TypeGuard[typing.Optional[T]]:
+    return obj is not NotSet
+
+
 def _minimise_count(count: int) -> str:
     # We only need to support counts up to 25, as that is the
     # maximum number of components that can go on a message.
@@ -60,7 +81,11 @@ def _minimise_count(count: int) -> str:
     return byte.decode("latin-1")
 
 
-_COUNT_CHARS = tuple(map(_minimise_count, range(25)))
+_COUNT_CHARS: typing.Final[typing.Tuple[str, ...]] = tuple(
+    map(_minimise_count, range(25))
+)
+_DEFAULT_SEP: typing.Final[str] = sys.intern("|")
+_DEFAULT_COUNT: typing.Final[typing.Literal[True]] = True
 
 
 @contextlib.asynccontextmanager
@@ -161,6 +186,7 @@ class ComponentManager(component_api.ComponentManager):
         "_count",
         "_counter",
         "_module_data",
+        "_sep",
         "wrap_callback",
         "handle_exception",
     )
@@ -168,15 +194,17 @@ class ComponentManager(component_api.ComponentManager):
     _name: str
     _children: typing.Set[ComponentManager]
     _components: weakref.WeakValueDictionary[str, ComponentType]
-    _count: bool
+    _count: typing.Optional[bool]
     _counter: int
     _module_data: typing.Dict[str, _ModuleData]
+    _sep: typing.Optional[str]
 
     def __init__(
         self,
         name: str,
         *,
-        count: bool = True,
+        count: typing.Optional[bool] = None,
+        sep: typing.Optional[str] = None,
     ):
         self._name = name
         self._children = set()
@@ -184,6 +212,7 @@ class ComponentManager(component_api.ComponentManager):
         self._count = count
         self._counter = 0
         self._module_data = {}
+        self._sep = sep
         self.wrap_callback: CallbackWrapper = default_callback_wrapper
         self.handle_exception: ExceptionHandlerFunc = default_exception_handler
 
@@ -212,13 +241,18 @@ class ComponentManager(component_api.ComponentManager):
     def count(self) -> bool:  # noqa: D102
         # <<docstring inherited from api.components.ComponentManager>>
 
-        return self._count
+        return _recurse_parents_getattr(self, "_count", _DEFAULT_COUNT)
 
     @property
     def counter(self) -> int:  # noqa: D102
         # <<docstring inherited from api.components.ComponentManager>>
 
         return self._counter
+
+    @property
+    def sep(self) -> str:
+        """The separator used to delimit parts of the custom ids of this manager."""
+        return _recurse_parents_getattr(self, "_sep", _DEFAULT_SEP)
 
     @property
     def parent(self) -> typing.Optional[typing_extensions.Self]:  # noqa: D102
@@ -231,6 +265,16 @@ class ComponentManager(component_api.ComponentManager):
         root, _ = self.name.rsplit(".", 1)
         return get_manager(root)
 
+    def config(
+        self, count: NotSetNoneOr[bool] = NotSet, sep: NotSetNoneOr[str] = NotSet
+    ) -> None:
+        """Set configuration options on this manager."""
+        if _is_set(count):
+            self._count = count
+
+        if _is_set(sep):
+            self._sep = sep
+
     def make_identifier(self, component_type: ComponentType) -> str:  # noqa: D102
         # <<docstring inherited from api.components.ComponentManager>>
 
@@ -241,7 +285,7 @@ class ComponentManager(component_api.ComponentManager):
     ) -> typing.Tuple[str, typing.Sequence[str]]:
         # <<docstring inherited from api.components.ComponentManager>>
 
-        name, *params = custom_id.split("|")
+        name, *params = custom_id.split(self.sep)
 
         if self.count and name.endswith(_COUNT_CHARS):
             # Count is always the single last character in the name part.
@@ -270,7 +314,7 @@ class ComponentManager(component_api.ComponentManager):
 
         dumped_params = await component.factory.dump_params(component)
 
-        return "|".join([identifier, *dumped_params.values()])
+        return self.sep.join([identifier, *dumped_params.values()])
 
     async def parse_interaction(  # noqa: D102
         self, interaction: disnake.Interaction
@@ -560,6 +604,17 @@ def _recurse_parents(manager: ComponentManager) -> typing.Iterator[ComponentMana
     yield manager
     while manager := manager.parent:  # pyright: ignore
         yield manager
+
+
+def _recurse_parents_getattr(
+    manager: ComponentManager, attribute: str, default: T
+) -> T:
+    for parent in _recurse_parents(manager):
+        value = getattr(parent, attribute)
+        if value is not None:
+            return value
+
+    return default
 
 
 def get_manager(name: typing.Optional[str] = None) -> ComponentManager:
