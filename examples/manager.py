@@ -93,7 +93,7 @@ async def wrapper(
     # and/or the callback itself are reflected here.
     print(
         f"User {interaction.user.name!r}s interaction with component"
-        f"{type(component).__name__!r} was successful!"
+        f" {type(component).__name__!r} was successful!"
     )
 
 
@@ -149,7 +149,7 @@ async def error_handler(
 ):
     if isinstance(exception, InvalidUserError):
         message = f"{exception.user.mention}, {exception.message}"
-        await interaction.response.send_message(message)
+        await interaction.response.send_message(message, ephemeral=True)
         return True  # The exception has been handled.
 
     return False  # The exception has not been handled.
