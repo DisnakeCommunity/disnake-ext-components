@@ -172,11 +172,40 @@ class ComponentManager(component_api.ComponentManager):
     will automatically create missing managers if needed, much like
     :func:`logging.getLogger`. Similarly, managers feature a parent-child
     hierarchy in the same way loggers do. For example, a manager named
-    "foo.bar" would be a child of the manager named "foo". When a component is
-    invoked on a child, it will wrap the callback using the callback wrappers
-    of all of its parents. Similarly, if an exception occurs, the exception
-    handlers of all parents can be tried until the error was handled
-    successfully.
+    "foo.bar" would be a child of the manager named "foo".
+
+    The topmost manager will always be the root manager, which can be acquired
+    through calling :func:`get_manager` without passing a name.
+
+    When a component is invoked on, for example, a manager "foo.bar", it will
+    wrap the callback in the :attr:`wrap_callback` wrappers starting from the
+    root manager, then "foo", then "foo.bar", and finally invoke the callback.
+
+    If any exceptions occur during the wrapping or invocation of the callback,
+    the managers' exception handlers will be invoked starting from "foo.bar",
+    then "foo", and finally the root manager. If any exception handler returns
+    ``True``, the exception is considered handled and any remaining exception
+    handlers are skipped.
+
+    Parameters
+    ----------
+    name: :class:`str`
+        The name of the component manager. This should be unique for all live
+        component managers.
+    count: Optional[:class:`bool`]
+        Whether the component manager should insert *one* count character to
+        resolve duplicates. Normally, sending two components with the same
+        custom id would error. Enabling this ensures custom ids are unique
+        by appending an incrementing character. This costs 1 character,
+        effectively reducing the maximum custom id length to 99 characters.
+
+        If not set, the manager will use its parents' settings. The default
+        set on the root manager is ``True``.
+    sep: Optional[:class:`str`]
+        The character(s) to use as separator between custom id parts.
+
+        If not set, the manager will use its parents' settings. The default
+        set on the root manager is ``"|"``.
     """
 
     __slots__: typing.Sequence[str] = (
@@ -620,9 +649,40 @@ def _recurse_parents_getattr(
 def get_manager(name: typing.Optional[str] = None) -> ComponentManager:
     """Get a manager by name, or create one if it does not yet exist.
 
+    Calling :func:`get_manager` without specifying a name returns the root
+    manager. The root manager is -- unless explicitly modified by the user --
+    guaranteed to be the lowest-level manager, with no parents.
+
     Managers follow a parent-child hierarchy. For example, a manager "foo.bar"
     would be a child of "foo". Any components registered to "foo.bar" would
-    also
+    also be accessible to manager "foo". This means that the root manager
+    has access to all components.
+
+    To register a component to a manager, use :meth:`ComponentManager.register`.
+    To ensure component callbacks are invoked, the manager must first be linked
+    to a bot. This is done using :meth:`ComponentManager.add_to_bot`. Since
+    parents have access to the components of their children, it is sufficient
+    to bind only the root manager to a bot.
+
+    It is generally recommended to use a separate manager per extension, though
+    you can share the same manager between files by using the same name, if
+    desired.
+
+    Further configuration of managers can be done through
+    :meth:`ComponentManager.config`.
+
+    Parameters
+    ----------
+    name: str
+        The name of the component. If not provided, the root manager is
+        returned.
+
+    Returns
+    -------
+    :class:`ComponentManager`:
+        A component manager with the desired name. If a component manager with
+        this name already existed before calling this function, that same
+        manager is returned. Otherwise, a new manager is created.
     """
     if name is None:
         # TODO: Maybe use a sentinel:
