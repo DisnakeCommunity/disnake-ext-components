@@ -5,6 +5,7 @@ from __future__ import annotations
 import typing
 
 import disnake
+from disnake.ext import commands
 
 if typing.TYPE_CHECKING:
     import typing_extensions
@@ -14,8 +15,11 @@ __all__: typing.Sequence[str] = ("RichComponent", "RichButton", "ComponentManage
 
 _T = typing.TypeVar("_T")
 
+AnyBot = typing.Union[commands.Bot, commands.InteractionBot]
 AnyEmoji = typing.Union[str, disnake.PartialEmoji, disnake.Emoji]
 MaybeCoroutine = typing.Union[_T, typing.Coroutine[None, None, _T]]
+
+ComponentT = typing.TypeVar("ComponentT", bound="RichComponent")
 
 
 @typing.runtime_checkable
@@ -28,65 +32,9 @@ class RichComponent(typing.Protocol):
 
     __slots__: typing.Sequence[str] = ()
 
-    custom_id: typing.ClassVar[str]
     event: typing.ClassVar[str]
-
-    @classmethod
-    def should_invoke_for(cls, __interaction: disnake.Interaction) -> bool:
-        """Determine whether to fire this component's callback.
-
-        This is done by determining whether the passed interaction has a
-        custom id that matches that of this component type.
-
-        Parameters
-        ----------
-        interaction: disnake.Interaction
-            The interaction to check.
-
-        Returns
-        -------
-        bool:
-            Whether or not a component of this kind caused the interaction.
-        """
-        ...
-
-    @classmethod
-    async def loads(
-        cls,
-        __interaction: typing.Any,  # noqa: ANN401
-    ) -> typing_extensions.Self:
-        """Load a fully-fledged component from an interaction.
-
-        The interaction's custom id will be used to parse any special parameters.
-
-        Parameters
-        ----------
-        interaction: disnake.Interaction
-            The interaction from which to take the component data.
-
-        Returns
-        -------
-        ComponentBase:
-            An instance of this class with parameters extracted and parsed from
-            the custom id.
-        """
-        # NOTE: The typing.Any annotation here is required so that we can
-        #       narrow it down to specific interaction types later.
-        ...
-
-    async def dumps(self) -> str:
-        """Dump an instance of this class into a custom id string.
-
-        This ensures all special parameters are stored on the string in such a
-        way that they can be losslessly loaded in the future by means of
-        :meth:`loads`.
-
-        Returns
-        -------
-        str:
-            The parsed custom id.
-        """
-        ...
+    factory: typing.ClassVar[ComponentFactory[RichComponent]]
+    manager: typing.ClassVar[typing.Optional[ComponentManager]]
 
     async def callback(self, __interaction: disnake.Interaction) -> None:
         """Run the component callback.
@@ -113,17 +61,6 @@ class RichComponent(typing.Protocol):
         disnake.ui.WrappedComponent:
             A component that can be sent by disnake, maintaining the parameters
             and custom id set on this rich component.
-        """
-        ...
-
-    @classmethod
-    def set_manager(cls, __manager: typing.Optional[ComponentManager]) -> None:
-        """Set the component manager for this component type.
-
-        Parameters
-        ----------
-        manager: typing.Optional[:class:`ComponentManager`]
-            The component manager to set on this component type.
         """
         ...
 
@@ -196,68 +133,304 @@ class RichSelect(RichComponent, typing.Protocol):
         ...
 
 
-@typing.runtime_checkable
 class ComponentManager(typing.Protocol):
-    """The baseline protocol for any kind of component manager.
+    """The baseline protocol for component managers.
 
-    Any and all component managers must implement this protocol in order to be
-    properly handled by disnake-ext-components.
+    Component managers keep track of disnake-ext-components' special components
+    and ensure they smoothly communicate with disnake's bots. Since this relies
+    on listener functionality, component managers are incompatible with
+    :class:`disnake.Client`-classes.
 
-    Component managers keep track of registered components and manage
-    registering (:meth:`subscribe`) and deregistering (:meth:`unsubscribe`) their
-    callbacks to the bot.
+    To register a component to a component manager, use :meth:`register`.
+    Without registering your components, they will remain unresponsive.
     """
 
     __slots__: typing.Sequence[str] = ()
 
-    def subscribe(
-        self,
-        component: typing.Type[RichComponent],
-        /,
-        *,
-        recursive: bool = True,
-    ) -> None:
-        """Register a component to this component manager.
+    @property
+    def name(self) -> str:
+        """The name of this manager.
 
-        This will automatically register the component callback as a listener
-        to the bot.
-
-        In case recursive is set to ``True``, all of the provided component's
-        subclasses -- and recursively also the subclasses of those -- will also
-        be registered.
-
-        Parameters
-        ----------
-        component:
-            The component to register.
-        recursive:
-            Whether or not to recursively register all subclasses of the component.
+        Used in :func:`get_manager`. This functions similar to loggers, where a
+        parent-child relationship is denoted with a ".". For example, a manager
+        "foo.bar" has parent "foo", which has the root manager as parent.
         """
         ...
 
-    def unsubscribe(
-        self,
-        component: typing.Type[RichComponent],
-        /,
-        *,
-        recursive: bool = True,
-    ) -> None:
+    @property
+    def children(self) -> typing.Collection[typing_extensions.Self]:
+        """The children of this component manager."""
+        ...
+
+    @property
+    def components(self) -> typing.Mapping[str, typing.Type[RichComponent]]:
+        """The components registered to this manager or any of its children.
+
+        In case a custom implementation is made, special care must be taken to
+        ensure that these do not desync when a child's components are updated.
+        """
+        ...
+
+    @property
+    def parent(self) -> typing.Optional[ComponentManager]:
+        """The parent of this manager.
+
+        Returns None in case this is the root manager.
+        """
+        ...
+
+    def make_identifier(self, component_type: typing.Type[RichComponent]) -> str:
+        """Make an identifier for the provided component class.
+
+        This is used to store the component in :attr:`components`, and to
+        determine which component's callback should be fired when an interaction
+        is received.
+
+        Parameters
+        ----------
+        component_type: Type[:class:`RichComponent`]
+            The type of component for which to make an identifier.
+
+        Returns
+        -------
+        str:
+            The component type's identifier.
+        """
+        ...
+
+    def get_identifier(self, custom_id: str) -> typing.Tuple[str, typing.Sequence[str]]:
+        """Extract the identifier and parameters from a custom id.
+
+        This is used to check whether the identifier is registered in
+        :attr:`components`.
+
+        Parameters
+        ----------
+        custom_id: :class:`str`
+            The custom id from which to extract the identifier.
+        """
+        ...
+
+    async def make_custom_id(self, component: RichComponent) -> str:
+        """Make a custom id from the provided component.
+
+        This can then be used later to reconstruct the component without any
+        state or data loss.
+
+        Parameters
+        ----------
+        component: :class:`RichComponent`
+            The component for which to create a custom id.
+
+        Returns
+        -------
+        str:
+            A custom id that fully represents the provided component.
+        """
+        ...
+
+    async def parse_interaction(
+        self, interaction: disnake.Interaction
+    ) -> typing.Optional[RichComponent]:
+        """Parse an interaction and construct a rich component from it.
+
+        In case the interaction does not match any component registered to this
+        manager, this method will simply return ``None``.
+
+        Parameters
+        ----------
+        interaction: disnake.Interaction
+            The interaction to parse. This should, under normal circumstances,
+            be either a :class:`disnake.MessageInteraction` or
+            :class:`disnake.ModalInteraction`.
+
+        Returns
+        -------
+        Optional[:class:`RichComponent`]:
+            The component if the interaction was caused by a component
+            registered to this manager, ``None`` otherwise.
+        """
+        ...
+
+    def register(
+        self, component_type: typing.Type[ComponentT]
+    ) -> typing.Type[ComponentT]:
+        """Register a component to this component manager.
+
+        This returns the provided class, such that this method can serve as a
+        decorator.
+
+        Parameters
+        ----------
+        component_type: Type[:class:`RichComponent`]
+            The component class to register.
+
+        Returns
+        -------
+        Type[:class:`RichComponent`]:
+            The component class that was just registered.
+        """
+        ...
+
+    def deregister(self, component_type: typing.Type[RichComponent]) -> None:
         """Deregister a component from this component manager.
 
-        Note that this only works if the component has first been registered.
+        After deregistration, the component will no be tracked, and its
+        callbacks can no longer fire until it is re-registered.
 
-        This will automatically remove the listener for the provided component
-        from the bot.
+        Parameters
+        ----------
+        component_type: Type[:class:`RichComponent`]
+            The component class to deregister.
 
-        In case recursive is set to ``True``, all of the provided component's
-        subclasses -- and recursively also the subclasses of those -- will also
-        be deregistered.
+        Returns
+        -------
+        Type[:class:`RichComponent`]:
+            The component class that was just deregistered.
+        """
+
+    def add_to_bot(self, bot: AnyBot) -> None:
+        """Register this manager to the provided bot.
+
+        This is required to make components registered to this manager
+        responsive.
+
+        This method registers the :meth:`invoke` callback as an event to the
+        bot for the :obj:`disnake.on_message_interaction` and
+        :obj:`disnake.on_modal_submit` events.
+
+        .. note::
+            There is no need to separately register every manager you make.
+            In general, it is sufficient to only register the root manager as
+            the root manager will contain all components of its children.
+            That is, the root manager contains *all* registered components, as
+            every other manager is a child of the root manager.
+
+        Parameters
+        ----------
+        bot: Union[:class:`commands.Bot`, :class:`commands.InteractionBot`]
+            The bot to which to register this manager.
+
+        Raises
+        ------
+        RuntimeError:
+            This manager has already been registered to the provided bot.
+        """
+        ...
+
+    def remove_from_bot(self, bot: AnyBot) -> None:
+        """Deregister this manager to the provided bot.
+
+        This makes all components registered to this manager unresponsive.
+
+        Parameters
+        ----------
+        bot: Union[:class:`commands.Bot`, :class:`commands.InteractionBot`]
+            The bot from which to deregister this manager.
+
+        Raises
+        ------
+        RuntimeError:
+            This manager is not registered to the provided bot.
+        """
+        ...
+
+    async def invoke(self, interaction: disnake.Interaction) -> None:
+        """Try to invoke a component with the given interaction.
+
+        If this manager has no registered component that matches the interaction,
+        it is silently ignored. Otherwise, the interaction will be parsed into
+        a fully fledged component, and its callback will then be invoked.
+
+        Parameters
+        ----------
+        interaction: :class:`disnake.Interaction`
+            The interaction with which to try to invoke a component callback.
+        """
+        ...
+
+
+class ComponentFactory(typing.Protocol[ComponentT]):
+    """The baseline protocol for any kind of component factory.
+
+    Any and all component factories must implement this protocol in order to be
+    properly handled by disnake-ext-components.
+
+    A component factory handles creating a component instance from a custom id
+    by running all individual fields' parsers and aggregating the result into
+    a component instance.
+    """
+
+    __slots__: typing.Sequence[str] = ()
+
+    @classmethod
+    def from_component(
+        cls, __component: typing.Type[RichComponent]
+    ) -> typing_extensions.Self:
+        """Create a component factory from the provided component.
+
+        This takes the component's fields into account and generates the
+        corresponding parser types for each field if a parser was not provided
+        manually for that particular field.
 
         Parameters
         ----------
         component:
-            The component to register.
-        recursive:
-            Whether or not to recursively register all subclasses of the component.
+            The component for which to create a component factory.
+        """
+        ...
+
+    # TODO: Update docstring
+    async def load_params(
+        self,
+        __interaction: disnake.Interaction,
+        __params: typing.Sequence[str],
+    ) -> typing.Mapping[str, object]:
+        """Create a new component instance from the provided custom id.
+
+        This requires the custom id to already have been decomposed into
+        individual fields. This is generally done using the
+        :meth:`api.CustomID.match` method.
+
+        Parameters
+        ----------
+        interaction:
+            The interaction to use for creating the component instance.
+        params:
+            A mapping of field name to to-be-parsed field values.
+        """
+        # TODO: Return an ext-components specific conversion error.
+        ...
+
+    async def dump_params(self, __component: ComponentT) -> typing.Mapping[str, str]:
+        """Dump a component into a new custom id string.
+
+        This converts the component's individual fields back into strings and
+        and uses these strings to build a new custom id. This is generally done
+        using the :meth:`api.CustomID.complete` method.
+
+        Parameters
+        ----------
+        component:
+            The component to dump into a custom id.
+        """
+        ...
+
+    async def build_from_interaction(
+        self,
+        interaction: disnake.Interaction,
+        params: typing.Sequence[str],
+    ) -> ComponentT:
+        """Create a new component instance from the provided interaction.
+
+        This requires the custom id to already have been decomposed into
+        individual fields. This is generally done by the component manager.
+
+        Parameters
+        ----------
+        interaction:
+            The interaction to use for creating the component instance.
+        params:
+            A mapping of field name to to-be-parsed field values.
         """
         ...

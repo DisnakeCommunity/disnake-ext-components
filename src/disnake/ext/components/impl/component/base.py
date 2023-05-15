@@ -12,15 +12,15 @@ import sys
 import typing
 
 import attr
-import disnake
 import typing_extensions
 from disnake.ext.components import fields as fields
 from disnake.ext.components.api import component as component_api
-from disnake.ext.components.api import factory as factory_api
 from disnake.ext.components.api import parser as parser_api
-from disnake.ext.components.impl import custom_id as custom_id_impl
 from disnake.ext.components.impl import factory as factory_impl
 from disnake.ext.components.impl import parser as parser_impl
+
+if typing.TYPE_CHECKING:
+    import disnake
 
 __all__: typing.Sequence[str] = ("ComponentBase",)
 
@@ -29,17 +29,6 @@ _T = typing.TypeVar("_T")
 
 MaybeCoroutine = typing.Union[_T, typing.Coroutine[None, None, _T]]
 _AnyAttr: typing_extensions.TypeAlias = "attr.Attribute[typing.Any]"
-
-
-def _extract_custom_id(interaction: disnake.Interaction) -> str:
-    if isinstance(interaction, disnake.ModalInteraction):
-        return interaction.custom_id
-
-    elif isinstance(interaction, disnake.MessageInteraction):
-        return typing.cast(str, interaction.component.custom_id)  # Guaranteed to exist.
-
-    msg = "The provided interaction object does not have a custom id."
-    raise TypeError(msg)
 
 
 def _is_attrs_pass(namespace: typing.Dict[str, typing.Any]) -> bool:
@@ -55,31 +44,6 @@ def _is_attrs_pass(namespace: typing.Dict[str, typing.Any]) -> bool:
 
 def _is_protocol(cls: typing.Type[typing.Any]) -> bool:
     return getattr(cls, "_is_protocol", False)
-
-
-def _finalise_custom_id(component: typing.Type[ComponentBase]) -> None:
-    """Turn a string, auto id, or custom id into a fully-fledged custom id."""
-    custom_id = component.custom_id
-
-    if isinstance(custom_id, custom_id_impl.AutoID):
-        # Make concrete custom id from provided auto-id...
-        component.custom_id = custom_id_impl.CustomID.from_auto_id(component, custom_id)
-
-    elif isinstance(custom_id, custom_id_impl.CustomID):
-        # User-created custom id; ensure validity...
-        custom_id.validate(component)
-
-    elif isinstance(custom_id, str):  # pyright: ignore[reportUnnecessaryIsInstance]
-        # Assume static custom id-- only a name without fields.
-        # TODO: is this a good/"valuable" assumption?
-        component.custom_id = custom_id_impl.CustomID(name=component.__name__)
-
-    else:
-        msg = (
-            "A component's custom id must be of type 'str' or any derivative"
-            f" thereof, got {type(custom_id).__name__!r}."
-        )
-        raise TypeError(msg)
 
 
 def _determine_parser(
@@ -210,14 +174,10 @@ class ComponentMeta(typing._ProtocolMeta):  # pyright: ignore[reportPrivateUsage
     automatic slotting.
     """
 
-    custom_id: custom_id_impl.CustomID
-
     # HACK: Pyright doesn't like this but it does seem to work with typechecking
     #       down the line. I might change this later (e.g. define it on
     #       BaseComponent instead, but that comes with its own challenges).
-    factory: factory_api.ComponentFactory[typing_extensions.Self]  # pyright: ignore
-    _parent: typing.Optional[typing.Type[typing.Any]]
-    __module_id__: int
+    factory: component_api.ComponentFactory[typing_extensions.Self]  # pyright: ignore
 
     def __new__(  # noqa: D102
         mcls,  # pyright: ignore[reportSelfClsParameterName]
@@ -241,18 +201,6 @@ class ComponentMeta(typing._ProtocolMeta):  # pyright: ignore[reportPrivateUsage
         if _is_attrs_pass(namespace):
             return cls
 
-        # A reference to the actual module object is needed to ensure the
-        # component is still in scope. In case the referenced module is no
-        # longer in sys.modules, the component should be considered inactive,
-        # and it will (hopefully) soon be GC'ed.
-        cls.__module_id__ = id(sys.modules[cls.__module__])
-
-        # Before we pass the class off to attrs, check if any fields were
-        # overwritten. If so, check them for validity and update them to proper
-        # attrs fields. This adds support for redefining internal fields as
-        # `label = "foo"` instead of `label = fields.internal("foo")`
-        # _apply_overrides(cls, namespace)
-
         cls = attr.define(
             cls,
             slots=True,
@@ -265,27 +213,7 @@ class ComponentMeta(typing._ProtocolMeta):  # pyright: ignore[reportPrivateUsage
             return cls
 
         cls.factory = factory_impl.ComponentFactory.from_component(cls)
-
-        # Subscribe the new component to its manager if it inherited one.
-        if cls.manager:
-            cls.manager.subscribe(cls)
-
-        _finalise_custom_id(cls)
         return cls
-
-    # NOTE: This is relevant because classes are removed by gc instead of
-    #       reference-counting. This means that, even though a module has been
-    #       unloaded or a class has been `del`'d, it will still stick around
-    #       until gc picks it up. Since we do not want to activate components
-    #       that have gone out-of-scope in this sense, we need to explicitly
-    #       account for this.
-    @property
-    def is_active(self) -> bool:
-        """Determine whether this component is currently in an active module."""
-        return (
-            self.__module__ in sys.modules
-            and self.__module_id__ == id(sys.modules[self.__module__])
-        )  # fmt: skip
 
 
 @typing.runtime_checkable
@@ -296,36 +224,37 @@ class ComponentBase(
 
     _parent: typing.ClassVar[typing.Optional[typing.Type[typing.Any]]] = None
     manager: typing.ClassVar[typing.Optional[component_api.ComponentManager]] = None
-
-    @classmethod
-    def set_manager(  # noqa: D102
-        cls, manager: typing.Optional[component_api.ComponentManager], /
-    ) -> None:
-        # <<docstring inherited from component_api.RichComponent>>
-
-        if cls.manager is manager:
-            return
-
-        if cls.manager:
-            cls.manager.unsubscribe(cls, recursive=False)
-
-        cls.manager = manager
-
-    @classmethod
-    def should_invoke_for(  # noqa: D102
-        cls, interaction: disnake.Interaction, /
-    ) -> bool:
-        # <<Docstring inherited from component_api.RichComponent>>
-
-        custom_id = typing.cast(custom_id_impl.CustomID, cls.custom_id)
-        return custom_id.check_name(_extract_custom_id(interaction))
-
-    async def dumps(self) -> str:  # noqa: D102
-        # <<Docstring inherited from component_api.RichComponent>>
-
-        factory = type(self).factory
-        return await factory.dumps(self)
+    factory = factory_impl.NoopFactory()
 
     async def as_ui_component(self) -> disnake.ui.WrappedComponent:  # noqa: D102
         # <<Docstring inherited from component_api.RichComponent>>
         ...
+
+    async def make_custom_id(self) -> str:
+        """Make a custom id from this component given its current state.
+
+        The generated custom id will contain the full state of the component,
+        such that it be used to entirely reconstruct the component later.
+
+        Because parameter to string conversion supports asynchronous callbacks,
+        this has to be an async function instead of e.g. a property.
+
+        .. note::
+            As the logic for translating a component to and from a custom id
+            resides inside the component manager, the component *must* be
+            registered to a manager to use this method.
+
+        Returns
+        -------
+        str:
+            The custom id representing the full state of this component.
+        """
+        if not self.manager:
+            message = (
+                "A component must be registered to a manager to create a custom"
+                "id. Please register this component to a manager before trying"
+                "to create a custom id for it."
+            )
+            raise RuntimeError(message)
+
+        return await self.manager.make_custom_id(self)

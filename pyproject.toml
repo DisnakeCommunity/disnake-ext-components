@@ -94,6 +94,7 @@ select = [
 # UP007 incorrectly "updates" Union[X, Y] to X | Y.
 # UP038 ^ inside isinstance.
 # PLC0414 doesn't support `import foo as foo` to reexport.
+# B905 incompatible with code that should run on py < 3.10.
 ignore = [
     "F403",
     "F405",
@@ -112,6 +113,7 @@ ignore = [
     "UP007",
     "UP038",
     "PLC0414",
+    "B905",
 ]
 
 unfixable = ["RET502", "RET503"]
@@ -128,7 +130,19 @@ mypy-init-return = true
 # D: Don't enforce docstrings in examples except for the module,
 # TCH: Don't enforce type-checking 'optimisation', as it's distracting from the example.
 # T201: Allow printing inside examples.
-"examples/*" = ["D101", "D102", "D103", "S101", "TCH", "T201", "UP006"]
+# ARG001: Allow unused arguments, variables with a name are more clear than a plain underscore.
+# ANN201: Allow functions without explicit return type as this is unnecessary bloat for examples.
+"examples/*" = [
+    "D101",
+    "D102",
+    "D103",
+    "S101",
+    "TCH",
+    "T201",
+    "UP006",
+    "ARG001",
+    "ANN201",
+]
 
 
 [tool.taskipy.tasks]

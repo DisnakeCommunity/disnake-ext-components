@@ -8,11 +8,7 @@ import attr
 import disnake
 from disnake.ext.components import fields, interaction
 from disnake.ext.components.api import component as component_api
-from disnake.ext.components.impl import custom_id as custom_id_impl
 from disnake.ext.components.impl.component import base as component_base
-
-if typing.TYPE_CHECKING:
-    import typing_extensions
 
 __all__: typing.Sequence[str] = (
     "RichStringSelect",
@@ -40,28 +36,10 @@ class BaseSelect(
 
     event = "on_dropdown"
 
-    custom_id = custom_id_impl.AutoID()
-
     placeholder: typing.Optional[str] = fields.internal(default=None)
     min_values: int = fields.internal(default=1)
     max_values: int = fields.internal(default=1)
     disabled: bool = fields.internal(default=False)
-
-    @classmethod
-    async def loads(  # noqa: D102
-        cls, interaction: disnake.MessageInteraction, /
-    ) -> typing_extensions.Self:
-        # <<Docstring inherited from component_api.RichComponent>>
-
-        # TODO: Maybe copy over internal attributes from the inter.component.
-        # TODO: Error handling around match for more sensible errors.
-
-        custom_id = typing.cast(str, interaction.component.custom_id)
-        component_custom_id = typing.cast(custom_id_impl.CustomID, cls.custom_id)
-
-        match = component_custom_id.match(custom_id, strict=True)
-
-        return await cls.factory.loads(interaction, match.groupdict())
 
     async def callback(  # pyright: ignore[reportIncompatibleMethodOverride]  # noqa: D102, E501
         self, __inter: interaction.MessageInteraction
@@ -101,13 +79,17 @@ class RichStringSelect(BaseSelect, typing.Protocol):
     async def as_ui_component(self) -> disnake.ui.StringSelect[None]:  # noqa: D102
         # <<docstring inherited from component_api.RichButton>>
 
+        if not self.manager:
+            message = "Cannot serialise components without a manager."
+            raise RuntimeError(message)
+
         return disnake.ui.StringSelect(
             placeholder=self.placeholder,
             min_values=self.min_values,
             max_values=self.max_values,
             disabled=self.disabled,
             options=self.options,
-            custom_id=await self.dumps(),
+            custom_id=await self.manager.make_custom_id(self),
         )
 
 
@@ -135,12 +117,16 @@ class RichUserSelect(BaseSelect, typing.Protocol):
     async def as_ui_component(self) -> disnake.ui.UserSelect[None]:  # noqa: D102
         # <<docstring inherited from component_api.RichButton>>
 
+        if not self.manager:
+            message = "Cannot serialise components without a manager."
+            raise RuntimeError(message)
+
         return disnake.ui.UserSelect(
             placeholder=self.placeholder,
             min_values=self.min_values,
             max_values=self.max_values,
             disabled=self.disabled,
-            custom_id=await self.dumps(),
+            custom_id=await self.manager.make_custom_id(self),
         )
 
 
@@ -168,12 +154,16 @@ class RichRoleSelect(BaseSelect, typing.Protocol):
     async def as_ui_component(self) -> disnake.ui.RoleSelect[None]:  # noqa: D102
         # <<docstring inherited from component_api.RichButton>>
 
+        if not self.manager:
+            message = "Cannot serialise components without a manager."
+            raise RuntimeError(message)
+
         return disnake.ui.RoleSelect(
             placeholder=self.placeholder,
             min_values=self.min_values,
             max_values=self.max_values,
             disabled=self.disabled,
-            custom_id=await self.dumps(),
+            custom_id=await self.manager.make_custom_id(self),
         )
 
 
@@ -201,12 +191,16 @@ class RichMentionableSelect(BaseSelect, typing.Protocol):
     async def as_ui_component(self) -> disnake.ui.MentionableSelect[None]:  # noqa: D102
         # <<docstring inherited from component_api.RichButton>>
 
+        if not self.manager:
+            message = "Cannot serialise components without a manager."
+            raise RuntimeError(message)
+
         return disnake.ui.MentionableSelect(
             placeholder=self.placeholder,
             min_values=self.min_values,
             max_values=self.max_values,
             disabled=self.disabled,
-            custom_id=await self.dumps(),
+            custom_id=await self.manager.make_custom_id(self),
         )
 
 
@@ -238,11 +232,15 @@ class RichChannelSelect(BaseSelect, typing.Protocol):
     async def as_ui_component(self) -> disnake.ui.ChannelSelect[None]:  # noqa: D102
         # <<docstring inherited from component_api.RichButton>>
 
+        if not self.manager:
+            message = "Cannot serialise components without a manager."
+            raise RuntimeError(message)
+
         return disnake.ui.ChannelSelect(
             channel_types=self.channel_types,
             placeholder=self.placeholder,
             min_values=self.min_values,
             max_values=self.max_values,
             disabled=self.disabled,
-            custom_id=await self.dumps(),
+            custom_id=await self.manager.make_custom_id(self),
         )

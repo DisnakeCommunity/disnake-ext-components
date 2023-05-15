@@ -18,11 +18,9 @@ from disnake.ext import commands, components
 # prefix command capabilities, we opt for an InteractionBot.
 bot = commands.InteractionBot()
 
-# Next, we make a component manager.
-manager = components.ComponentManager(bot)
-
-# Register *all* components (current and future) to this manager.
-manager.basic_config()
+# Next, we make a component manager and register it to the bot.
+manager = components.get_manager()
+manager.add_to_bot(bot)
 
 
 # Define possible slots for our select.
@@ -60,7 +58,8 @@ COLOUR_OPTIONS = [
 ]
 
 
-# Then, we make the select.
+# Then, we make and register the select.
+@manager.register
 class MySelect(components.RichStringSelect):
     placeholder: str = "Please select a square."  # Set the placeholder text...
     options: typing.List[disnake.SelectOption] = SLOT_OPTIONS  # Set the options...
