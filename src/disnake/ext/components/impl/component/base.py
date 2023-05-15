@@ -178,8 +178,6 @@ class ComponentMeta(typing._ProtocolMeta):  # pyright: ignore[reportPrivateUsage
     #       down the line. I might change this later (e.g. define it on
     #       BaseComponent instead, but that comes with its own challenges).
     factory: component_api.ComponentFactory[typing_extensions.Self]  # pyright: ignore
-    _parent: typing.Optional[typing.Type[typing.Any]]
-    __module_id__: int
 
     def __new__(  # noqa: D102
         mcls,  # pyright: ignore[reportSelfClsParameterName]
@@ -202,12 +200,6 @@ class ComponentMeta(typing._ProtocolMeta):  # pyright: ignore[reportPrivateUsage
         # If this is attrs' pass, return immediately after it has worked its magic.
         if _is_attrs_pass(namespace):
             return cls
-
-        # Before we pass the class off to attrs, check if any fields were
-        # overwritten. If so, check them for validity and update them to proper
-        # attrs fields. This adds support for redefining internal fields as
-        # `label = "foo"` instead of `label = fields.internal("foo")`
-        # _apply_overrides(cls, namespace)
 
         cls = attr.define(
             cls,
