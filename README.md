@@ -1,7 +1,7 @@
 NOTE
 ====
 
-This branch is currently in a very unfinished, alpha state. As of right now, only buttons are supported. Help with development would be very much appreciated. If you're interested in helping, please keep an eye on the repo's issues and [the TODO-section of this readme](https://github.com/DisnakeCommunity/disnake-ext-components/tree/rewrite#to-do).
+This branch is currently in alpha state. As of right now, buttons and selects are supported, and modals are yet to be implemented. Help with development would be very much appreciated. If you're interested in helping, please keep an eye on the repo's issues and [the TODO-section of this readme](https://github.com/DisnakeCommunity/disnake-ext-components/tree/rewrite#to-do).
 
 disnake-ext-components
 ======================
@@ -14,7 +14,7 @@ Key Features
 - Smoothly integrates with disnake,
 - Uses an intuitive dataclass-like syntax to create stateless persistent components,
 - `custom_id` matching, conversion, and creation are automated for you,
-- (TODO for rewrite!) Allows you to implement custom RegEx for your listeners if you need more customized behavior.
+- (Example pending) Allows you to implement custom RegEx for your listeners if you need more customized behavior.
 
 Installing
 ----------
@@ -46,10 +46,11 @@ from disnake.ext import commands, components
 
 
 bot = commands.InteractionBot()
-manager = components.ComponentManager(bot)
-manager.basic_config()
+manager = components.get_manager()
+manager.add_to_bot(bot)
 
 
+@manager.register
 class MyButton(components.RichButton):
     label = "0"
 
@@ -77,9 +78,8 @@ For extra examples, please see [the examples folder](https://github.com/DisnakeC
 
 To-Do
 -----
-- Implement more parser types,
-- Implement selects and modals,
-- Implement customisable RegEx-based custom id,
+- Implement more parser types (optionals, unions, etc.),
+- Implement modals,
 - Improve Cog support by somehow injecting the cog instance,
 - PyPI release,
 - Contribution guidelines,
