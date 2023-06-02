@@ -48,3 +48,4 @@ repos:
         additional_dependencies:
         - slotscheck >= 0.16.5
         - disnake >= 2.5.0
+        - typing-extensions
