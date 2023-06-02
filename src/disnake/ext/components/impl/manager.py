@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import enum
+import functools
 import logging
 import sys
 import typing
@@ -375,15 +376,57 @@ class ComponentManager(component_api.ComponentManager):
 
         return await component_type.factory.build_from_interaction(interaction, params)
 
-    def register(self, component_type: ComponentTypeT) -> ComponentTypeT:  # noqa: D102
+    # Nothing: nested decorator, return callable that registers and
+    # returns the component.
+    @typing.overload
+    def register(self) -> typing.Callable[[ComponentTypeT], ComponentTypeT]:
+        ...
+
+    # Identifier and component: function call, return component
+    @typing.overload
+    def register(
+        self, component_type: ComponentTypeT, *, identifier: str
+    ) -> ComponentTypeT:
+        ...
+
+    # Only identifier: nested decorator, return callable that registers and
+    # returns the component.
+    @typing.overload
+    def register(
+        self, *, identifier: str
+    ) -> typing.Callable[[ComponentTypeT], ComponentTypeT]:
+        ...
+
+    # Only component: decorator, return component
+    @typing.overload
+    def register(self, component_type: ComponentTypeT) -> ComponentTypeT:
+        ...
+
+    def register(  # noqa: D102
+        self,
+        component_type: typing.Optional[ComponentTypeT] = None,
+        *,
+        identifier: typing.Optional[str] = None,
+    ) -> typing.Union[
+        ComponentTypeT,
+        typing.Callable[[ComponentTypeT], ComponentTypeT],
+    ]:
         # <<docstring inherited from api.components.ComponentManager>>
 
-        identifier = self.make_identifier(component_type)
+        if not identifier and not component_type:
+            return self.register
+
+        if not component_type:
+            return functools.partial(
+                self.register, identifier=identifier
+            )  # pyright: ignore
+
+        resolved_identifier = identifier or self.make_identifier(component_type)
         module_data = _ModuleData.from_object(component_type)
 
         root_manager = get_manager(_ROOT)
 
-        if identifier in root_manager._components:
+        if resolved_identifier in root_manager._components:
             # NOTE: This occurs when a component is registered while another
             #       component with the same identifier already exists.
             #
@@ -394,7 +437,7 @@ class ComponentManager(component_api.ComponentManager):
             #       - This is an actual user error. If we were to silently
             #         overwrite the old component, it would unexpectedly go
             #         unresponsive. Instead, we raise an exception to the user.
-            old_module_data = root_manager._module_data[identifier]
+            old_module_data = root_manager._module_data[resolved_identifier]
             if not module_data.is_reload_of(old_module_data):
                 message = (
                     "Cannot register component with duplicate identifier"
@@ -408,8 +451,8 @@ class ComponentManager(component_api.ComponentManager):
         component_type.manager = self
 
         for manager in _recurse_parents(self):
-            manager._components[identifier] = component_type
-            manager._module_data[identifier] = module_data
+            manager._components[resolved_identifier] = component_type
+            manager._module_data[resolved_identifier] = module_data
 
         return component_type
 
