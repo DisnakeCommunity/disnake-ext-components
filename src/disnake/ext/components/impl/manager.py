@@ -668,6 +668,147 @@ class ComponentManager(component_api.ComponentManager):
                     # handled and skip the remaining handlers.
                     break
 
+    def make_button(
+        self,
+        identifier: str,
+        *,
+        label: typing.Optional[str] = ...,
+        style: disnake.ButtonStyle = ...,
+        emoji: typing.Optional[component_api.AnyEmoji] = ...,
+        disabled: bool = ...,
+        **kwargs: object,
+    ) -> component_api.RichButton:
+        """Make an instance of the button class with the provided identifier.
+
+        Parameters
+        ----------
+        identifier: :class:`str`
+            The identifier of the button that is to be instantiated.
+        label: Optional[:class:`str`]
+            The label to use. If not provided, uses the button class' default.
+        style: disnake.ButtonStyle
+            The style to use. If not provided, uses the button class' default.
+        emoji: Optional[Union[:class:`str`, :class:`disnake.PartialEmoji`, :class:`disnake.Emoji`]]
+            The emoji to use. If not provided, uses the button class' default.
+        disabled: Optional[:class:`str`]
+            Whether or not to disable the button. If not provided, uses the
+            button class' default.
+        **kwargs: :class:`object`
+            Any remaining keyword arguments are passed to the button's ``__init__``.
+
+        Returns
+        -------
+        :class:`components.api.RichButton`
+            The newly created button.
+
+        Raises
+        ------
+        :class:`KeyError`
+            The provided identifier does not belong to a registered component.
+        :class:`TypeError`
+            The provided identifier belongs to a component that is not a button.
+        :class:`Exception`
+            Any exception raised during button instantiation is propagated as-is.
+        """  # noqa: E501
+        if label is not Ellipsis:
+            kwargs["label"] = label
+        if style is not Ellipsis:
+            kwargs["style"] = style
+        if emoji is not Ellipsis:
+            kwargs["emoji"] = emoji
+        if disabled is not Ellipsis:
+            kwargs["disabled"] = disabled
+
+        component_type = self.components[identifier]
+        component = component_type(**kwargs)  # pyright: ignore
+
+        # NOTE: We sadly cannot use issubclass-- maybe make a custom issubclass
+        #       implementation that works with protocols with non-method members
+        #       given a couple assumptions.
+        if isinstance(component, component_api.RichButton):
+            return component
+
+        msg = (
+            f"Expected identifier {identifier!r} to point to a button class,"
+            f" got {component_type.__name__}."
+        )
+        raise TypeError(msg)
+
+    def make_select(
+        self,
+        identifier: str,
+        *,
+        placeholder: str | None = ...,
+        min_values: int = ...,
+        max_values: int = ...,
+        disabled: bool = ...,
+        options: typing.List[disnake.SelectOption] = ...,
+        **kwargs: object,
+    ) -> component_api.RichSelect:
+        """Make an instance of the string select class with the provided identifier.
+
+        Parameters
+        ----------
+        identifier: :class:`str`
+            The identifier of the button that is to be instantiated.
+        placeholder: Optional[:class:`str`]
+            The placeholder to use. If not provided, uses the select class' default.
+        min_values: :class:`int`
+            The minimum number of values a user is allowed to select. If not
+            provided, uses the select class' default.
+        max_values: :class:`int`
+            The maximum number of values a user is allowed to select. If not
+            provided, uses the select class' default.
+        disabled: Optional[:class:`str`]
+            Whether or not to disable the button. If not provided, uses the
+            select class' default.
+        options: List[:class:`disnake.SelectOption`]
+            The options to use. If not provided, uses the select class' default.
+        **kwargs: :class:`object`
+            Any remaining keyword arguments are passed to the select's ``__init__``.
+
+        Returns
+        -------
+        :class:`components.api.RichStringSelect`
+            The newly created string select.
+
+        Raises
+        ------
+        :class:`KeyError`
+            The provided identifier does not belong to a registered component.
+        :class:`TypeError`
+            The provided identifier belongs to a component that is not a string select.
+        :class:`Exception`
+            Any exception raised during button instantiation is propagated as-is.
+        """
+        # NOTE: This currently only supports StringSelects
+
+        if placeholder is not Ellipsis:
+            kwargs["placeholder"] = placeholder
+        if min_values is not Ellipsis:
+            kwargs["min_values"] = min_values
+        if max_values is not Ellipsis:
+            kwargs["max_values"] = max_values
+        if disabled is not Ellipsis:
+            kwargs["disabled"] = disabled
+        if options is not Ellipsis:
+            kwargs["options"] = options
+
+        component_type = self.components[identifier]
+        component = component_type(**kwargs)  # pyright: ignore
+
+        # NOTE: We sadly cannot use issubclass-- maybe make a custom issubclass
+        #       implementation that works with protocols with non-method members
+        #       given a couple assumptions.
+        if isinstance(component, component_api.RichSelect):
+            return component
+
+        msg = (
+            f"Expected identifier {identifier!r} to point to a select class,"
+            f" got {component_type.__name__}."
+        )
+        raise TypeError(msg)
+
 
 _MANAGER_STORE: typing.Final[typing.Dict[str, ComponentManager]] = {}
 
