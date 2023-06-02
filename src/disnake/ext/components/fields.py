@@ -114,7 +114,7 @@ def get_fields(
 
 
 def field(
-    default: _T,
+    default: typing.Union[_T, typing.Literal[attr.NOTHING]] = attr.NOTHING,
     *,
     parser: typing.Optional[parser_api.Parser[_T]] = None,
 ) -> _T:
@@ -143,7 +143,7 @@ def field(
         created this way always has ``kw_only=True`` set.
     """
     return attr.field(
-        default=default,
+        default=typing.cast(_T, default),
         kw_only=True,
         metadata={
             FieldMetadata.FIELDTYPE: FieldType.CUSTOM_ID,
@@ -159,8 +159,8 @@ def internal(
 ) -> _T:
     """Declare a field as internal.
 
-    This automatically makes it not appear inside the init signature for the
-    component, and allows marking the field as frozen.
+    This is used internally to differentiate component parameters from user-
+    defined custom id parameters.
 
     Parameters
     ----------
@@ -174,8 +174,7 @@ def internal(
     Returns
     -------
     attr.Field
-        A new field with the provided default and frozen status. Note that an
-        internal field always has ``init=False`` set.
+        A new field with the provided default and frozen status.
     """
     setter = attr.setters.frozen if frozen else None
     return attr.field(
