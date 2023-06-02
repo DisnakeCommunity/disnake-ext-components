@@ -215,6 +215,7 @@ class ComponentManager(component_api.ComponentManager):
         "_components",
         "_count",
         "_counter",
+        "_identifiers",
         "_module_data",
         "_sep",
         "wrap_callback",
@@ -226,6 +227,7 @@ class ComponentManager(component_api.ComponentManager):
     _components: weakref.WeakValueDictionary[str, ComponentType]
     _count: typing.Optional[bool]
     _counter: int
+    _identifiers: dict[str, str]
     _module_data: typing.Dict[str, _ModuleData]
     _sep: typing.Optional[str]
 
@@ -239,6 +241,7 @@ class ComponentManager(component_api.ComponentManager):
         self._name = name
         self._children = set()
         self._components = weakref.WeakValueDictionary()
+        self._identifiers = {}
         self._count = count
         self._counter = 0
         self._module_data = {}
@@ -337,7 +340,7 @@ class ComponentManager(component_api.ComponentManager):
     ) -> str:
         # <<docstring inherited from api.components.ComponentManager>>
 
-        identifier = self.make_identifier(type(component))
+        identifier = self._identifiers[type(component).__name__]
 
         if self.count:
             identifier = identifier + self.increment()
@@ -452,6 +455,7 @@ class ComponentManager(component_api.ComponentManager):
 
         for manager in _recurse_parents(self):
             manager._components[resolved_identifier] = component_type
+            manager._identifiers[component_type.__name__] = resolved_identifier
             manager._module_data[resolved_identifier] = module_data
 
         return component_type
