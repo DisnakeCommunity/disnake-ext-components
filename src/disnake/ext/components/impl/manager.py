@@ -13,6 +13,7 @@ import weakref
 import attr
 import disnake
 from disnake.ext import commands
+from disnake.ext.components import fields
 from disnake.ext.components import interaction as interaction_impl
 from disnake.ext.components.api import component as component_api
 
@@ -377,7 +378,20 @@ class ComponentManager(component_api.ComponentManager):
             self.deregister(component_type)
             return None
 
-        return await component_type.factory.build_from_interaction(interaction, params)
+        component = await component_type.factory.build_from_interaction(
+            interaction, params
+        )
+
+        if not isinstance(interaction, disnake.MessageInteraction):
+            return component
+
+        interaction_component = interaction.component
+
+        for field in fields.get_fields(component_type, kind=fields.FieldType.INTERNAL):
+            name = field.name
+            setattr(component, name, getattr(interaction_component, name))
+
+        return component
 
     # Nothing: nested decorator, return callable that registers and
     # returns the component.
