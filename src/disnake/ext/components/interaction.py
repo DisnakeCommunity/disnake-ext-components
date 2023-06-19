@@ -305,15 +305,18 @@ class MessageInteraction(  # pyright: ignore
 
     # message = proxy.ProxiedProperty("_wrapped")
 
-@typing.overload
-def wrap_interaction(interaction: disnake.ApplicationCommandInteraction) -> WrappedInteraction:
-    ...
 
 @typing.overload
 def wrap_interaction(interaction: disnake.MessageInteraction) -> MessageInteraction:
     ...
 
-def wrap_interaction(interaction: disnake.Interaction) -> WrappedInteraction | MessageInteraction:
+
+@typing.overload
+def wrap_interaction(interaction: disnake.Interaction) -> WrappedInteraction:
+    ...
+
+
+def wrap_interaction(interaction: disnake.Interaction) -> WrappedInteraction:
     """Wrap a disnake interaction type for disnake-ext-components compatibility.
 
     Interactions wrapped in this way can send disnake-ext-components'
