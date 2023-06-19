@@ -18,6 +18,9 @@ __all__: typing.Sequence[str] = (
 )
 
 _PARSERS: typing.Dict[typing.Type[typing.Any], typing.Type[Parser[typing.Any]]] = {}
+_REV_PARSERS: typing.Dict[
+    typing.Type[Parser[typing.Any]], typing.Tuple[typing.Type[typing.Any]]
+] = {}
 
 
 _T = typing.TypeVar("_T")
@@ -47,10 +50,15 @@ def register_parser(
     force:
         Whether or not to overwrite existing defaults. Defaults to ``True``.
     """
-    strategy = _PARSERS.__setitem__ if force else _PARSERS.setdefault
+    if force:
+        _REV_PARSERS[parser] = types
+        for type in types:
+            _PARSERS[type] = parser
 
-    for type in types:
-        strategy(type, parser)
+    else:
+        _REV_PARSERS.setdefault(parser, types)
+        for type in types:
+            _PARSERS.setdefault(type, parser)
 
 
 def get_parser(type_: typing.Type[_T]) -> typing.Type[Parser[_T]]:
@@ -116,6 +124,17 @@ class Parser(parser_api.Parser[_T], typing.Protocol[_T]):
             The default parser instance for this parser type.
         """
         return cls()
+
+    @classmethod
+    def default_types(cls) -> typing.Tuple[typing.Type[typing.Any]]:
+        """Return the types for which this parser type is the default implementation.
+
+        Returns
+        -------
+        Sequence[type]:
+            The types for which this parser type is the default implementation.
+        """
+        return _REV_PARSERS[cls]
 
     @classmethod
     def from_funcs(

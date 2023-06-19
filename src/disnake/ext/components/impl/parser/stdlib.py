@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import datetime
 import enum
 import inspect
@@ -28,6 +29,7 @@ __all__: typing.Sequence[str] = (
     "TimezoneParser",
     "CollectionParser",
     "TupleParser",
+    "UnionParser",
 )
 
 
@@ -497,3 +499,72 @@ class TupleParser(
                 for parser, part in zip(self.inner_parsers, argument)
             ]
         )
+
+
+class UnionParser(
+    base.Parser[typing.Union[typing_extensions.Unpack[_UnpackInnerT]]],
+    typing.Generic[typing_extensions.Unpack[_UnpackInnerT]],
+):
+    """Parser type with support for unions.
+
+    Provided parsers are sequentially tried until one passes. If none work, an
+    exception is raised instead.
+
+    Parameters
+    ----------
+    *inner_parsers: components.Parser[object]
+        The parsers with which to sequentially try to parse the argument.
+        None can be provided as one of the parameters to make it optional.
+    """
+
+    inner_parsers: typing.Sequence[base.Parser[typing.Any]]
+    optional: bool
+
+    def __init__(
+        self, *inner_parsers: typing.Optional[base.Parser[typing.Any]]
+    ) -> None:
+        if len(inner_parsers) < 2:
+            msg = "A Union requires two or more type arguments."
+            raise TypeError(msg)
+
+        self.optional = False
+        self.inner_parsers = []
+        for parser in inner_parsers:
+            if parser is None:
+                self.optional = True
+                continue
+
+            self.inner_parsers.append(parser)
+
+    async def loads(  # noqa: D102
+        self, interaction: disnake.Interaction, argument: str
+    ) -> typing.Union[typing_extensions.Unpack[_UnpackInnerT]]:
+        # <<docstring inherited from parser_api.Parser>>
+        for parser in self.inner_parsers:
+            with contextlib.suppress(Exception):
+                return typing.cast(
+                    typing.Union[typing_extensions.Unpack[_UnpackInnerT]],
+                    await aio.eval_maybe_coro(parser.loads(interaction, argument)),
+                )
+
+        if self.optional:
+            return typing.cast(
+                typing.Union[typing_extensions.Unpack[_UnpackInnerT]], None
+            )
+
+        msg = "Failed to parse input to any type in the Union."
+        raise RuntimeError(msg)
+
+    async def dumps(  # noqa: D102
+        self, argument: typing.Union[typing_extensions.Unpack[_UnpackInnerT]]
+    ) -> str:
+        # <<docstring inherited from parser_api.Parser>>
+        if not argument and self.optional:
+            return ""
+
+        for parser in self.inner_parsers:
+            if isinstance(argument, parser.default_types()):
+                return await aio.eval_maybe_coro(parser.dumps(argument))
+
+        msg = f"Failed to parse input {argument!r} to any type in the Union."
+        raise RuntimeError(msg)
