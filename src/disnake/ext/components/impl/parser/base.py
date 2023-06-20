@@ -32,33 +32,14 @@ TypeSequence = typing.Sequence[typing.Type[typing.Any]]
 def _issubclass(
     cls: type, class_or_tuple: typing.Union[type, typing.Tuple[type, ...]]
 ) -> bool:
-    """Specialised issubclass that works with protocols with non-method members.
+    try:
+        return issubclass(cls, class_or_tuple)
 
-    Doing this isn't entirely correct, but we need to do it to support
-    types such as ``disnake.abc.Snowflake``.
-    """
-    attr: str
+    except TypeError:
+        if isinstance(class_or_tuple, tuple):
+            return any(cls is cls_ for cls_ in class_or_tuple)
 
-    if not isinstance(class_or_tuple, tuple):
-        class_or_tuple = (class_or_tuple,)
-
-    for class_ in class_or_tuple:
-        try:
-            if issubclass(cls, class_):
-                return True
-
-        except TypeError:
-            if not getattr(class_, "_is_protocol", False):
-                raise
-
-            # HACK: This may break with typing updates!
-            for attr in typing._get_protocol_attrs(class_):  # pyright: ignore
-                if not hasattr(cls, attr):
-                    return False
-
-            return True
-
-    return False
+        return cls is class_or_tuple
 
 
 def register_parser(
