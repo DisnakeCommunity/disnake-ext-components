@@ -17,8 +17,6 @@ __all__: typing.Sequence[str] = (
     "Parser",
 )
 
-_NONES = frozenset([None, type(None)])
-
 _PARSERS: typing.Dict[typing.Type[typing.Any], typing.Type[Parser[typing.Any]]] = {}
 _REV_PARSERS: typing.Dict[
     typing.Type[Parser[typing.Any]], typing.Tuple[typing.Type[typing.Any]]
@@ -29,6 +27,38 @@ _T = typing.TypeVar("_T")
 
 MaybeCoroutine = typing.Union[typing.Coroutine[None, None, _T], _T]
 TypeSequence = typing.Sequence[typing.Type[typing.Any]]
+
+
+def _issubclass(
+    cls: type, class_or_tuple: typing.Union[type, typing.Tuple[type, ...]]
+) -> bool:
+    """Specialised issubclass that works with protocols with non-method members.
+
+    Doing this isn't entirely correct, but we need to do it to support
+    types such as ``disnake.abc.Snowflake``.
+    """
+    attr: str
+
+    if not isinstance(class_or_tuple, tuple):
+        class_or_tuple = (class_or_tuple,)
+
+    for class_ in class_or_tuple:
+        try:
+            if issubclass(cls, class_):
+                return True
+
+        except TypeError:
+            if not getattr(class_, "_is_protocol", False):
+                raise
+
+            # HACK: This may break with typing updates!
+            for attr in typing._get_protocol_attrs(class_):  # pyright: ignore
+                if not hasattr(cls, attr):
+                    return False
+
+            return True
+
+    return False
 
 
 def register_parser(
@@ -77,7 +107,7 @@ def _get_parser_type(type_: typing.Type[_T]) -> typing.Type[Parser[_T]]:
 
     # Slow lookup for subclasses of existing types...
     for parser, parser_types in _REV_PARSERS.items():
-        if issubclass(type_, parser_types):
+        if _issubclass(type_, parser_types):
             return parser
 
     msg = f"No parser available for type {type_.__name__!r}."
