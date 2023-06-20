@@ -46,10 +46,7 @@ _UnpackInnerT = typing_extensions.TypeVarTuple(
 # NONE
 
 
-class NoneParser(
-    base.Parser[None],
-    is_default_for=typing.cast(typing.Tuple[typing.Type[None], ...], _NONES),
-):
+class NoneParser(base.Parser[None], is_default_for=(_NoneType,)):
     """Base parser for None.
 
     Mainly relevant Optional[...] parsers.
@@ -567,7 +564,7 @@ class UnionParser(
 
     Parameters
     ----------
-    *inner_parsers: components.Parser[object]
+    *inner_parsers: Optional[components.Parser[object]]
         The parsers with which to sequentially try to parse the argument.
         None can be provided as one of the parameters to make it optional.
     """
