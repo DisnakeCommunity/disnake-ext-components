@@ -32,6 +32,8 @@ __all__: typing.Sequence[str] = (
     "UnionParser",
 )
 
+_NoneType: typing.Type[None] = type(None)
+_NONES = (None, _NoneType)
 
 _NumberT = typing_extensions.TypeVar("_NumberT", bound=float, default=float)
 _CollectionT = typing_extensions.TypeVar(  # Simplest iterable container object.
@@ -40,6 +42,49 @@ _CollectionT = typing_extensions.TypeVar(  # Simplest iterable container object.
 _UnpackInnerT = typing_extensions.TypeVarTuple(
     "_UnpackInnerT", default=typing_extensions.Unpack[typing.Tuple[str]]
 )
+
+# NONE
+
+
+class NoneParser(
+    base.Parser[None],
+    is_default_for=typing.cast(typing.Tuple[typing.Type[None], ...], _NONES),
+):
+    """Base parser for None.
+
+    Mainly relevant Optional[...] parsers.
+
+    Parameters
+    ----------
+    strict: bool
+        If the NoneParser is set to strict mode, it will only return ``None``
+        if the provided argument was empty. If not, it will raise an exception.
+        If strict is set to ``False``, the parser will always return None,
+        regardless of input.
+        To prevent unforeseen bugs, this defaults to True.
+    """
+
+    strict: bool
+
+    def __init__(self, *, strict: bool = True) -> None:
+        self.strict = strict
+
+    def loads(self, _inter: disnake.Interaction, argument: str) -> None:  # noqa: D102
+        # <<docstring inherited from parser_api.Parser>>
+        if not argument or not self.strict:
+            return None  # noqa: RET501
+
+        msg = f"Strict `NoneParser`s can only load the empty string, got {argument!r}."
+        raise ValueError(msg)
+
+    def dumps(self, argument: None) -> str:  # noqa: D102
+        # <<docstring inherited from parser_api.Parser>>
+        if argument is None or not self.strict:
+            return ""
+
+        msg = f"Strict `NoneParser`s can only dump `None`, got {argument!r}."
+        raise ValueError(msg)
+
 
 # INT / FLOAT
 
@@ -530,27 +575,31 @@ class UnionParser(
         self.optional = False
         self.inner_parsers = []
         for parser in inner_parsers:
-            if parser is None:
+            if parser in _NONES:
+                self.inner_parsers.append(NoneParser.default())
                 self.optional = True
-                continue
 
-            self.inner_parsers.append(parser)
+            else:
+                self.inner_parsers.append(parser)
 
     async def loads(  # noqa: D102
         self, interaction: disnake.Interaction, argument: str
     ) -> typing.Union[typing_extensions.Unpack[_UnpackInnerT]]:
         # <<docstring inherited from parser_api.Parser>>
+        if not argument and self.optional:
+            # Quick-return: if no argument was provided and the parser is
+            # optional, just return None without trying any parsers.
+            return typing.cast(
+                typing.Union[typing_extensions.Unpack[_UnpackInnerT]], None
+            )
+
+        # Try all parsers sequentially. If any succeeds, return the result.
         for parser in self.inner_parsers:
             with contextlib.suppress(Exception):
                 return typing.cast(
                     typing.Union[typing_extensions.Unpack[_UnpackInnerT]],
                     await aio.eval_maybe_coro(parser.loads(interaction, argument)),
                 )
-
-        if self.optional:
-            return typing.cast(
-                typing.Union[typing_extensions.Unpack[_UnpackInnerT]], None
-            )
 
         msg = "Failed to parse input to any type in the Union."
         raise RuntimeError(msg)
