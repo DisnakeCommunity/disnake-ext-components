@@ -62,8 +62,7 @@ def _determine_parser(
             return parser
 
     if required:
-        parser_type = parser_impl.get_parser(attribute.type or str)
-        return parser_type.default()
+        return parser_impl.get_parser(attribute.type or str)
 
     return None
 
