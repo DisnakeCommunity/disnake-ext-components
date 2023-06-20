@@ -416,72 +416,13 @@ def _resolve_collection(type_: typing.Type[_CollectionT]) -> typing.Type[_Collec
     raise TypeError(msg)
 
 
-class CollectionParser(base.Parser[_CollectionT]):
-    """Parser type with support for collections of other types.
-
-    This parser parses a string into a given container type and inner type, and
-    vice versa.
-
-    Note that this parser does not support tuples.
-
-    Parameters
-    ----------
-    inner_parser: components.Parser[object]
-        The parser to use to parse the items inside the collection. This defines
-        the inner type for the collection. Sadly, due to typing restrictions,
-        this is not enforced during type-checking. Defaults to a string parser.
-    collection_type: Collection[object]
-        The type of collection to use. This does not specify the inner type.
-    sep: str
-        The separator to use. Can be any string, though a single character is
-        recommended. Defaults to ",".
-    """
-
-    inner_parser: base.Parser[typing.Any]
-    collection_type: typing.Type[_CollectionT]
-    sep: str
-
-    def __init__(
-        self,
-        inner_parser: typing.Optional[base.Parser[typing.Any]] = None,
-        *,
-        collection_type: typing.Optional[typing.Type[_CollectionT]] = None,
-        sep: str = ",",
-    ) -> None:
-        self.sep = sep
-        self.collection_type = typing.cast(  # Pyright do be whack sometimes.
-            typing.Type[_CollectionT],
-            list if collection_type is None else _resolve_collection(collection_type),
-        )
-        self.inner_parser = (
-            StringParser.default() if inner_parser is None else inner_parser
-        )
-
-    async def loads(  # noqa: D102
-        self, interaction: disnake.Interaction, argument: str
-    ) -> _CollectionT:
-        # <<docstring inherited from parser_api.Parser>>
-        parsed = [
-            await aio.eval_maybe_coro(self.inner_parser.loads(interaction, part))
-            for part in argument.split(self.sep)
-            if not part.isspace()
-        ]
-
-        return self.collection_type(parsed)  # pyright: ignore
-
-    async def dumps(self, argument: _CollectionT) -> str:  # noqa: D102
-        # <<docstring inherited from parser_api.Parser>>
-        return ",".join(
-            [
-                await aio.eval_maybe_coro(self.inner_parser.dumps(part))
-                for part in argument
-            ]
-        )
+# NOTE: TupleParser *must* be registered before CollectionParser!
 
 
 class TupleParser(
     base.Parser[typing.Tuple[typing_extensions.Unpack[_UnpackInnerT]]],
     typing.Generic[typing_extensions.Unpack[_UnpackInnerT]],
+    is_default_for=(typing.Tuple[object, ...],),
 ):
     """Parser type with support for tuples.
 
@@ -546,9 +487,78 @@ class TupleParser(
         )
 
 
+class CollectionParser(
+    base.Parser[_CollectionT],
+    is_default_for=(typing.Collection[object],),
+):
+    """Parser type with support for collections of other types.
+
+    This parser parses a string into a given container type and inner type, and
+    vice versa.
+
+    Note that this parser does not support tuples.
+
+    Parameters
+    ----------
+    inner_parser: components.Parser[object]
+        The parser to use to parse the items inside the collection. This defines
+        the inner type for the collection. Sadly, due to typing restrictions,
+        this is not enforced during type-checking. Defaults to a string parser.
+    collection_type: Collection[object]
+        The type of collection to use. This does not specify the inner type.
+    sep: str
+        The separator to use. Can be any string, though a single character is
+        recommended. Defaults to ",".
+    """
+
+    inner_parser: base.Parser[typing.Any]
+    collection_type: typing.Type[_CollectionT]
+    sep: str
+
+    def __init__(
+        self,
+        inner_parser: typing.Optional[base.Parser[typing.Any]] = None,
+        *,
+        collection_type: typing.Optional[typing.Type[_CollectionT]] = None,
+        sep: str = ",",
+    ) -> None:
+        self.sep = sep
+        self.collection_type = typing.cast(  # Pyright do be whack sometimes.
+            typing.Type[_CollectionT],
+            list if collection_type is None else _resolve_collection(collection_type),
+        )
+        self.inner_parser = (
+            StringParser.default() if inner_parser is None else inner_parser
+        )
+
+    async def loads(  # noqa: D102
+        self, interaction: disnake.Interaction, argument: str
+    ) -> _CollectionT:
+        # <<docstring inherited from parser_api.Parser>>
+        parsed = [
+            await aio.eval_maybe_coro(self.inner_parser.loads(interaction, part))
+            for part in argument.split(self.sep)
+            if not part.isspace()
+        ]
+
+        return self.collection_type(parsed)  # pyright: ignore
+
+    async def dumps(self, argument: _CollectionT) -> str:  # noqa: D102
+        # <<docstring inherited from parser_api.Parser>>
+        return ",".join(
+            [
+                await aio.eval_maybe_coro(  # Weird false flag in pyright...
+                    self.inner_parser.dumps(part),  # pyright: ignore
+                )
+                for part in argument
+            ]
+        )
+
+
 class UnionParser(
     base.Parser[typing.Union[typing_extensions.Unpack[_UnpackInnerT]]],
     typing.Generic[typing_extensions.Unpack[_UnpackInnerT]],
+    is_default_for=(typing.Union,),
 ):
     """Parser type with support for unions.
 
