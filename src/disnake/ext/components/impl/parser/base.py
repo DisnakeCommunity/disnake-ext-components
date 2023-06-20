@@ -17,6 +17,8 @@ __all__: typing.Sequence[str] = (
     "Parser",
 )
 
+_NONES = frozenset([None, type(None)])
+
 _PARSERS: typing.Dict[typing.Type[typing.Any], typing.Type[Parser[typing.Any]]] = {}
 _REV_PARSERS: typing.Dict[
     typing.Type[Parser[typing.Any]], typing.Tuple[typing.Type[typing.Any]]
@@ -50,6 +52,10 @@ def register_parser(
     force:
         Whether or not to overwrite existing defaults. Defaults to ``True``.
     """
+    # This allows e.g. is_default_for=(Tuple[Any, ...],) so pyright doesn't complain.
+    # The stored type will then still be tuple, as intended.
+    types = tuple(typing.get_origin(type_) or type_ for type_ in types)
+
     if force:
         _REV_PARSERS[parser] = types
         for type in types:
@@ -61,8 +67,28 @@ def register_parser(
             _PARSERS.setdefault(type, parser)
 
 
-def get_parser(type_: typing.Type[_T]) -> typing.Type[Parser[_T]]:
+def _get_parser_type(type_: typing.Type[_T]) -> typing.Type[Parser[_T]]:
+    # Fast lookup...
+    if type_ in _PARSERS:
+        return _PARSERS[type_]
+
+    # TODO: Make parsers accept a type and provide it to the parser here,
+    #       in the same way collection parsers support a collection type.
+
+    # Slow lookup for subclasses of existing types...
+    for parser, parser_types in _REV_PARSERS.items():
+        if issubclass(type_, parser_types):
+            return parser
+
+    msg = f"No parser available for type {type_.__name__!r}."
+    raise TypeError(msg)
+
+
+# TODO: Maybe cache this?
+def get_parser(type_: typing.Type[_T]) -> Parser[_T]:
     """Get the default parser for the provided type.
+
+    Note that type annotations such as ``Union[int, str]`` are also valid.
 
     Parameters
     ----------
@@ -71,19 +97,44 @@ def get_parser(type_: typing.Type[_T]) -> typing.Type[Parser[_T]]:
 
     Returns
     -------
-    typing.Type[:class:`Parser`]:
-        The default parser class for the provided type.
+    :class:`Parser`:
+        The default parser for the provided type.
 
     Raises
     ------
-    KeyError:
-        The provided type has no registered parser.
+    TypeError:
+        Could not create a parser for the provided type.
     """
     # TODO: Somehow allow more flexibility here. It would at the very least
     #       be neat to be able to pick between strictly sync/async parsers
     #       (mainly for the purpose of not making api requests); but perhaps
     #       allowing the user to pass a filter function could be cool?
-    return _PARSERS[type_]
+    origin = typing.get_origin(type_)
+
+    if not origin:
+        return _get_parser_type(type_).default()
+
+    parser_type = _get_parser_type(origin)
+    type_args = typing.get_args(type_)
+
+    if origin is typing.Union:
+        inner_parsers = [
+            get_parser(arg)  # Explicitly allow None to stay
+            for arg in type_args
+        ]  # fmt: skip
+        return parser_type(*inner_parsers)  # see UnionParser
+
+    if issubclass(origin, typing.Tuple):
+        inner_parsers = [get_parser(arg) for arg in type_args]
+        return parser_type(*inner_parsers)  # see TupleParser
+
+    if issubclass(origin, typing.Collection):
+        inner_type = next(iter(type_args), str)  # Get first element, default to str
+        inner_parser = get_parser(inner_type)
+        return parser_type(inner_parser, collection_type=origin)  # see CollectionParser
+
+    msg = f"Coult not create a parser for type {type_.__name__!r}."
+    raise TypeError(msg)
 
 
 class Parser(parser_api.Parser[_T], typing.Protocol[_T]):
@@ -97,6 +148,9 @@ class Parser(parser_api.Parser[_T], typing.Protocol[_T]):
     Simpler parsers can also be generated from ``loads`` and ``dumps`` functions
     using :meth:`from_funcs`, so as to not have to define an entire class.
     """
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        super().__init__(*args, **kwargs)
 
     def __init_subclass__(
         cls,
