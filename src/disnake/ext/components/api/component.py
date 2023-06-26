@@ -420,6 +420,7 @@ class ComponentFactory(typing.Protocol[ComponentT]):
         self,
         interaction: disnake.Interaction,
         params: typing.Sequence[str],
+        component_params: typing.Optional[typing.Mapping[str, object]],
     ) -> ComponentT:
         """Create a new component instance from the provided interaction.
 
@@ -431,6 +432,9 @@ class ComponentFactory(typing.Protocol[ComponentT]):
         interaction:
             The interaction to use for creating the component instance.
         params:
-            A mapping of field name to to-be-parsed field values.
+            A sequence of to-be-parsed field values.
+        component_params:
+            A mapping of parameters that is to be directly passed to the
+            component constructor.
         """
         ...

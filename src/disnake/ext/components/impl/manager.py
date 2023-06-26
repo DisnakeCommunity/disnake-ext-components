@@ -378,20 +378,20 @@ class ComponentManager(component_api.ComponentManager):
             self.deregister(component_type)
             return None
 
-        component = await component_type.factory.build_from_interaction(
-            interaction, params
+        if isinstance(interaction, disnake.MessageInteraction):
+            component_params = {
+                field.name: getattr(interaction.component, field.name)
+                for field in fields.get_fields(
+                    component_type, kind=fields.FieldType.INTERNAL
+                )
+            }
+
+        else:
+            component_params = None
+
+        return await component_type.factory.build_from_interaction(
+            interaction, params, component_params=component_params
         )
-
-        if not isinstance(interaction, disnake.MessageInteraction):
-            return component
-
-        interaction_component = interaction.component
-
-        for field in fields.get_fields(component_type, kind=fields.FieldType.INTERNAL):
-            name = field.name
-            setattr(component, name, getattr(interaction_component, name))
-
-        return component
 
     # Nothing: nested decorator, return callable that registers and
     # returns the component.

@@ -144,6 +144,7 @@ class ComponentFactory(
         self,
         interaction: disnake.Interaction,
         params: typing.Sequence[str],
+        component_params: typing.Optional[typing.Mapping[str, object]] = None,
     ) -> component_api.ComponentT:
         # <<docstring inherited from api.components.ComponentFactory>>
 
@@ -151,7 +152,7 @@ class ComponentFactory(
 
         # HACK: Easiest way I could think of to get around pyright inconsistency.
         component = self.component.__new__(self.component)
-        component.__init__(**parsed)
+        component.__init__(**parsed, **(component_params or {}))
         return component
 
 
@@ -196,6 +197,7 @@ class NoopFactory(component_api.ComponentFactory[typing.Any]):
         self,
         interaction: disnake.Interaction,
         params: typing.Sequence[str],
+        component_params: typing.Optional[typing.Mapping[str, object]] = None,
     ) -> typing.NoReturn:
         # <<docstring inherited from api.components.ComponentFactory>>
 
