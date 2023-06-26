@@ -165,7 +165,7 @@ async def test_button(inter: disnake.CommandInteraction) -> None:
     wrapped = components.wrap_interaction(inter)
     component = FooButton(count=0)
 
-    await wrapped.send(components=component)
+    await wrapped.response.send_message(components=component)
 
 
 @bot.slash_command()  # pyright: ignore  # still some unknowns in disnake
@@ -173,7 +173,7 @@ async def test_nested_button(inter: disnake.CommandInteraction) -> None:
     wrapped = components.wrap_interaction(inter)
     component = FooBarBazButton(count=0)
 
-    await wrapped.send(components=component)
+    await wrapped.response.send_message(components=component)
 
 
 # Lastly, we run the bot.
