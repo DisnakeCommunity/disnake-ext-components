@@ -17,7 +17,7 @@ from disnake.ext import commands, components
 
 # First and foremost, we create a bot as per usual. Since we don't need any
 # prefix command capabilities, we opt for an InteractionBot.
-bot = commands.InteractionBot(sync_commands_debug=True)
+bot = commands.InteractionBot()
 
 # Next, we make a component manager and register it to the bot.
 manager = components.get_manager()
