@@ -35,7 +35,7 @@ async def test_button(inter: disnake.CommandInteraction) -> None:
     wrapped = components.wrap_interaction(inter)
     component = MyButton(count=0)
 
-    await wrapped.send(components=component)
+    await wrapped.response.send_message(components=component)
 
     # If we had not wrapped the interaction, we would have needed to do
     # `await inter.send(components=await component.as_ui_component())`

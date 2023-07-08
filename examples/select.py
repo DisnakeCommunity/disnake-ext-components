@@ -124,7 +124,9 @@ async def test_select(inter: disnake.CommandInteraction) -> None:
     wrapped = components.wrap_interaction(inter)
 
     component = MySelect()
-    await wrapped.send(component.render_colours(), components=component)
+    await wrapped.response.send_message(
+        component.render_colours(), components=component
+    )
 
     # If we had not wrapped the interaction, we would have needed to do
     # `await inter.send(components=await component.as_ui_component())`

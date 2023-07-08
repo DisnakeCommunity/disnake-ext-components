@@ -42,7 +42,9 @@ def _get_member(inter: disnake.Interaction, argument: str) -> disnake.Member:
 
 
 GetUserParser = base.Parser.from_funcs(
-    _get_user, snowflake.snowflake_dumps, is_default_for=(disnake.User,)
+    _get_user,
+    snowflake.snowflake_dumps,
+    is_default_for=(disnake.User, disnake.abc.User),
 )
 GetMemberParser = base.Parser.from_funcs(
     _get_member, snowflake.snowflake_dumps, is_default_for=(disnake.Member,)
@@ -70,7 +72,9 @@ async def _fetch_member(inter: disnake.Interaction, argument: str) -> disnake.Me
 
 
 UserParser = base.Parser.from_funcs(
-    _fetch_user, snowflake.snowflake_dumps, is_default_for=(disnake.User,)
+    _fetch_user,
+    snowflake.snowflake_dumps,
+    is_default_for=(disnake.User, disnake.abc.User),
 )
 MemberParser = base.Parser.from_funcs(
     _fetch_member, snowflake.snowflake_dumps, is_default_for=(disnake.Member,)
