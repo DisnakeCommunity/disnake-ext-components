@@ -7,6 +7,7 @@
 from disnake.ext.components.impl.parser.base import *
 from disnake.ext.components.impl.parser.channel import *
 from disnake.ext.components.impl.parser.emoji import *
+from disnake.ext.components.impl.parser.enum import *
 from disnake.ext.components.impl.parser.guild import *
 from disnake.ext.components.impl.parser.invite import *
 from disnake.ext.components.impl.parser.message import *

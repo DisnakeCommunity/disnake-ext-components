@@ -13,7 +13,7 @@ _EnumT = typing.TypeVar("_EnumT", bound=typing.Union[enum.Enum, disnake.Enum])
 
 
 def _get_enum_type(
-    enum_class: type[typing.Union[enum.Enum, disnake.flags.BaseFlags]]
+    enum_class: typing.Type[typing.Union[enum.Enum, disnake.flags.BaseFlags]]
 ) -> type:
     maybe_type = getattr(enum_class, "_member_type_", object)
     if maybe_type is not object:
@@ -51,10 +51,10 @@ class EnumParser(
         The enum or flag class to use for parsing.
     """
 
-    enum_class: type[_EnumT]
+    enum_class: typing.Type[_EnumT]
     value_parser: parser_base.Parser[typing.Any]
 
-    def __init__(self, enum_class: type[_EnumT]) -> None:
+    def __init__(self, enum_class: typing.Type[_EnumT]) -> None:
         self.enum_class = enum_class
         self.value_parser = parser_base.get_parser(_get_enum_type(enum_class))
 
