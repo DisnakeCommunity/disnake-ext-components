@@ -29,6 +29,17 @@ python-dotenv = "^1.0.0"
 ipykernel = "^6.23.3"
 
 
+[tool.poetry.group.docs.dependencies]
+furo = {git = "https://github.com/sharp-eyes/furo"}
+Sphinx = "^7.0.1"
+sphinx-autobuild = "^2021.3.14"
+sphinxcontrib-trio = "^1.1.2"
+sphinx-inline-tabs = "^2023.4.21"
+sphinx-autodoc-typehints = "^1.23.3"
+sphinx-hoverxref = "^1.3.0"
+enum-tools = {extras = ["sphinx"], version = "^0.10.0"}
+
+
 [tool.poetry.scripts]
 dev-symlink = "scripts.symlink:_main"
 example = "scripts.example:_main"
@@ -145,7 +156,12 @@ mypy-init-return = true
     "ARG001",
     "ANN201",
 ]
-
+# E402: Imports at top of file.
+# PGH003: Blanket type ignores.
+"docs/*" = [
+    "E402",
+    "PGH003",
+]
 
 [tool.taskipy.tasks]
 pre-commit = "pre-commit install --install-hooks"
