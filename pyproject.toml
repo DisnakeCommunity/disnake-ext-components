@@ -162,6 +162,9 @@ mypy-init-return = true
     "E402",
     "PGH003",
 ]
+"docs/source/extensions/*" = [
+    "D"
+]
 
 [tool.taskipy.tasks]
 pre-commit = "pre-commit install --install-hooks"
