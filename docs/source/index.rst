@@ -11,6 +11,7 @@ Welcome to disnake-ext-components's documentation!
    :caption: Contents:
 
    installing
+   API Reference </api_ref/index.rst>
 
 
 Indices and tables

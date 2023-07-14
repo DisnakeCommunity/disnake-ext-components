@@ -1,4 +1,4 @@
-"""Field implementations extending ``attr.field``."""
+"""Field implementations extending :func:`attrs.field`."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import enum
 import functools
 import typing
 
-import attr
+import attrs
 import typing_extensions
 
 if typing.TYPE_CHECKING:
@@ -49,26 +49,59 @@ class FieldType(enum.Flag):
 
         Mainly intended for use in :func:`get_fields`.
         """
-        return functools.reduce(FieldType.__or__, cls)
+        return _ALL_FIELD_TYPES
 
 
-_ALL_FIELD_TYPES = FieldType.ALL()
+_ALL_FIELD_TYPES = functools.reduce(FieldType.__or__, FieldType)
+_ALL_FIELD_TYPES._name_ = "ALL()"  # This makes it render nicer in docs.
 
 
-def get_parser(field: attr.Attribute[typing.Any]) -> typing.Optional[parser_api.Parser]:
+def get_parser(
+    field: attrs.Attribute[typing.Any],
+) -> typing.Optional[parser_api.Parser]:
     """Get the user-provided parser of the provided field.
 
-    If the parser was automatically inferred, this will be ``None``.
+    Parameters
+    ----------
+    field:
+        The field for which to get the :class:`components.api.Parser`.
+
+    Returns
+    -------
+    :class:`components.api.Parser`
+        The user-provided parser of the provided field.
+    :data:`None`
+        The field's parser was automatically inferred.
+
     """
     return field.metadata.get(FieldMetadata.PARSER)
 
 
 def get_field_type(
-    field: attr.Attribute[typing.Any], default: typing.Optional[FieldType] = None
+    field: attrs.Attribute[typing.Any], default: typing.Optional[FieldType] = None
 ) -> FieldType:
-    """Get the field type of the field.
+    """Get the :class:`FieldType` of the field.
 
-    If the field wasn't constructed by disnake-ext-components, this will raise.
+    Parameters
+    ----------
+    field:
+        The field of which to get the field type.
+    default:
+        The default value to use if the field doesn't have a :class:`FieldType`
+        set.
+
+    Returns
+    -------
+    :class:`FieldType`
+        The type of the provided field.
+
+    Raises
+    ------
+    :class:`TypeError`
+        The provided field does not have a field type set, and no default was
+        provided. The most common cause of this is using
+        :func:`attrs.field` instead of :func:`components.field() <.field>` to
+        define a field.
     """
     if FieldMetadata.FIELDTYPE not in field.metadata:
         if default:
@@ -85,8 +118,21 @@ def get_field_type(
     return field.metadata[FieldMetadata.FIELDTYPE]
 
 
-def is_field_of_type(field: attr.Attribute[typing.Any], kind: FieldType) -> bool:
-    """Check whether or not a field is marked as internal."""
+def is_field_of_type(field: attrs.Attribute[typing.Any], kind: FieldType) -> bool:
+    """Check whether or not a field is marked as the provided :class:`FieldType`.
+
+    Parameters
+    ----------
+    field:
+        The field to check.
+    kind:
+        The :class:`FieldType` to check for.
+
+    Returns
+    -------
+    :class:`bool`
+        Whether the provided field was of the provided :class:`FieldType`.
+    """
     set_type = field.metadata.get(FieldMetadata.FIELDTYPE)
     return bool(set_type and set_type & kind)  # Check if not None, then check if match.
 
@@ -96,11 +142,11 @@ def get_fields(
     /,
     *,
     kind: FieldType = _ALL_FIELD_TYPES,
-) -> typing.Sequence[attr.Attribute[typing.Any]]:
-    """Get the attributes of an attrs class.
+) -> typing.Sequence[attrs.Attribute[typing.Any]]:
+    r"""Get the attributes of an attrs class.
 
-    This is wraps ``attr.fields`` to be less strict typing-wise and has special
-    handling for internal fields.
+    This wraps :func:`attrs.fields` to be less strict typing-wise and has
+    special handling for internal fields.
 
     Parameters
     ----------
@@ -108,24 +154,29 @@ def get_fields(
         The class of which to get the fields.
     kind:
         The kind(s) of fields to return. Can be any combination of
-        :class:`FieldType` s.
+        :class:`FieldType`\s.
     """
-    return [field for field in attr.fields(cls) if is_field_of_type(field, kind)]
+    return [field for field in attrs.fields(cls) if is_field_of_type(field, kind)]
 
 
 def field(
-    default: typing.Union[_T, typing.Literal[attr.NOTHING]] = attr.NOTHING,
+    default: typing.Union[_T, typing.Literal[attrs.NOTHING]] = attrs.NOTHING,
     *,
     parser: typing.Optional[parser_api.Parser[_T]] = None,
 ) -> _T:
-    """Define a custom ID field for the component.
+    r"""Define a custom ID field for the component.
 
     The type annotation for this field is used to parse incoming custom ids.
+
+    This is a wrapper around :func:`attrs.field`.
 
     .. note::
         In most cases, simply using a typehint will suffice to define a field.
         This function is generally only needed if you wish to supply a default
         value or custom parser.
+
+    .. note::
+        Fields created this way always have ``kw_only=True`` set.
 
     Parameters
     ----------
@@ -138,11 +189,10 @@ def field(
 
     Returns
     -------
-    attr.Field
-        A new field with the provided default and parser. Note that a field
-        created this way always has ``kw_only=True`` set.
+    :func:`Field <attrs.field>`\[``T``]
+        A new field with the provided default and/or parser.
     """
-    return attr.field(
+    return attrs.field(
         default=typing.cast(_T, default),
         kw_only=True,
         metadata={
@@ -157,10 +207,15 @@ def internal(
     *,
     frozen: bool = False,
 ) -> _T:
-    """Declare a field as internal.
+    r"""Declare a field as internal.
 
-    This is used internally to differentiate component parameters from user-
-    defined custom id parameters.
+    This is used internally to differentiate component parameters from
+    user-defined custom id parameters.
+
+    This is a wrapper around :func:`attrs.field`.
+
+    .. note::
+        Fields created this way always have ``kw_only=True`` set.
 
     Parameters
     ----------
@@ -173,12 +228,11 @@ def internal(
 
     Returns
     -------
-    attr.Field
+    :func:`Field <attrs.field>`\[``T``]
         A new field with the provided default and frozen status.
     """
-    setter = attr.setters.frozen if frozen else None
-    return attr.field(
+    return attrs.field(
         default=default,
-        on_setattr=setter,
+        on_setattr=attrs.setters.frozen if frozen else None,
         metadata={FieldMetadata.FIELDTYPE: FieldType.INTERNAL},
     )

@@ -26,7 +26,7 @@ _REV_PARSERS: typing.Dict[
 _T = typing.TypeVar("_T")
 
 MaybeCoroutine = typing.Union[typing.Coroutine[None, None, _T], _T]
-TypeSequence = typing.Sequence[typing.Type[typing.Any]]
+TypeSequence = typing.Sequence[type]
 
 
 def _issubclass(
@@ -58,7 +58,7 @@ def register_parser(
     ----------
     parser:
         The parser to register.
-    types:
+    *types:
         The types for which to register the provided parser as the default.
     force:
         Whether or not to overwrite existing defaults. Defaults to ``True``.
@@ -96,24 +96,24 @@ def _get_parser_type(type_: typing.Type[_T]) -> typing.Type[Parser[_T]]:
 
 
 # TODO: Maybe cache this?
-def get_parser(type_: typing.Type[_T]) -> Parser[_T]:
-    """Get the default parser for the provided type.
+def get_parser(type_: typing.Type[_T]) -> Parser[_T]:  # noqa: D417
+    r"""Get the default parser for the provided type.
 
     Note that type annotations such as ``Union[int, str]`` are also valid.
 
     Parameters
     ----------
-    type_:
+    type\_:
         The type for which to return the default parser.
 
     Returns
     -------
-    :class:`Parser`:
+    :class:`Parser`\[``T``]:
         The default parser for the provided type.
 
     Raises
     ------
-    TypeError:
+    :class:`TypeError`:
         Could not create a parser for the provided type.
     """
     # TODO: Somehow allow more flexibility here. It would at the very least
@@ -209,21 +209,24 @@ class Parser(parser_api.Parser[_T], typing.Protocol[_T]):
         *,
         is_default_for: typing.Optional[TypeSequence] = None,
     ) -> typing.Type[typing_extensions.Self]:
-        """Generate a parser class from ``loads`` and ``dumps`` functions.
+        r"""Generate a parser class from ``loads`` and ``dumps`` functions.
 
-        Note that these ``loads`` and ``dumps`` functions must **not** have
-        a ``self`` argument. They are treated as static methods. If a ``self``
-        argument is required, consider making a parser class through
-        inheritance instead.
+        .. warning::
+            The ``loads`` and ``dumps`` functions must **not** have
+            a ``self`` argument. They are treated as static methods. If a
+            ``self`` argument is required, consider making a parser class
+            through inheritance instead.
 
         Parameters
         ----------
         loads:
             A function that serves to turn a string value into a different type,
-            similar to :func:`json.loads`.
+            similar to :func:`json.loads`. This function can be either sync or
+            async.
         dumps:
             A function that serves to turn a value of a given type back into a
-            string, similar to :func:`json.dumps`.
+            string, similar to :func:`json.dumps`. This function can be either
+            sync or async.
         is_default_for:
             The types for which to register the newly created parser class as
             the default parser. By default, the parser is not registered as the
@@ -231,7 +234,7 @@ class Parser(parser_api.Parser[_T], typing.Protocol[_T]):
 
         Returns
         -------
-        typing.Type[:class:`Parser`]:
+        :class:`type`\[:class:`Parser`]:
             The newly created parser class.
         """
         new_cls = typing.cast(
@@ -244,8 +247,8 @@ class Parser(parser_api.Parser[_T], typing.Protocol[_T]):
         )
 
         # XXX: Not really type-safe whatsoever but it'll suffice.
-        new_cls.loads = staticmethod(loads)  # pyright: ignore
-        new_cls.dumps = staticmethod(dumps)  # pyright: ignore
+        new_cls.loads = staticmethod(loads)  # pyright: ignore[reportGeneralTypeIssues]
+        new_cls.dumps = staticmethod(dumps)  # pyright: ignore[reportGeneralTypeIssues]
 
         return new_cls
 

@@ -436,7 +436,7 @@ class ComponentManager(component_api.ComponentManager):
         if not component_type:
             return functools.partial(
                 self.register, identifier=identifier
-            )  # pyright: ignore
+            )  # pyright: ignore[reportGeneralTypeIssues]
 
         resolved_identifier = identifier or self.make_identifier(component_type)
         module_data = _ModuleData.from_object(component_type)
@@ -557,7 +557,8 @@ class ComponentManager(component_api.ComponentManager):
 
         Examples
         --------
-        .. code-block:: python3
+        .. code-block:: python
+
             manager = get_manager()
 
 
@@ -608,7 +609,8 @@ class ComponentManager(component_api.ComponentManager):
 
         Examples
         --------
-        .. code-block:: python3
+        .. code-block:: python
+
             manager = get_manager()
 
 
@@ -686,7 +688,7 @@ class ComponentManager(component_api.ComponentManager):
                     # handled and skip the remaining handlers.
                     break
 
-    def make_button(
+    def make_button(  # noqa: PLR0913
         self,
         identifier: str,
         *,
@@ -738,7 +740,7 @@ class ComponentManager(component_api.ComponentManager):
             kwargs["disabled"] = disabled
 
         component_type = self.components[identifier]
-        component = component_type(**kwargs)  # pyright: ignore
+        component = component_type(**kwargs)
 
         # NOTE: We sadly cannot use issubclass-- maybe make a custom issubclass
         #       implementation that works with protocols with non-method members
@@ -752,7 +754,7 @@ class ComponentManager(component_api.ComponentManager):
         )
         raise TypeError(msg)
 
-    def make_select(
+    def make_select(  # noqa: PLR0913
         self,
         identifier: str,
         *,
@@ -813,7 +815,7 @@ class ComponentManager(component_api.ComponentManager):
             kwargs["options"] = options
 
         component_type = self.components[identifier]
-        component = component_type(**kwargs)  # pyright: ignore
+        component = component_type(**kwargs)
 
         # NOTE: We sadly cannot use issubclass-- maybe make a custom issubclass
         #       implementation that works with protocols with non-method members
@@ -833,7 +835,7 @@ _MANAGER_STORE: typing.Final[typing.Dict[str, ComponentManager]] = {}
 
 def _recurse_parents(manager: ComponentManager) -> typing.Iterator[ComponentManager]:
     yield manager
-    while manager := manager.parent:  # pyright: ignore
+    while manager := manager.parent:  # pyright: ignore[reportGeneralTypeIssues]
         yield manager
 
 

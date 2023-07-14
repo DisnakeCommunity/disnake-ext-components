@@ -10,7 +10,12 @@ from disnake.ext import commands
 if typing.TYPE_CHECKING:
     import typing_extensions
 
-__all__: typing.Sequence[str] = ("RichComponent", "RichButton", "ComponentManager")
+__all__: typing.Sequence[str] = (
+    "RichComponent",
+    "RichButton",
+    "RichSelect",
+    "ComponentManager",
+)
 
 
 _T = typing.TypeVar("_T")
@@ -20,6 +25,11 @@ AnyEmoji = typing.Union[str, disnake.PartialEmoji, disnake.Emoji]
 MaybeCoroutine = typing.Union[_T, typing.Coroutine[None, None, _T]]
 
 ComponentT = typing.TypeVar("ComponentT", bound="RichComponent")
+"""A type hint for a (subclass of) a disnake-ext-components component.
+
+In practice, this will be any implementation of the :class:`RichButton`,
+or :class:`RichSelect` protocols.
+"""
 
 
 @typing.runtime_checkable
@@ -36,19 +46,14 @@ class RichComponent(typing.Protocol):
     factory: typing.ClassVar[ComponentFactory[RichComponent]]
     manager: typing.ClassVar[typing.Optional[ComponentManager]]
 
-    async def callback(self, __interaction: disnake.Interaction) -> None:
+    async def callback(self, interaction: disnake.Interaction, /) -> None:
         """Run the component callback.
 
         This should be implemented by the user in each concrete component type.
 
-        To properly handle interactions, any interaction should first be
-        checked using :meth:`should_invoke_for`, then turned into a component
-        instance using :meth:`loads`. Finally, :meth:`callback` should be
-        called on the component instance.
-
         Parameters
         ----------
-        interaction: disnake.Interaction
+        interaction:
             The interaction that caused this button to fire.
         """
         ...
@@ -58,7 +63,7 @@ class RichComponent(typing.Protocol):
 
         Returns
         -------
-        disnake.ui.WrappedComponent:
+        :class:`WrappedComponent <disnake.ui.WrappedComponent>`
             A component that can be sent by disnake, maintaining the parameters
             and custom id set on this rich component.
         """
@@ -71,7 +76,7 @@ class RichButton(RichComponent, typing.Protocol):
 
     __slots__: typing.Sequence[str] = ()
 
-    label: str | None
+    label: typing.Optional[str]
     """The label of the component.
 
     Either or both this field or the ``emoji`` field must be set.
@@ -81,7 +86,7 @@ class RichButton(RichComponent, typing.Protocol):
 
     This dictates how the button is displayed on discord.
     """
-    emoji: AnyEmoji | None
+    emoji: typing.Optional[AnyEmoji]
     """The emoji that is to be displayed on this button.
 
     Either or both this field or the ``emoji`` field must be set.
@@ -104,10 +109,11 @@ class RichSelect(RichComponent, typing.Protocol):
 
     __slots__: typing.Sequence[str] = ()
 
-    placeholder: str | None
+    placeholder: typing.Optional[str]
     """The placeholder of the component.
 
-    This shows when nothing is selected, or shows nothing if set to ``None``.
+    This shows when nothing is selected, or shows nothing if set to
+    :data:``None``.
     """
     min_values: int
     """The minimum number of values the user must select.
@@ -175,7 +181,7 @@ class ComponentManager(typing.Protocol):
     def parent(self) -> typing.Optional[ComponentManager]:
         """The parent of this manager.
 
-        Returns None in case this is the root manager.
+        Returns :data:`None` in case this is the root manager.
         """
         ...
 
@@ -188,12 +194,12 @@ class ComponentManager(typing.Protocol):
 
         Parameters
         ----------
-        component_type: Type[:class:`RichComponent`]
+        component_type
             The type of component for which to make an identifier.
 
         Returns
         -------
-        str:
+        str
             The component type's identifier.
         """
         ...
@@ -206,7 +212,7 @@ class ComponentManager(typing.Protocol):
 
         Parameters
         ----------
-        custom_id: :class:`str`
+        custom_id
             The custom id from which to extract the identifier.
         """
         ...
@@ -219,12 +225,12 @@ class ComponentManager(typing.Protocol):
 
         Parameters
         ----------
-        component: :class:`RichComponent`
+        component
             The component for which to create a custom id.
 
         Returns
         -------
-        str:
+        str
             A custom id that fully represents the provided component.
         """
         ...
@@ -235,39 +241,41 @@ class ComponentManager(typing.Protocol):
         """Parse an interaction and construct a rich component from it.
 
         In case the interaction does not match any component registered to this
-        manager, this method will simply return ``None``.
+        manager, this method will simply return :data:`None`.
 
         Parameters
         ----------
-        interaction: disnake.Interaction
+        interaction
             The interaction to parse. This should, under normal circumstances,
             be either a :class:`disnake.MessageInteraction` or
             :class:`disnake.ModalInteraction`.
 
         Returns
         -------
-        Optional[:class:`RichComponent`]:
+        :class:`RichComponent`
             The component if the interaction was caused by a component
-            registered to this manager, ``None`` otherwise.
+            registered to this manager.
+        :data:`None`
+            The interaction was not related to this manager.
         """
         ...
 
     def register(
         self, component_type: typing.Type[ComponentT]
     ) -> typing.Type[ComponentT]:
-        """Register a component to this component manager.
+        r"""Register a component to this component manager.
 
         This returns the provided class, such that this method can serve as a
         decorator.
 
         Parameters
         ----------
-        component_type: Type[:class:`RichComponent`]
+        component_type
             The component class to register.
 
         Returns
         -------
-        Type[:class:`RichComponent`]:
+        :class:`type`\[:data:`.ComponentT`]
             The component class that was just registered.
         """
         ...
@@ -280,12 +288,12 @@ class ComponentManager(typing.Protocol):
 
         Parameters
         ----------
-        component_type: Type[:class:`RichComponent`]
+        component_type
             The component class to deregister.
 
         Returns
         -------
-        Type[:class:`RichComponent`]:
+        type[RichComponent]
             The component class that was just deregistered.
         """
 
@@ -308,29 +316,29 @@ class ComponentManager(typing.Protocol):
 
         Parameters
         ----------
-        bot: Union[:class:`commands.Bot`, :class:`commands.InteractionBot`]
+        bot
             The bot to which to register this manager.
 
         Raises
         ------
-        RuntimeError:
+        RuntimeError
             This manager has already been registered to the provided bot.
         """
         ...
 
     def remove_from_bot(self, bot: AnyBot) -> None:
-        """Deregister this manager to the provided bot.
+        """Deregister this manager from the provided bot.
 
         This makes all components registered to this manager unresponsive.
 
         Parameters
         ----------
-        bot: Union[:class:`commands.Bot`, :class:`commands.InteractionBot`]
+        bot
             The bot from which to deregister this manager.
 
         Raises
         ------
-        RuntimeError:
+        RuntimeError
             This manager is not registered to the provided bot.
         """
         ...
@@ -344,7 +352,7 @@ class ComponentManager(typing.Protocol):
 
         Parameters
         ----------
-        interaction: :class:`disnake.Interaction`
+        interaction
             The interaction with which to try to invoke a component callback.
         """
         ...
@@ -365,7 +373,9 @@ class ComponentFactory(typing.Protocol[ComponentT]):
 
     @classmethod
     def from_component(
-        cls, __component: typing.Type[RichComponent]
+        cls,
+        component: typing.Type[RichComponent],
+        /,
     ) -> typing_extensions.Self:
         """Create a component factory from the provided component.
 
@@ -375,7 +385,7 @@ class ComponentFactory(typing.Protocol[ComponentT]):
 
         Parameters
         ----------
-        component:
+        component
             The component for which to create a component factory.
         """
         ...
@@ -383,35 +393,36 @@ class ComponentFactory(typing.Protocol[ComponentT]):
     # TODO: Update docstring
     async def load_params(
         self,
-        __interaction: disnake.Interaction,
-        __params: typing.Sequence[str],
+        interaction: disnake.Interaction,
+        params: typing.Sequence[str],
+        /,
     ) -> typing.Mapping[str, object]:
         """Create a new component instance from the provided custom id.
 
         This requires the custom id to already have been decomposed into
         individual fields. This is generally done using the
-        :meth:`api.CustomID.match` method.
+        :meth:`ComponentManager.get_identifier` method.
 
         Parameters
         ----------
-        interaction:
+        interaction
             The interaction to use for creating the component instance.
-        params:
+        params
             A mapping of field name to to-be-parsed field values.
         """
         # TODO: Return an ext-components specific conversion error.
         ...
 
-    async def dump_params(self, __component: ComponentT) -> typing.Mapping[str, str]:
+    async def dump_params(self, component: ComponentT, /) -> typing.Mapping[str, str]:
         """Dump a component into a new custom id string.
 
         This converts the component's individual fields back into strings and
         and uses these strings to build a new custom id. This is generally done
-        using the :meth:`api.CustomID.complete` method.
+        using the :meth:`ComponentManager.get_identifier` method.
 
         Parameters
         ----------
-        component:
+        component
             The component to dump into a custom id.
         """
         ...
@@ -429,11 +440,11 @@ class ComponentFactory(typing.Protocol[ComponentT]):
 
         Parameters
         ----------
-        interaction:
+        interaction
             The interaction to use for creating the component instance.
-        params:
+        params
             A sequence of to-be-parsed field values.
-        component_params:
+        component_params
             A mapping of parameters that is to be directly passed to the
             component constructor.
         """
