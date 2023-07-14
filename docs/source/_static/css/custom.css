@@ -1,0 +1,65 @@
+/* Modify the [source] buttons such that they do not textwrap */
+.sig:not(.sig-inline) span.pre,
+span.viewcode-link span.pre {
+    overflow-wrap: normal;
+}
+
+/* Hoverxref stuff */
+/* Remove dotted underline */
+.hxr-hoverxref{
+    border-bottom: unset;
+}
+
+/* Recolor hoverxref box */
+.tooltipster-sidetip .tooltipster-content {
+    color: var(--color-content-foreground)
+}
+
+.tooltipster-sidetip .tooltipster-box {
+    border: 1px solid var(--color-sidebar-background-border);
+    background-color: var(--color-sidebar-background);
+}
+
+.tooltipster-sidetip.tooltipster-right .tooltipster-arrow-background {
+    border-right-color: var(--color-sidebar-background);
+}
+
+.tooltipster-sidetip.tooltipster-right .tooltipster-arrow-border {
+    border-right-color: var(--color-sidebar-background-border);
+}
+
+/* Add some visual separation to individual items */
+.py.function,
+.py.class,
+.py.data {
+    margin-bottom: 30px;
+}
+
+/* Global customisation */
+/* Dark theme colours */
+body[data-theme="dark"] {
+    --color-api-name: #AA88FF;
+}
+
+/* Light theme colours */
+body:not([data-theme="dark"]) {
+    --color-api-name: #6F42C1;
+}
+
+body {
+    --monospace-font-family: monospace;
+    --color-api-pre-name: var(--color-api-name);
+}
+
+/* Colours in codeblocks */
+/* ">>>" in dark theme */
+body:not([data-theme="light"]) .highlight .gp {
+    color: var(--color-api-name);
+    font-weight: bold;
+}
+
+/* Colours in inline tabs */
+.tab-set > input:checked + label {
+    color: var(--color-api-name);
+    border-color: var(--color-api-name);
+}
