@@ -328,7 +328,7 @@ class ComponentManager(component_api.ComponentManager):
         return name, params
 
     def increment(self) -> str:  # noqa: D102
-        count = _minimise_count(self.count)
+        count = _minimise_count(self._counter)
 
         self._counter += 1
         if self._counter > 24:
