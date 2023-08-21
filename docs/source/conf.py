@@ -12,6 +12,7 @@ import os
 import sys
 import typing
 
+import sphinx.config
 from disnake.ext import commands, components
 
 from docs.source import util
@@ -117,15 +118,18 @@ linkcode_resolve = util.make_linkcode_resolver(module_path, repo_url, git_ref)
 
 # -- sphinx-autodoc-typehints config ------------------------------------------
 
+# Apply monkeypatch.
+util.apply_patch()
+
 typehints_document_rtype = False
 typehints_use_rtype = False
+simplify_optional_unions = False
 
 
+# Customise display for specific types.
 import attrs
 import disnake
-import sphinx_autodoc_typehints
 from disnake.ext.components.api import component, parser
-from sphinx import config
 
 util.make_generic(attrs.Attribute)
 
@@ -138,20 +142,9 @@ aliases: typing.Dict[object, str] = {
 }
 
 
-def typehints_formatter(annotation: object, config: config.Config) -> str:
+def typehints_formatter(ann: object, _: sphinx.config.Config) -> typing.Optional[str]:
     """Format typehints."""
-    if typehint := aliases.get(annotation):
+    if typehint := aliases.get(ann):
         return typehint
 
-    # Use default typehint formatter; temporarily patch
-    # config.typehints_formatter = None so we don't loop back here.
-    try:
-        config["typehints_formatter"] = None
-        typehint = util.prettify_typehint(annotation, aliases)
-        return(
-            sphinx_autodoc_typehints.format_annotation(typehint, config)
-            .replace("disnake.ext.components", ".components")
-        )  # fmt: skip
-
-    finally:
-        config["typehints_formatter"] = typehints_formatter
+    return None
