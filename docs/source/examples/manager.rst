@@ -42,7 +42,7 @@ We can go deeper in the parent/child hierarchy by separating them with dots
     Any missing bits will automatically be filled in-- the above line has automatically created a manager named "foo.bar", too.
 
 
-Now let us quickly register a button each to our ``foo_manager`` and our ``deeply_nested_manager``. To this end, we will use the button example
+Now let us quickly register a button each to our ``foo_manager`` and our ``deeply_nested_manager``. To this end, we will use the :ref:`button example <button example>`
 
 .. literalinclude:: ../../../examples/manager.py
     :caption: examples/manager.py - creating a button component

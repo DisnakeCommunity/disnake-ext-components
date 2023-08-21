@@ -18,6 +18,8 @@ Next, we make a component manager and register it to the bot.
 
 Then we make a simple component.
 
+.. _button example:
+
 .. literalinclude:: ../../../examples/button.py
     :caption: examples/button.py - create a component
     :lines: 18-28
