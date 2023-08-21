@@ -12,6 +12,7 @@ Welcome to disnake-ext-components's documentation!
 
    installing
    API Reference </api_ref/index.rst>
+   examples </examples/index.rst>
 
 
 Indices and tables
