@@ -2,17 +2,12 @@ name: lint
 
 on:
   push:
-    branches:
-      - master
-      - rewrite
   pull_request:
 
 jobs:
   pyright:
     runs-on: ubuntu-latest
     strategy:
-      matrix:
-        python-version: ["3.8", "3.9", "3.10"]
       fail-fast: false
     steps:
       - name: Check out repository
@@ -22,7 +17,7 @@ jobs:
         id: setup-python
         uses: actions/setup-python@v2
         with:
-          python-version: 3.8
+          python-version: "3.10"
 
       - name: Load cached Poetry installation
         uses: actions/cache@v2
@@ -33,36 +28,17 @@ jobs:
       - name: Install Poetry
         uses: snok/install-poetry@v1
 
-      - name: Export dependencies
-        run: poetry export --no-interaction -f requirements.txt --output requirements.txt --with dev,docs
+      - name: Enable in-project venv
+        run: poetry config virtualenvs.in-project true
+
+      - name: Load cached virtualenv
+        uses: actions/cache@v2
+        with:
+          path: ./.venv
+          key: virtualenv-${{ hashfiles('./poetry.lock') }}
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: poetry install
 
-      - name: Symlink disnake-ext-components into disnake
-        run: python -m scripts.symlink
-
-      - name: Set up pyright
-        run: echo "PYRIGHT_VERSION=$(python -c 'import pyright; print(pyright.__pyright_version__)')" >> $GITHUB_ENV
-
-      - name: Run pyright (Linux)
-        uses: jakebailey/pyright-action@v1.4.1
-        with:
-          version: ${{ env.PYRIGHT_VERSION }}
-          python-version: ${{ matrix.python-version }}
-          python-platform: Linux
-          # only add comments for 3.8
-          no-comments: ${{ matrix.python-version != '3.8' }}
-          warnings: true
-
-      - name: Run pyright (Windows)
-        uses: jakebailey/pyright-action@v1.4.1
-        # run anyway
-        if: success() || failure()
-        with:
-          version: ${{ env.PYRIGHT_VERSION }}
-          python-version: ${{ matrix.python-version }}
-          python-platform: Windows
-          # only add comments for one platform
-          no-comments: true
-          warnings: true
+      - name: Run pyright
+        run: poetry run pyright .
