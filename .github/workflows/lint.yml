@@ -27,8 +27,7 @@ jobs:
           cache: poetry
 
       - name: Install dependencies
-        run: poetry install
-        run: poetry install
+        run: pip install -r requirements.txt
 
       - name: Symlink ext-components
         continue-on-error: true
