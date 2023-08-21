@@ -21,13 +21,16 @@ Then we make a simple component.
 .. literalinclude:: ../../../examples/button.py
     :caption: examples/button.py - create a component
     :lines: 18-28
+    :emphasize-lines: 1
 
 Finally, we make a command that sends the component.
 
 .. literalinclude:: ../../../examples/button.py
     :caption: examples/button.py - create a command and send the component
-    :lines: 32-42
-    :emphasize-lines: 4, 7-11
+    :lines: 32-38
+    :emphasize-lines: 4, 7
+
+If we had not wrapped the interaction, we would have needed to do ``await inter.send(components=await component.as_ui_component())`` instead.
 
 Source code
 -----------
@@ -35,6 +38,6 @@ Source code
 .. literalinclude:: ../../../examples/button.py
     :caption: examples/button.py
     :start-at: import os
-    :lines: 1-5, 8, 11-14, 16-28, 30-36, 41-42, 44
-    :emphasize-lines: 7-8, 27, 30
+    :lines: 1-5, 8, 11-14, 16-28, 30-31, 33-37, 41-42, 44
+    :emphasize-lines: 7-8, 11, 26, 29
     :linenos:
