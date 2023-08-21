@@ -16,30 +16,15 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v3
 
-      - name: Set up python
-        id: setup-python
-        uses: actions/setup-python@v2
-        with:
-          python-version: "3.10"
-          python-version: "3.10"
-
-      - name: Load cached Poetry installation
-        uses: actions/cache@v2
-        with:
-          path: ~/.local
-          key: poetry-0
-
-      - name: Install Poetry
+      - name: Install poetry
         uses: snok/install-poetry@v1
 
-      - name: Enable in-project venv
-        run: poetry config virtualenvs.in-project true
-
-      - name: Load cached virtualenv
-        uses: actions/cache@v2
+      - name: Set up python
+        id: setup-python
+        uses: actions/setup-python@v4
         with:
-          path: ./.venv
-          key: virtualenv-${{ hashFiles('./poetry.lock') }}
+          python-version: ${{ matrix.python-version }}
+          cache: poetry
 
       - name: Install dependencies
         run: poetry install
