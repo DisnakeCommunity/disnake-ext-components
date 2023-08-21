@@ -1,3 +1,5 @@
+.. currentmodule:: disnake-ext-components
+
 Component Manager
 =================
 
@@ -14,12 +16,13 @@ prefix command capabilities, we opt for an :class:`disnake.ext.commands.Interact
 
 Next, we create a component manager.
 
-A call to get_manager without arguments returns the root manager.
+A call to :func:`.get_manager` without arguments returns the root manager.
 We register the root manager to the bot, which will ensure all components we register to any other manager will automatically be handled. This is because a manager handles its own components along with any of its children's.
 
 .. literalinclude:: ../../../examples/manager.py
     :caption: examples/manager.py - create a root component manager
     :lines: 18-19
+    :emphasize-lines: 1
 
 
 We can create a child manager as follows
@@ -57,6 +60,7 @@ For most use cases, the default implementation of the component manager should s
 .. literalinclude:: ../../../examples/manager.py
     :caption: examples/manager.py - customizing your component manager
     :lines: 74-79, 83-89, 94-97
+    :emphasize-lines: 1-6, 12
 
 .. tip::
     For actual production code, please use logging instead of print.
@@ -74,6 +78,7 @@ For example, let's allow *only* the original slash command author to interact wi
 .. literalinclude:: ../../../examples/manager.py
     :caption: examples/manager.py - creating a check to prevent the component callback call
     :lines: 103-115, 118-130
+    :emphasize-lines: 8-13, 26
 
 
 Similarly, we can create an exception handler for our components. An exception handler function should return ``True`` if the error was handled, and ``False`` or ``None`` otherwise.
@@ -84,6 +89,7 @@ To demonstrate the difference, we will make a custom error handler only for the 
 .. literalinclude:: ../../../examples/manager.py
     :caption: examples/manager.py - components custom error handler
     :lines: 143-155
+    :emphasize-lines: 1-7, 11, 13
 
 .. note::
     You do not need to explicitly return ``False``. Returning ``None`` is sufficient. Explicitly returning ``False`` is simply preferred for clarity.
@@ -106,4 +112,5 @@ Source Code
 .. literalinclude:: ../../../examples/manager.py
     :caption: examples/manager.py
     :lines: 3-8, 11, 18-21, 23, 27-29, 36-61, 74-79, 83-89, 94-99, 103-115, 118, 120, 122, 124-125, 127-132, 143-157, 163-178, 180
+    :emphasize-lines: 8-9, 12-13, 42-47, 53, 68-73, 82, 85-91, 95, 97, 116
     :linenos:

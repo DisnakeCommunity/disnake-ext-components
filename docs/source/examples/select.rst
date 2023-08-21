@@ -42,6 +42,7 @@ Then, we make and register the select.
 .. literalinclude:: ../../../examples/select.py
     :caption: examples/select.py - creating a select component
     :lines: 62-116
+    :emphasize-lines: 1, 6-10
 
 
 Finally, we make a command that sends the component.
@@ -56,5 +57,6 @@ Source Code
 
 .. literalinclude:: ../../../examples/select.py
     :caption: examples/select.py
-    :lines: 9-16, 19-20, 22-25, 27-38, 40-60, 62-73, 75-77, 80-82, 84-86, 88-91, 93-97, 99-101, 103-106, 108-109, 111-114, 116-118, 121-122, 124-130, 134-135, 137 
+    :lines: 9-16, 19-20, 22-25, 27-38, 40-60, 62-73, 75-77, 80-82, 84-86, 88-91, 93-97, 99-101, 103-106, 108-109, 111-114, 116-118, 121-122, 124-130, 134-135, 137
+    :emphasize-lines: 11-12, 48, 53-57, 96, 99-101, 105
     :linenos:
