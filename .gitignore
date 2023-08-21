@@ -3,7 +3,6 @@ __pycache__
 .mypy_cache
 *.egg-info/
 *env*/
-poetry.lock
 .env
 
 test.py
