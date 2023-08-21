@@ -20,7 +20,7 @@ disnake = "^2.5.0"
 
 [tool.poetry.group.dev.dependencies]
 pyright = "^1.1.290"
-ruff = "^0.0.255"
+ruff = "^0.0.285"
 black = "^23.1.0"
 slotscheck = "^0.16.5"
 pre-commit = "^3.1.1"
@@ -158,9 +158,11 @@ mypy-init-return = true
 ]
 # E402: Imports at top of file.
 # PGH003: Blanket type ignores.
+# S: Subprocess calls, input is predefined.
 "docs/*" = [
     "E402",
     "PGH003",
+    "S",
 ]
 "docs/source/extensions/*" = [
     "D"
