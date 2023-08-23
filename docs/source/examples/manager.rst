@@ -7,11 +7,11 @@ A simple example on the use of component managers with disnake-ext-components.
 
 
 First and foremost, we create a bot as per usual. Since we don't need any
-prefix command capabilities, we opt for an :class:`disnake.ext.commands.InteractionBot`.
+prefix command capabilities, we opt for an :class:`~disnake.ext.commands.InteractionBot`.
 
 .. literalinclude:: ../../../examples/manager.py
     :caption: examples/manager.py - creating a Bot object
-    :lines: 3-8, 11
+    :lines: 3-9
 
 
 Next, we create a component manager.
@@ -21,7 +21,7 @@ We register the root manager to the bot, which will ensure all components we reg
 
 .. literalinclude:: ../../../examples/manager.py
     :caption: examples/manager.py - create a root component manager
-    :lines: 18-19
+    :lines: 11-12
     :emphasize-lines: 1
 
 
@@ -29,14 +29,14 @@ We can create a child manager as follows
 
 .. literalinclude:: ../../../examples/manager.py
     :caption: examples/manager.py - create a child manager
-    :lines: 23
+    :lines: 14
 
 
 We can go deeper in the parent/child hierarchy by separating them with dots
 
 .. literalinclude:: ../../../examples/manager.py
     :caption: examples/manager.py - create a deeply nested manager 
-    :lines: 27
+    :lines: 15
 
 .. note::
     Any missing bits will automatically be filled in-- the above line has automatically created a manager named "foo.bar", too.
@@ -46,20 +46,19 @@ Now let us quickly register a button each to our ``foo_manager`` and our ``deepl
 
 .. literalinclude:: ../../../examples/manager.py
     :caption: examples/manager.py - creating a button component
-    :lines: 36-59
+    :lines: 18-41
 
 
 Customizing your component manager
 ----------------------------------
 
-For most use cases, the default implementation of the component manager should suffice. Two methods of interest to customise your managers without having to subclass them are :class:`ComponentManager.as_callback_wrapper` and :class:`ComponentManager.as_error_handler`.
+For most use cases, the default implementation of the component manager should suffice. Two methods of interest to customise your managers without having to subclass them are :meth:`ComponentManager.as_callback_wrapper` and :meth:`ComponentManager.as_error_handler`.
 
-:class:`ComponentManager.as_callback_wrapper` wraps the callbacks of all components registered to that manager along with those of its children. Therefore, if we
-# were to add a callback wrapper to the root manager, we would ensure it applies to *all* components. For example, say we want to log all component interactions
+:meth:`ComponentManager.as_callback_wrapper` wraps the callbacks of all components registered to that manager along with those of its children. Therefore, if we were to add a callback wrapper to the root manager, we would ensure it applies to *all* components. For example, say we want to log all component interactions
 
 .. literalinclude:: ../../../examples/manager.py
     :caption: examples/manager.py - customizing your component manager
-    :lines: 74-79, 83-89, 94-97
+    :lines: 44-60
     :emphasize-lines: 1-6, 12
 
 .. tip::
@@ -77,8 +76,34 @@ For example, let's allow *only* the original slash command author to interact wi
 
 .. literalinclude:: ../../../examples/manager.py
     :caption: examples/manager.py - creating a check to prevent the component callback call
-    :lines: 103-115, 118-130
-    :emphasize-lines: 8-13, 26
+    :lines: 63-84
+    :emphasize-lines: 8-13, 20, 22
+    :linenos:
+
+.. note::
+    We name some of the arguments like ``_`` because actually we're not using them inside the function. This is a python convetion.
+
+
+This only applies to message interactions...
+
+.. literalinclude:: ../../../examples/manager.py
+    :lines: 77
+
+The message must have been sent as interaction response...
+
+.. literalinclude:: ../../../examples/manager.py
+    :lines: 78
+
+The component user is **NOT** the same as the original interaction user...
+
+.. literalinclude:: ../../../examples/manager.py
+    :lines: 79
+
+Raise our custom error for convenience.
+
+.. literalinclude:: ../../../examples/manager.py
+    :lines: 81-82
+    :emphasize-lines: 2
 
 
 Similarly, we can create an exception handler for our components. An exception handler function should return ``True`` if the error was handled, and ``False`` or ``None`` otherwise.
@@ -88,8 +113,18 @@ To demonstrate the difference, we will make a custom error handler only for the 
 
 .. literalinclude:: ../../../examples/manager.py
     :caption: examples/manager.py - components custom error handler
-    :lines: 143-155
+    :lines: 87-99
     :emphasize-lines: 1-7, 11, 13
+
+The exception has been handled.
+
+.. literalinclude:: ../../../examples/manager.py
+    :lines: 97
+
+The exception has not been handled.
+
+.. literalinclude:: ../../../examples/manager.py
+    :lines: 99
 
 .. note::
     You do not need to explicitly return ``False``. Returning ``None`` is sufficient. Explicitly returning ``False`` is simply preferred for clarity.
@@ -98,19 +133,19 @@ Finally, we send the components to test the managers.
 
 .. literalinclude:: ../../../examples/manager.py
     :caption: examples/manager.py - sending the components
-    :lines: 163-176
+    :lines: 102-115
 
 Lastly, we run the bot.
 
 .. literalinclude:: ../../../examples/manager.py
     :caption: examples/manager.py - running the bot
-    :lines: 180
+    :lines: 118
 
 Source Code
 -----------
 
 .. literalinclude:: ../../../examples/manager.py
     :caption: examples/manager.py
-    :lines: 3-8, 11, 18-21, 23, 27-29, 36-61, 74-79, 83-89, 94-99, 103-115, 118, 120, 122, 124-125, 127-132, 143-157, 163-178, 180
-    :emphasize-lines: 8-9, 12-13, 42-47, 53, 68-73, 82, 85-91, 95, 97, 116
+    :lines: 3-118
+    :emphasize-lines: 9-10, 12-13, 42-47, 53, 68-73, 80, 82, 85-91, 95, 97
     :linenos:
