@@ -80,9 +80,6 @@ For example, let's allow *only* the original slash command author to interact wi
     :emphasize-lines: 8-13, 20, 22
     :linenos:
 
-.. note::
-    We name some of the arguments like ``_`` because actually we're not using them inside the function. This is a python convetion.
-
 Now in our custom check we adds some logic to filter out who should be able to use our component:
 
 This check only applies to message interactions (*line 15*)...
