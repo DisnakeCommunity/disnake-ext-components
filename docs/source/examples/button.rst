@@ -36,11 +36,10 @@ Define a ``custom_id`` parameter...
 .. literalinclude:: ../../../examples/button.py
     :lines: 18
 
-Then in the callback we increment the count (line 2), update the label to match the count (line 3) and update our component (line 5)
+Then in the callback we increment the count, update the label to match the count and update our component.
 
 .. literalinclude:: ../../../examples/button.py
     :lines: 20-24
-    :linenos:
 
 
 Finally, we make a command that sends the component.

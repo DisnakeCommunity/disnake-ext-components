@@ -83,27 +83,13 @@ For example, let's allow *only* the original slash command author to interact wi
 .. note::
     We name some of the arguments like ``_`` because actually we're not using them inside the function. This is a python convetion.
 
+Now in our custom check we adds some logic to filter out who should be able to use our component:
 
-This only applies to message interactions...
+This check only applies to message interactions (*line 15*)...
+The message must have been sent as interaction response (*line 16*)...
+The component user is **NOT** the same as the original interaction user (*line 17*)...
 
-.. literalinclude:: ../../../examples/manager.py
-    :lines: 77
-
-The message must have been sent as interaction response...
-
-.. literalinclude:: ../../../examples/manager.py
-    :lines: 78
-
-The component user is **NOT** the same as the original interaction user...
-
-.. literalinclude:: ../../../examples/manager.py
-    :lines: 79
-
-Raise our custom error for convenience.
-
-.. literalinclude:: ../../../examples/manager.py
-    :lines: 81-82
-    :emphasize-lines: 2
+If all the conditions are satisfied we raise our custom error for convenience (*lines 19-20*).
 
 
 Similarly, we can create an exception handler for our components. An exception handler function should return ``True`` if the error was handled, and ``False`` or ``None`` otherwise.
@@ -115,16 +101,6 @@ To demonstrate the difference, we will make a custom error handler only for the 
     :caption: examples/manager.py - components custom error handler
     :lines: 87-99
     :emphasize-lines: 1-7, 11, 13
-
-The exception has been handled.
-
-.. literalinclude:: ../../../examples/manager.py
-    :lines: 97
-
-The exception has not been handled.
-
-.. literalinclude:: ../../../examples/manager.py
-    :lines: 99
 
 .. note::
     You do not need to explicitly return ``False``. Returning ``None`` is sufficient. Explicitly returning ``False`` is simply preferred for clarity.

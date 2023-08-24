@@ -43,7 +43,7 @@ class FooBarBazButton(components.RichButton):
 
 @manager.as_callback_wrapper
 async def wrapper(
-    _: components.ComponentManager,
+    manager: components.ComponentManager,
     component: components.api.RichComponent,
     interaction: disnake.Interaction,
 ):
@@ -69,8 +69,8 @@ class InvalidUserError(Exception):
 
 @deeply_nested_manager.as_callback_wrapper
 async def check_wrapper(
-    _: components.api.ComponentManager,
-    _: components.api.RichComponent,
+    manager: components.api.ComponentManager,
+    component: components.api.RichComponent,
     interaction: disnake.Interaction,
 ):
     if (

@@ -43,84 +43,50 @@ Then, we make and register the select.
     :caption: examples/select.py - creating a select component
     :lines: 56-99
     :emphasize-lines: 1, 6-10
+    :linenos:
 
-Set the placeholder text...
-
-.. literalinclude:: ../../../examples/select.py
-    :lines: 58
-
-Set the options...
-
-.. literalinclude:: ../../../examples/select.py
-    :lines: 59
-
-We store the slot the user is currently working with...
-
-.. literalinclude:: ../../../examples/select.py
-    :lines: 61
-
-We store whether they're picking a slot or a colour...
-
-.. literalinclude:: ../../../examples/select.py
-    :lines: 62
-
-And we store the colours for the three slots...
-
-.. literalinclude:: ../../../examples/select.py
-    :lines: 63-65
+Set the placeholder text (*line 3*)...
+Set the options (*line 4*)...
+We store the slot the user is currently working with (*line 6*)...
+We store whether they're picking a slot or a colour (*line 7*)...
+And we store the colours for the three slots (*lines 63-65*)...
 
 In the callback first we get the selected value.
 
 This should never raise for a select.
 
 .. literalinclude:: ../../../examples/select.py
-    :lines: 68
+    :lines: 67-78
+    :linenos:
 
-If the selection was a slot, run slot selection logic.
+If the selection was a slot, run slot selection logic (*lines 5-6*).
 To keep things tidy, we use a separate function for this.
+Otherwise, run colour selection logic (*lines 8-9*).
+Finally we render the new colours and update the select (*lines 77-78*).
+
+Then in ``handle_slots``:
 
 .. literalinclude:: ../../../examples/select.py
-    :lines: 71-72
+    :lines: 80-90
+    :linenos:
 
-Otherwise, run colour selection logic.
+In case the user wishes to finalize, disable the select (*lines 2-5*).
+Update options and display (*lines 7-8*).
+Set the slot to the user's selection and set state to colour (*lines 10-11*).
 
-.. literalinclude:: ../../../examples/select.py
-    :lines: 74-75
-
-Render the new colours and update the select.
-
-.. literalinclude:: ../../../examples/select.py
-    :lines: 77-78
-
-Then in ``handle_slots`` in case the user wishes to finalize, disable the select.
+Then in ``handle_colours``:
 
 .. literalinclude:: ../../../examples/select.py
-    :lines: 81-84
+    :lines: 92-96
 
-Update options and display.
+Update the options set the corresponding colour attribute and set state to slot.
 
-.. literalinclude:: ../../../examples/select.py
-    :lines: 86-87
-
-Set the slot to the user's selection and set state to colour.
+Then in ``render_colours``:
 
 .. literalinclude:: ../../../examples/select.py
-    :lines: 89-90
+    :lines: 98-99
 
-Then in ``handle_colours`` update the options.
-
-.. literalinclude:: ../../../examples/select.py
-    :lines: 93
-
-Set the corresponding colour attribute and set state to slot.
-
-.. literalinclude:: ../../../examples/select.py
-    :lines: 95-96
-
-Then in ``render_colours`` render our three squares.
-
-.. literalinclude:: ../../../examples/select.py
-    :lines: 99
+Render our three squares.
 
 
 Finally, we make a command that sends the component.

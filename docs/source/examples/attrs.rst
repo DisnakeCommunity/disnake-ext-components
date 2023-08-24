@@ -42,30 +42,12 @@ Then we create our test command and send the previously created customisable sel
 .. literalinclude:: ../../../examples/attrs.py
     :caption: examples/attrs.py - create a command
     :lines: 31-56
+    :linenos:
 
-If the string is empty or whitespace, the user did not provide options.
-
-.. literalinclude:: ../../../examples/attrs.py
-    :caption: examples/attrs.py
-    :lines: 40-42
-
-Next, we make the options by splitting over commas.
-
-.. literalinclude:: ../../../examples/attrs.py
-    :caption: examples/attrs.py
-    :lines: 44-47
-
-Before creating the component, validate that there's max 25 options.
-
-.. literalinclude:: ../../../examples/attrs.py
-    :caption: examples/attrs.py
-    :lines: 49-51
-
-If everything went correctly, we send the component.
-
-.. literalinclude:: ../../../examples/attrs.py
-    :caption: examples/attrs.py
-    :lines: 53-56
+If the string is empty or whitespace, the user did not provide options (*lines 10-12*).
+Next, we make the options by splitting over commas (*lines 14-17*).
+Before creating the component, validate that there's max 25 options (*lines 19-21*).
+Finally if everything went correctly, we send the component.
 
 Lastly, we run the bot.
 
