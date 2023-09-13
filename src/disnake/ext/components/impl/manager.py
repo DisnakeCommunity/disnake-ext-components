@@ -903,3 +903,23 @@ def get_manager(name: typing.Optional[str] = None) -> ComponentManager:
         parent.children.add(manager)
 
     return manager
+
+
+def check_manager(name: str) -> bool:
+    """Check if a manager with the provided name exists.
+
+    .. note::
+        Unlike :func:`get_manager`, this function will not create missing
+        managers.
+
+    Parameters
+    ----------
+    name:
+        The name to check.
+
+    Returns
+    -------
+    :class:`bool`
+        Whether a manager with the provided name exists.
+    """
+    return name in _MANAGER_STORE
