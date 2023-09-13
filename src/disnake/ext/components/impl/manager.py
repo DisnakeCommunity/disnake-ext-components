@@ -20,7 +20,7 @@ from disnake.ext.components.api import component as component_api
 if typing.TYPE_CHECKING:
     import typing_extensions
 
-__all__: typing.Sequence[str] = ("ComponentManager", "get_manager")
+__all__: typing.Sequence[str] = ("ComponentManager", "get_manager", "check_manager")
 
 
 _LOGGER = logging.getLogger(__name__)
