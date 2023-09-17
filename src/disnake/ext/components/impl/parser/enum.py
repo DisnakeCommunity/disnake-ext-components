@@ -20,7 +20,7 @@ def _get_enum_type(
         return maybe_type
 
     # Get first member's type
-    member_iter = iter(disnake.ActivityType)
+    member_iter = iter(enum_class)
     maybe_type = type(next(member_iter).value)
 
     # If all members match this type, return it.
