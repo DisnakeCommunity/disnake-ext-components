@@ -164,7 +164,7 @@ class ComponentManager(typing.Protocol):
         ...
 
     @property
-    def children(self) -> typing.Collection[typing_extensions.Self]:
+    def children(self) -> typing.Collection[ComponentManager]:
         """The children of this component manager."""
         ...
 
@@ -260,7 +260,7 @@ class ComponentManager(typing.Protocol):
         """
         ...
 
-    def register(
+    def register_component(
         self, component_type: typing.Type[ComponentT]
     ) -> typing.Type[ComponentT]:
         r"""Register a component to this component manager.
@@ -280,7 +280,7 @@ class ComponentManager(typing.Protocol):
         """
         ...
 
-    def deregister(self, component_type: typing.Type[RichComponent]) -> None:
+    def deregister_component(self, component_type: typing.Type[RichComponent]) -> None:
         """Deregister a component from this component manager.
 
         After deregistration, the component will no be tracked, and its

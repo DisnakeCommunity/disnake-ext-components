@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import contextlib
 import enum
-import functools
 import logging
 import sys
 import typing
@@ -67,7 +66,8 @@ NotSet = NotSetType.NotSet
 """Sentinel value to distinguish whether or not None was explicitly passed."""
 
 
-NotSetNoneOr = typing.Union[typing.Literal[NotSet], None, T]
+NotSetOr = typing.Union[typing.Literal[NotSet], T]
+NotSetNoneOr = typing.Optional[NotSetOr[T]]
 
 
 def _is_set(obj: NotSetNoneOr[T]) -> typing_extensions.TypeGuard[typing.Optional[T]]:
@@ -289,7 +289,7 @@ class ComponentManager(component_api.ComponentManager):
         return _recurse_parents_getattr(self, "_sep", _DEFAULT_SEP)
 
     @property
-    def parent(self) -> typing.Optional[typing_extensions.Self]:  # noqa: D102
+    def parent(self) -> typing.Optional[ComponentManager]:  # noqa: D102
         # <<docstring inherited from api.components.ComponentManager>>
 
         if "." not in self.name:
@@ -375,7 +375,7 @@ class ComponentManager(component_api.ComponentManager):
             #       Since we do not want to fire components that (to the user)
             #       do not exist anymore, we should remove them from the
             #       manager and return None.
-            self.deregister(component_type)
+            self.deregister_component(component_type)
             return None
 
         if isinstance(interaction, disnake.MessageInteraction):
@@ -393,16 +393,10 @@ class ComponentManager(component_api.ComponentManager):
             interaction, params, component_params=component_params
         )
 
-    # Nothing: nested decorator, return callable that registers and
-    # returns the component.
-    @typing.overload
-    def register(self) -> typing.Callable[[ComponentTypeT], ComponentTypeT]:
-        ...
-
     # Identifier and component: function call, return component
     @typing.overload
     def register(
-        self, component_type: ComponentTypeT, *, identifier: str
+        self, component_type: ComponentTypeT, *, identifier: str | None = None
     ) -> ComponentTypeT:
         ...
 
@@ -410,16 +404,11 @@ class ComponentManager(component_api.ComponentManager):
     # returns the component.
     @typing.overload
     def register(
-        self, *, identifier: str
+        self, *, identifier: str | None = None
     ) -> typing.Callable[[ComponentTypeT], ComponentTypeT]:
         ...
 
-    # Only component: decorator, return component
-    @typing.overload
-    def register(self, component_type: ComponentTypeT) -> ComponentTypeT:
-        ...
-
-    def register(  # noqa: D102
+    def register(
         self,
         component_type: typing.Optional[ComponentTypeT] = None,
         *,
@@ -428,16 +417,25 @@ class ComponentManager(component_api.ComponentManager):
         ComponentTypeT,
         typing.Callable[[ComponentTypeT], ComponentTypeT],
     ]:
+        """Register a component to this component manager.
+
+        This is the decorator interface to :meth:`register_component`.
+        """
+        if component_type is not None:
+            return self.register_component(component_type, identifier=identifier)
+
+        def wrapper(component_type: ComponentTypeT) -> ComponentTypeT:
+            return self.register_component(component_type, identifier=identifier)
+
+        return wrapper
+
+    def register_component(  # noqa: D102
+        self,
+        component_type: ComponentTypeT,
+        *,
+        identifier: typing.Optional[str] = None,
+    ) -> ComponentTypeT:
         # <<docstring inherited from api.components.ComponentManager>>
-
-        if not identifier and not component_type:
-            return self.register
-
-        if not component_type:
-            return functools.partial(
-                self.register, identifier=identifier
-            )  # pyright: ignore[reportGeneralTypeIssues]
-
         resolved_identifier = identifier or self.make_identifier(component_type)
         module_data = _ModuleData.from_object(component_type)
 
@@ -474,10 +472,7 @@ class ComponentManager(component_api.ComponentManager):
 
         return component_type
 
-    def deregister(  # noqa: D102
-        self,
-        component_type: ComponentType,
-    ) -> None:
+    def deregister_component(self, component_type: ComponentType) -> None:  # noqa: D102
         # <<docstring inherited from api.components.ComponentManager>>
 
         identifier = self.make_identifier(component_type)
@@ -692,10 +687,10 @@ class ComponentManager(component_api.ComponentManager):
         self,
         identifier: str,
         *,
-        label: typing.Optional[str] = ...,
-        style: disnake.ButtonStyle = ...,
-        emoji: typing.Optional[component_api.AnyEmoji] = ...,
-        disabled: bool = ...,
+        label: NotSetNoneOr[str] = NotSet,
+        style: NotSetOr[disnake.ButtonStyle] = NotSet,
+        emoji: NotSetNoneOr[component_api.AnyEmoji] = NotSet,
+        disabled: NotSetOr[bool] = NotSet,
         **kwargs: object,
     ) -> component_api.RichButton:
         """Make an instance of the button class with the provided identifier.
@@ -730,13 +725,13 @@ class ComponentManager(component_api.ComponentManager):
         :class:`Exception`
             Any exception raised during button instantiation is propagated as-is.
         """  # noqa: E501
-        if label is not Ellipsis:
+        if label is not NotSet:
             kwargs["label"] = label
-        if style is not Ellipsis:
+        if style is not NotSet:
             kwargs["style"] = style
-        if emoji is not Ellipsis:
+        if emoji is not NotSet:
             kwargs["emoji"] = emoji
-        if disabled is not Ellipsis:
+        if disabled is not NotSet:
             kwargs["disabled"] = disabled
 
         component_type = self.components[identifier]
@@ -758,11 +753,11 @@ class ComponentManager(component_api.ComponentManager):
         self,
         identifier: str,
         *,
-        placeholder: str | None = ...,
-        min_values: int = ...,
-        max_values: int = ...,
-        disabled: bool = ...,
-        options: typing.List[disnake.SelectOption] = ...,
+        placeholder: NotSetNoneOr[str] = NotSet,
+        min_values: NotSetOr[int] = NotSet,
+        max_values: NotSetOr[int] = NotSet,
+        disabled: NotSetOr[bool] = NotSet,
+        options: NotSetOr[typing.List[disnake.SelectOption]] = NotSet,
         **kwargs: object,
     ) -> component_api.RichSelect:
         """Make an instance of the string select class with the provided identifier.
@@ -803,15 +798,15 @@ class ComponentManager(component_api.ComponentManager):
         """
         # NOTE: This currently only supports StringSelects
 
-        if placeholder is not Ellipsis:
+        if placeholder is not NotSet:
             kwargs["placeholder"] = placeholder
-        if min_values is not Ellipsis:
+        if min_values is not NotSet:
             kwargs["min_values"] = min_values
-        if max_values is not Ellipsis:
+        if max_values is not NotSet:
             kwargs["max_values"] = max_values
-        if disabled is not Ellipsis:
+        if disabled is not NotSet:
             kwargs["disabled"] = disabled
-        if options is not Ellipsis:
+        if options is not NotSet:
             kwargs["options"] = options
 
         component_type = self.components[identifier]
