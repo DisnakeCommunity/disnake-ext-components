@@ -687,6 +687,7 @@ class ComponentManager(component_api.ComponentManager):
         self,
         identifier: str,
         *,
+        as_root: bool = True,
         label: NotSetNoneOr[str] = NotSet,
         style: NotSetOr[disnake.ButtonStyle] = NotSet,
         emoji: NotSetNoneOr[component_api.AnyEmoji] = NotSet,
@@ -697,6 +698,9 @@ class ComponentManager(component_api.ComponentManager):
 
         Parameters
         ----------
+        as_root: :class:`bool`
+            Whether to use the root manager to get the component. This defaults
+            to ``True`` so that any externally registered button can be built.
         identifier: :class:`str`
             The identifier of the button that is to be instantiated.
         label: Optional[:class:`str`]
@@ -734,7 +738,8 @@ class ComponentManager(component_api.ComponentManager):
         if disabled is not NotSet:
             kwargs["disabled"] = disabled
 
-        component_type = self.components[identifier]
+        manager = get_manager(_ROOT) if as_root else self
+        component_type = manager.components[identifier]
         component = component_type(**kwargs)
 
         # NOTE: We sadly cannot use issubclass-- maybe make a custom issubclass
@@ -753,6 +758,7 @@ class ComponentManager(component_api.ComponentManager):
         self,
         identifier: str,
         *,
+        as_root: bool = True,
         placeholder: NotSetNoneOr[str] = NotSet,
         min_values: NotSetOr[int] = NotSet,
         max_values: NotSetOr[int] = NotSet,
@@ -764,6 +770,9 @@ class ComponentManager(component_api.ComponentManager):
 
         Parameters
         ----------
+        as_root: :class:`bool`
+            Whether to use the root manager to get the component. This defaults
+            to ``True`` so that any externally registered select can be built.
         identifier: :class:`str`
             The identifier of the button that is to be instantiated.
         placeholder: Optional[:class:`str`]
@@ -809,7 +818,8 @@ class ComponentManager(component_api.ComponentManager):
         if options is not NotSet:
             kwargs["options"] = options
 
-        component_type = self.components[identifier]
+        manager = get_manager(_ROOT) if as_root else self
+        component_type = manager.components[identifier]
         component = component_type(**kwargs)
 
         # NOTE: We sadly cannot use issubclass-- maybe make a custom issubclass
