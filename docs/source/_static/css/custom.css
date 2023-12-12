@@ -38,12 +38,17 @@ span.viewcode-link span.pre {
 /* Global customisation */
 /* Dark theme colours */
 body[data-theme="dark"] {
-    --color-api-name: #AA88FF;
+    --color-api-name: #00AEFF;
+    --color-api-keyword: #98BFFF;
+    --color-brand-primary: #AA88FF;
+    --color-brand-content: #AA88FF;
+    --color-highlight-on-target: #132237;
 }
 
 /* Light theme colours */
 body:not([data-theme="dark"]) {
-    --color-api-name: #6F42C1;
+    --color-brand-primary: #6F42C1;
+    --color-brand-content: #6F42C1;
 }
 
 body {
@@ -53,13 +58,36 @@ body {
 
 /* Colours in codeblocks */
 /* ">>>" in dark theme */
-body:not([data-theme="light"]) .highlight .gp {
+body[data-theme="dark"] .highlight .gp {
     color: var(--color-api-name);
     font-weight: bold;
 }
 
-/* Colours in inline tabs */
-.tab-set > input:checked + label {
-    color: var(--color-api-name);
-    border-color: var(--color-api-name);
+/* Class keyword in dark theme */
+body[data-theme="dark"] .highlight .k {
+    color: #98BFFF;
+}
+
+/* Strings in dark theme */
+body[data-theme="dark"] .highlight .s2 {
+    color: #AA88FF;
+}
+
+/* Self, ints, bools, keywords, and \N{} strings in dark theme */
+body[data-theme="dark"] .highlight .bp,
+body[data-theme="dark"] .highlight .mi,
+body[data-theme="dark"] .highlight .kc,
+body[data-theme="dark"] .highlight .kn,
+body[data-theme="dark"] .highlight .se {
+    color: #FF66BB;
+}
+
+/* Class definitions, types, decorators, and module imports in dark theme */
+body[data-theme="dark"] .highlight .nc,
+body[data-theme="dark"] .highlight .nb,
+body[data-theme="dark"] .highlight .nd,
+body[data-theme="dark"] .highlight .nn {
+    color: #00AEFF;
+    text-decoration: none;
+    font-weight: normal;
 }

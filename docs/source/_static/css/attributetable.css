@@ -2,9 +2,9 @@ body {
     --attribute-table-title: var(--color-foreground-primary);
     --attribute-table-list-border: var(--color-sidebar-background-border);
     --attribute-table-list-text: var(--color-content-foreground);
-    --attribute-table-list-hover-border: var(--color-api-name);
+    --attribute-table-list-hover-border: var(--color-brand-content);
     --attribute-table-list-hover-background: var(--color-sidebar-background);
-    --attribute-table-list-hover-text: var(--color-api-name);
+    --attribute-table-list-hover-text: var(--color-brand-content);
     --attribute-table-badge: var(--color-foreground-secondary);
 }
 

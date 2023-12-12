@@ -90,7 +90,7 @@ intersphinx_mapping = {
 
 autodoc_member_order = "groupwise"
 autodoc_typehints = "signature"
-autodoc_default_options = {"show-inheritance": True}
+autodoc_default_options = {"show-inheritance": True, "inherited-members": False}
 
 # -- Hoverxref config ---------------------------------------------------------
 
