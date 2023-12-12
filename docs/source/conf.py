@@ -9,11 +9,22 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 import os
+import re
+import subprocess
 import sys
 import typing
 
 import sphinx.config
 from disnake.ext import commands, components
+
+
+def git(*args: str) -> str:
+    """Run a git command and return the output."""
+    return subprocess.check_output(["git", *args], text=True).strip()
+
+
+git_pwd = git("rev-parse", "--show-toplevel")
+sys.path.append(os.path.abspath(git_pwd))
 
 from docs.source import util
 
@@ -112,7 +123,15 @@ hoverxref_intersphinx = list(intersphinx_mapping)
 
 repo_url = "https://github.com/DisnakeCommunity/disnake-ext-components"
 
-git_ref = util.get_git_ref()
+
+def get_git_ref() -> str:
+    """Return the current git reference."""
+    # Current git reference. Uses branch/tag name if found, otherwise uses commit hash
+    git_ref = git("name-rev", "--name-only", "--no-undefined", "HEAD")
+    return re.sub(r"^(remotes/[^/]+|tags)/", "", git_ref)
+
+
+git_ref = get_git_ref()
 module_path = util.get_module_path()
 linkcode_resolve = util.make_linkcode_resolver(module_path, repo_url, git_ref)
 

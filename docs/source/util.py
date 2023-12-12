@@ -3,8 +3,6 @@
 import importlib.util
 import inspect
 import os
-import re
-import subprocess
 import sys
 import typing
 
@@ -12,8 +10,6 @@ import sphinx.config
 import sphinx_autodoc_typehints as original
 
 __all__ = (
-    "git",
-    "get_git_ref",
     "get_module_path",
     "make_linkcode_resolver",
     "format_annotation",
@@ -22,18 +18,6 @@ __all__ = (
 
 
 NoneType = type(None)
-
-
-def git(*args: str) -> str:
-    """Run a git command and return the output."""
-    return subprocess.check_output(["git", *args], text=True).strip()
-
-
-def get_git_ref() -> str:
-    """Return the current git reference."""
-    # Current git reference. Uses branch/tag name if found, otherwise uses commit hash
-    git_ref = git("name-rev", "--name-only", "--no-undefined", "HEAD")
-    return re.sub(r"^(remotes/[^/]+|tags)/", "", git_ref)
 
 
 def get_module_path() -> str:
