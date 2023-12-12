@@ -5,7 +5,18 @@ from __future__ import annotations
 import typing
 
 import disnake
-from disnake.ext.components.impl.parser import base, snowflake
+from disnake.ext.components.impl.parser import base, helpers, snowflake
+
+if typing.TYPE_CHECKING:
+    from disnake.ext import commands
+
+    _AnyBot = typing.Union[
+        commands.Bot,
+        commands.InteractionBot,
+        commands.AutoShardedBot,
+        commands.AutoShardedInteractionBot,
+    ]
+
 
 __all__: typing.Sequence[str] = (
     "DMChannelParser",
@@ -38,6 +49,26 @@ _AnyChannel = typing.Union[
 _ChannelT = typing.TypeVar("_ChannelT", bound=_AnyChannel)
 
 
+def _get_source(
+    source: typing.Union[helpers.GuildAware, helpers.BotAware, helpers.MessageAware],
+) -> typing.Union[disnake.Guild, _AnyBot]:
+    if isinstance(source, helpers.BotAware):
+        return source.bot
+
+    elif isinstance(source, helpers.MessageAware):
+        actual_source = source.message.guild
+        if actual_source:
+            return actual_source
+
+    elif source.guild:
+        return source.guild
+
+    # TODO: In the future handle just returning message.channel if it
+    #       is a DM channel and the id matches the argument.
+    msg = "Parsing DM channels from a message is currently not supported."
+    raise NotImplementedError(msg)
+
+
 # GET_ONLY
 
 
@@ -45,9 +76,15 @@ def _build_sync_channel_parser(
     *types: typing.Type[_ChannelT],
     is_default_for: typing.Optional[typing.Sequence[typing.Type[typing.Any]]] = None,
 ) -> typing.Type[base.Parser[_ChannelT]]:
-    def _get_channel(inter: disnake.Interaction, argument: str) -> _ChannelT:
-        channel = inter.bot.get_channel(int(argument))
-
+    def _get_channel(
+        source: typing.Union[
+            helpers.GuildAware,
+            helpers.BotAware,
+            helpers.MessageAware,
+        ],
+        argument: str,
+    ) -> _ChannelT:
+        channel = _get_source(source).get_channel(int(argument))
         if channel is None:
             msg = f"Could not find a channel with id {argument!r}."
             raise LookupError(msg)

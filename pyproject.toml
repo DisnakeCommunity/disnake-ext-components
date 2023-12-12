@@ -51,7 +51,7 @@ build-backend = "poetry.core.masonry.api"
 
 
 [tool.pyright]
-strict = true
+typeCheckingMode = "strict"
 python-version = 3.8
 reportMissingTypeStubs = false
 
@@ -126,6 +126,8 @@ ignore = [
     "UP038",
     "PLC0414",
     "B905",
+    "PGH003",
+    "S101",
 ]
 
 unfixable = ["RET502", "RET503"]

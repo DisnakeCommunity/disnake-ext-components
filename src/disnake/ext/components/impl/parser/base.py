@@ -8,7 +8,6 @@ import typing
 from disnake.ext.components.api import parser as parser_api
 
 if typing.TYPE_CHECKING:
-    import disnake
     import typing_extensions
 
 __all__: typing.Sequence[str] = (
@@ -18,9 +17,7 @@ __all__: typing.Sequence[str] = (
 )
 
 _PARSERS: typing.Dict[typing.Type[typing.Any], typing.Type[Parser[typing.Any]]] = {}
-_REV_PARSERS: typing.Dict[
-    typing.Type[Parser[typing.Any]], typing.Tuple[typing.Type[typing.Any]]
-] = {}
+_REV_PARSERS: typing.Dict[typing.Type[Parser[typing.Any]], typing.Tuple[type, ...]] = {}
 
 
 _T = typing.TypeVar("_T")
@@ -129,10 +126,8 @@ def get_parser(type_: typing.Type[_T]) -> Parser[_T]:  # noqa: D417
     type_args = typing.get_args(type_)
 
     if origin is typing.Union:
-        inner_parsers = [
-            get_parser(arg)  # Explicitly allow None to stay
-            for arg in type_args
-        ]  # fmt: skip
+        # In case of Optional (which is also a Union), we allow None, too.
+        inner_parsers = [get_parser(arg) for arg in type_args]
         return parser_type(*inner_parsers)  # see UnionParser
 
     if issubclass(origin, typing.Tuple):
@@ -140,9 +135,10 @@ def get_parser(type_: typing.Type[_T]) -> Parser[_T]:  # noqa: D417
         return parser_type(*inner_parsers)  # see TupleParser
 
     if issubclass(origin, typing.Collection):
+        # see disnake.ext.components.parser.stdlib.CollectionParser
         inner_type = next(iter(type_args), str)  # Get first element, default to str
         inner_parser = get_parser(inner_type)
-        return parser_type(inner_parser, collection_type=origin)  # see CollectionParser
+        return parser_type(inner_parser, collection_type=origin)  # pyright: ignore
 
     msg = f"Coult not create a parser for type {type_.__name__!r}."
     raise TypeError(msg)
@@ -191,7 +187,7 @@ class Parser(parser_api.Parser[_T], typing.Protocol[_T]):
         return cls()
 
     @classmethod
-    def default_types(cls) -> typing.Tuple[typing.Type[typing.Any]]:
+    def default_types(cls) -> typing.Tuple[type, ...]:
         """Return the types for which this parser type is the default implementation.
 
         Returns
@@ -204,7 +200,7 @@ class Parser(parser_api.Parser[_T], typing.Protocol[_T]):
     @classmethod
     def from_funcs(
         cls,
-        loads: typing.Callable[[disnake.Interaction, str], MaybeCoroutine[_T]],
+        loads: typing.Callable[[typing.Any, str], MaybeCoroutine[_T]],
         dumps: typing.Callable[[_T], MaybeCoroutine[str]],
         *,
         is_default_for: typing.Optional[TypeSequence] = None,
@@ -253,11 +249,11 @@ class Parser(parser_api.Parser[_T], typing.Protocol[_T]):
         return new_cls
 
     def loads(  # noqa: D102
-        self, __interaction: disnake.Interaction, __argument: str
+        self, source: typing.Any, argument: str, /  # noqa: ANN401
     ) -> MaybeCoroutine[_T]:
         # <<Docstring inherited from parser_api.Parser>>
         ...
 
-    def dumps(self, __argument: _T) -> MaybeCoroutine[str]:  # noqa: D102
+    def dumps(self, argument: _T, /) -> MaybeCoroutine[str]:  # noqa: D102
         # <<Docstring inherited from parser_api.Parser>>
         ...

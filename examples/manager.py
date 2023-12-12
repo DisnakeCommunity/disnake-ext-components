@@ -17,7 +17,7 @@ deeply_nested_manager = components.get_manager("foo.bar.baz")
 
 @foo_manager.register
 class FooButton(components.RichButton):
-    label: str = "0"
+    label: typing.Optional[str] = "0"
 
     count: int
 
@@ -30,7 +30,7 @@ class FooButton(components.RichButton):
 
 @deeply_nested_manager.register
 class FooBarBazButton(components.RichButton):
-    label: str = "0"
+    label: typing.Optional[str] = "0"
 
     count: int
 

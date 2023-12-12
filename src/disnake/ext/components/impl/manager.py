@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import contextlib
 import enum
-import functools
 import logging
 import sys
 import typing
@@ -16,6 +15,7 @@ from disnake.ext import commands
 from disnake.ext.components import fields
 from disnake.ext.components import interaction as interaction_impl
 from disnake.ext.components.api import component as component_api
+from disnake.ext.components.internal import reference
 
 if typing.TYPE_CHECKING:
     import typing_extensions
@@ -32,6 +32,7 @@ _MODAL_EVENT = sys.intern("on_modal_submit")
 T = typing.TypeVar("T")
 
 AnyBot = typing.Union[commands.Bot, commands.InteractionBot]
+# AnyComponent = typing.Union[component_api.RichComponent, disnake.ui.WrappedComponent]
 
 CallbackWrapperFunc = typing.Callable[
     ["ComponentManager", component_api.RichComponent, disnake.Interaction],
@@ -67,7 +68,28 @@ NotSet = NotSetType.NotSet
 """Sentinel value to distinguish whether or not None was explicitly passed."""
 
 
-NotSetNoneOr = typing.Union[typing.Literal[NotSet], None, T]
+NotSetOr = typing.Union[typing.Literal[NotSet], T]
+NotSetNoneOr = typing.Optional[NotSetOr[T]]
+
+
+def _to_ui_component(
+    component: typing.Union[disnake.Button, disnake.BaseSelectMenu],
+) -> disnake.ui.MessageUIComponent:
+    if isinstance(component, disnake.Button):
+        return disnake.ui.Button[None].from_component(component)
+    elif isinstance(component, disnake.StringSelectMenu):
+        return disnake.ui.StringSelect[None].from_component(component)
+    elif isinstance(component, disnake.UserSelectMenu):
+        return disnake.ui.UserSelect[None].from_component(component)
+    elif isinstance(component, disnake.RoleSelectMenu):
+        return disnake.ui.RoleSelect[None].from_component(component)
+    elif isinstance(component, disnake.MentionableSelectMenu):
+        return disnake.ui.MentionableSelect[None].from_component(component)
+    elif isinstance(component, disnake.ChannelSelectMenu):
+        return disnake.ui.ChannelSelect[None].from_component(component)
+
+    msg = f"Expected a message component type, got {type(component).__name__!r}."
+    raise TypeError(msg)
 
 
 def _is_set(obj: NotSetNoneOr[T]) -> typing_extensions.TypeGuard[typing.Optional[T]]:
@@ -208,28 +230,33 @@ class ComponentManager(component_api.ComponentManager):
 
         If not set, the manager will use its parents' settings. The default
         set on the root manager is ``"|"``.
+    bot: Optional[:class:`commands.Bot`]
+        The bot to which to register this manager. This can be specified at any
+        point through :meth:`.add_to_bot`.
     """
 
     __slots__: typing.Sequence[str] = (
-        "_name",
+        "_bot",
         "_children",
         "_components",
         "_count",
         "_counter",
         "_identifiers",
         "_module_data",
+        "_name",
         "_sep",
         "wrap_callback",
         "handle_exception",
     )
 
-    _name: str
+    _bot: typing.Optional[AnyBot]
     _children: typing.Set[ComponentManager]
     _components: weakref.WeakValueDictionary[str, ComponentType]
     _count: typing.Optional[bool]
     _counter: int
     _identifiers: dict[str, str]
     _module_data: typing.Dict[str, _ModuleData]
+    _name: str
     _sep: typing.Optional[str]
 
     def __init__(
@@ -238,6 +265,7 @@ class ComponentManager(component_api.ComponentManager):
         *,
         count: typing.Optional[bool] = None,
         sep: typing.Optional[str] = None,
+        bot: typing.Optional[commands.Bot] = None,
     ):
         self._name = name
         self._children = set()
@@ -250,8 +278,21 @@ class ComponentManager(component_api.ComponentManager):
         self.wrap_callback: CallbackWrapper = default_callback_wrapper
         self.handle_exception: ExceptionHandlerFunc = default_exception_handler
 
+        if bot:
+            self.add_to_bot(bot)
+
     def __repr__(self) -> str:
         return f"ComponentManager(name={self.name})"
+
+    @property
+    def bot(self) -> AnyBot:
+        """The bot to which this manager is registered."""
+        bot = _recurse_parents_getattr(self, "_bot", None)
+        if bot:
+            return bot
+
+        msg = f"Component manager {self.name!r} is not yet registered to a bot."
+        raise RuntimeError(msg)
 
     @property
     def name(self) -> str:  # noqa: D102
@@ -289,7 +330,7 @@ class ComponentManager(component_api.ComponentManager):
         return _recurse_parents_getattr(self, "_sep", _DEFAULT_SEP)
 
     @property
-    def parent(self) -> typing.Optional[typing_extensions.Self]:  # noqa: D102
+    def parent(self) -> typing.Optional[ComponentManager]:  # noqa: D102
         # <<docstring inherited from api.components.ComponentManager>>
 
         if "." not in self.name:
@@ -354,8 +395,54 @@ class ComponentManager(component_api.ComponentManager):
         self, interaction: disnake.Interaction
     ) -> typing.Optional[component_api.RichComponent]:
         # <<docstring inherited from api.components.ComponentManager>>
+        if isinstance(interaction, disnake.MessageInteraction):
+            component = await self.parse_raw_component(
+                interaction.component,
+                interaction,
+            )
 
-        custom_id = interaction.data["custom_id"]
+        else:
+            raise NotImplementedError
+
+        return component
+
+    async def parse_raw_component(
+        self,
+        component: typing.Union[disnake.Button, disnake.BaseSelectMenu],
+        *reference_objects: object,
+    ) -> typing.Optional[component_api.RichComponent]:
+        """Parse a message component given any number of reference objects.
+
+        The required reference objects depend on the parsers of the component
+        you are trying to create. If available, a
+        :class:`disnake.MessageInteraction` should always suffice for the
+        parsers provided by ext-components.
+
+        Note that this only works for components registered to this manager.
+
+        Parameters
+        ----------
+        component:
+            The raw message component that is to be turned into a rich
+            component.
+        *reference_objects:
+            The objects to use as reference in the parsers. For example,
+            a member object requires a guild as a reference object. This can
+            be provided either directly, or through any object that has a
+            ``.guild`` property, such as an interaction.
+
+        Returns
+        -------
+        :class:`RichComponent`
+            The newly created component.
+        :obj:`None`:
+            The provided component could not be parsed into a rich component
+            that is registered to this manager.
+        """
+        custom_id = component.custom_id
+        if not custom_id:
+            return None
+
         identifier, params = self.get_identifier(custom_id)
 
         if identifier not in self._components:
@@ -375,34 +462,104 @@ class ComponentManager(component_api.ComponentManager):
             #       Since we do not want to fire components that (to the user)
             #       do not exist anymore, we should remove them from the
             #       manager and return None.
-            self.deregister(component_type)
+            self.deregister_component(component_type)
             return None
 
-        if isinstance(interaction, disnake.MessageInteraction):
-            component_params = {
-                field.name: getattr(interaction.component, field.name)
-                for field in fields.get_fields(
-                    component_type, kind=fields.FieldType.INTERNAL
-                )
-            }
+        component_params = {
+            field.name: getattr(component, field.name)
+            for field in fields.get_fields(
+                component_type, kind=fields.FieldType.INTERNAL
+            )
+        }
 
-        else:
-            component_params = None
-
-        return await component_type.factory.build_from_interaction(
-            interaction, params, component_params=component_params
+        reference_obj = reference.create_reference(*reference_objects)
+        return await component_type.factory.build_component(
+            reference_obj, params, component_params=component_params
         )
 
-    # Nothing: nested decorator, return callable that registers and
-    # returns the component.
-    @typing.overload
-    def register(self) -> typing.Callable[[ComponentTypeT], ComponentTypeT]:
-        ...
+    async def parse_message_components(
+        self,
+        message: disnake.Message,
+        *reference_objects: object,
+    ) -> typing.Tuple[
+        typing.Sequence[typing.Sequence[interaction_impl.MessageComponents]],
+        typing.Sequence[component_api.RichComponent],
+    ]:
+        """Parse all components on a message into rich components or ui components.
+
+        This method is particularly useful if you wish to modify multiple
+        components attached to a given message.
+
+        The required reference objects depend on the parsers of the component
+        you are trying to create. If available, a
+        :class:`disnake.MessageInteraction` should always suffice for the
+        parsers provided by ext-components.
+
+        This returns a structure of components that can be directly passed into
+        any send method's component parameters, and a separate sequence
+        containing all rich components for easier editing.
+
+        Parameters
+        ----------
+        message:
+            The message of which to parse all components.
+        *reference_objects:
+            The objects to use as reference in the parsers. For example,
+            a member object requires a guild as a reference object. This can
+            be provided either directly, or through any object that has a
+            ``.guild`` property, such as an interaction.
+            If nothing is provided, this will default to the provided message
+            and the bot to which this manager is registered.
+
+        Returns
+        -------
+        :class:`tuple`[:class:`Sequence`[:class:`Sequence`[:obj:`MessageComponents`]], :class:`Sequence`[:class:`RichComponent`]]
+            A tuple containing:
+
+            - A nested structure of sequences that contains the parsed message
+            components. The outer sequence can contain a maximum of 5 inner
+            sequences, which can each contain up to five components; as per
+            Discord API spec.
+
+            - A sequence containing only the rich components to facilitate
+            easier modification of the components.
+
+            These objects share the same component instances, so any changes
+            made to components inside the separate sequence will also reflect
+            on the nested structure.
+        """  # noqa: E501
+        new_rows: typing.List[typing.List[interaction_impl.MessageComponents]] = []
+        new_row: typing.List[interaction_impl.MessageComponents]
+        rich_components: typing.List[component_api.RichComponent] = []
+
+        reference_obj = reference.create_reference(
+            *reference_objects or [message, self.bot]
+        )
+
+        for row in message.components:
+            new_rows.append(new_row := [])
+
+            for component in row.children:
+                new_component = await self.parse_raw_component(component, reference_obj)
+
+                if new_component:
+                    rich_components.append(new_component)
+                    assert isinstance(
+                        new_component,
+                        (component_api.RichButton, component_api.RichSelect),
+                    )
+
+                else:
+                    new_component = _to_ui_component(component)
+
+                new_row.append(new_component)
+
+        return new_rows, rich_components
 
     # Identifier and component: function call, return component
     @typing.overload
     def register(
-        self, component_type: ComponentTypeT, *, identifier: str
+        self, component_type: ComponentTypeT, *, identifier: str | None = None
     ) -> ComponentTypeT:
         ...
 
@@ -410,16 +567,11 @@ class ComponentManager(component_api.ComponentManager):
     # returns the component.
     @typing.overload
     def register(
-        self, *, identifier: str
+        self, *, identifier: str | None = None
     ) -> typing.Callable[[ComponentTypeT], ComponentTypeT]:
         ...
 
-    # Only component: decorator, return component
-    @typing.overload
-    def register(self, component_type: ComponentTypeT) -> ComponentTypeT:
-        ...
-
-    def register(  # noqa: D102
+    def register(
         self,
         component_type: typing.Optional[ComponentTypeT] = None,
         *,
@@ -428,16 +580,25 @@ class ComponentManager(component_api.ComponentManager):
         ComponentTypeT,
         typing.Callable[[ComponentTypeT], ComponentTypeT],
     ]:
+        """Register a component to this component manager.
+
+        This is the decorator interface to :meth:`register_component`.
+        """
+        if component_type is not None:
+            return self.register_component(component_type, identifier=identifier)
+
+        def wrapper(component_type: ComponentTypeT) -> ComponentTypeT:
+            return self.register_component(component_type, identifier=identifier)
+
+        return wrapper
+
+    def register_component(  # noqa: D102
+        self,
+        component_type: ComponentTypeT,
+        *,
+        identifier: typing.Optional[str] = None,
+    ) -> ComponentTypeT:
         # <<docstring inherited from api.components.ComponentManager>>
-
-        if not identifier and not component_type:
-            return self.register
-
-        if not component_type:
-            return functools.partial(
-                self.register, identifier=identifier
-            )  # pyright: ignore[reportGeneralTypeIssues]
-
         resolved_identifier = identifier or self.make_identifier(component_type)
         module_data = _ModuleData.from_object(component_type)
 
@@ -474,10 +635,7 @@ class ComponentManager(component_api.ComponentManager):
 
         return component_type
 
-    def deregister(  # noqa: D102
-        self,
-        component_type: ComponentType,
-    ) -> None:
+    def deregister_component(self, component_type: ComponentType) -> None:  # noqa: D102
         # <<docstring inherited from api.components.ComponentManager>>
 
         identifier = self.make_identifier(component_type)
@@ -513,7 +671,9 @@ class ComponentManager(component_api.ComponentManager):
             raise RuntimeError(message)
 
         bot.add_listener(self.invoke, _COMPONENT_EVENT)
-        bot.add_listener(self.invoke, _MODAL_EVENT)
+        # bot.add_listener(self.invoke, _MODAL_EVENT)
+
+        self._bot = bot
 
     def remove_from_bot(self, bot: AnyBot) -> None:  # noqa: D102
         # <<docstring inherited from api.components.ComponentManager>>
@@ -692,16 +852,20 @@ class ComponentManager(component_api.ComponentManager):
         self,
         identifier: str,
         *,
-        label: typing.Optional[str] = ...,
-        style: disnake.ButtonStyle = ...,
-        emoji: typing.Optional[component_api.AnyEmoji] = ...,
-        disabled: bool = ...,
+        as_root: bool = True,
+        label: NotSetNoneOr[str] = NotSet,
+        style: NotSetOr[disnake.ButtonStyle] = NotSet,
+        emoji: NotSetNoneOr[component_api.AnyEmoji] = NotSet,
+        disabled: NotSetOr[bool] = NotSet,
         **kwargs: object,
     ) -> component_api.RichButton:
         """Make an instance of the button class with the provided identifier.
 
         Parameters
         ----------
+        as_root: :class:`bool`
+            Whether to use the root manager to get the component. This defaults
+            to ``True`` so that any externally registered button can be built.
         identifier: :class:`str`
             The identifier of the button that is to be instantiated.
         label: Optional[:class:`str`]
@@ -730,16 +894,17 @@ class ComponentManager(component_api.ComponentManager):
         :class:`Exception`
             Any exception raised during button instantiation is propagated as-is.
         """  # noqa: E501
-        if label is not Ellipsis:
+        if label is not NotSet:
             kwargs["label"] = label
-        if style is not Ellipsis:
+        if style is not NotSet:
             kwargs["style"] = style
-        if emoji is not Ellipsis:
+        if emoji is not NotSet:
             kwargs["emoji"] = emoji
-        if disabled is not Ellipsis:
+        if disabled is not NotSet:
             kwargs["disabled"] = disabled
 
-        component_type = self.components[identifier]
+        manager = get_manager(_ROOT) if as_root else self
+        component_type = manager.components[identifier]
         component = component_type(**kwargs)
 
         # NOTE: We sadly cannot use issubclass-- maybe make a custom issubclass
@@ -758,17 +923,21 @@ class ComponentManager(component_api.ComponentManager):
         self,
         identifier: str,
         *,
-        placeholder: str | None = ...,
-        min_values: int = ...,
-        max_values: int = ...,
-        disabled: bool = ...,
-        options: typing.List[disnake.SelectOption] = ...,
+        as_root: bool = True,
+        placeholder: NotSetNoneOr[str] = NotSet,
+        min_values: NotSetOr[int] = NotSet,
+        max_values: NotSetOr[int] = NotSet,
+        disabled: NotSetOr[bool] = NotSet,
+        options: NotSetOr[typing.List[disnake.SelectOption]] = NotSet,
         **kwargs: object,
     ) -> component_api.RichSelect:
         """Make an instance of the string select class with the provided identifier.
 
         Parameters
         ----------
+        as_root: :class:`bool`
+            Whether to use the root manager to get the component. This defaults
+            to ``True`` so that any externally registered select can be built.
         identifier: :class:`str`
             The identifier of the button that is to be instantiated.
         placeholder: Optional[:class:`str`]
@@ -803,18 +972,19 @@ class ComponentManager(component_api.ComponentManager):
         """
         # NOTE: This currently only supports StringSelects
 
-        if placeholder is not Ellipsis:
+        if placeholder is not NotSet:
             kwargs["placeholder"] = placeholder
-        if min_values is not Ellipsis:
+        if min_values is not NotSet:
             kwargs["min_values"] = min_values
-        if max_values is not Ellipsis:
+        if max_values is not NotSet:
             kwargs["max_values"] = max_values
-        if disabled is not Ellipsis:
+        if disabled is not NotSet:
             kwargs["disabled"] = disabled
-        if options is not Ellipsis:
+        if options is not NotSet:
             kwargs["options"] = options
 
-        component_type = self.components[identifier]
+        manager = get_manager(_ROOT) if as_root else self
+        component_type = manager.components[identifier]
         component = component_type(**kwargs)
 
         # NOTE: We sadly cannot use issubclass-- maybe make a custom issubclass

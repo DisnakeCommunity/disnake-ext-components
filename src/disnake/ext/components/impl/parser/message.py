@@ -5,7 +5,7 @@ from __future__ import annotations
 import typing
 
 import disnake
-from disnake.ext.components.impl.parser import base, snowflake
+from disnake.ext.components.impl.parser import base, helpers, snowflake
 
 __all__: typing.Sequence[str] = (
     "GetMessageParser",
@@ -22,14 +22,23 @@ AnyChannel = typing.Union[
 ]
 
 
-def _get_message(inter: disnake.Interaction, argument: str) -> disnake.Message:
-    message = inter.bot.get_message(int(argument))
+def _get_message(
+    source: typing.Union[helpers.BotAware, helpers.MessageAware],
+    argument: str,
+) -> disnake.Message:
+    if isinstance(source, helpers.BotAware):
+        message = source.bot.get_message(int(argument))
+        if message:
+            return message
 
-    if message is None:
-        msg = f"Could not find a message with id {argument!r}."
-        raise LookupError(msg)
+        if isinstance(source, helpers.MessageAware):
+            return source.message
 
-    return message
+    else:
+        return source.message
+
+    msg = f"Could not find a message with id {argument!r}."
+    raise LookupError(msg)
 
 
 async def _fetch_message(inter: disnake.Interaction, argument: str) -> disnake.Message:

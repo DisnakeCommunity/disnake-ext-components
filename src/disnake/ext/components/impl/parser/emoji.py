@@ -5,7 +5,7 @@ from __future__ import annotations
 import typing
 
 import disnake
-from disnake.ext.components.impl.parser import base, snowflake
+from disnake.ext.components.impl.parser import base, helpers, snowflake
 
 __all__: typing.Sequence[str] = (
     "GetEmojiParser",
@@ -19,8 +19,8 @@ __all__: typing.Sequence[str] = (
 # GET_ONLY
 
 
-def _get_emoji(inter: disnake.Interaction, argument: str) -> disnake.Emoji:
-    emoji = inter.bot.get_emoji(int(argument))
+def _get_emoji(source: helpers.BotAware, argument: str) -> disnake.Emoji:
+    emoji = source.bot.get_emoji(int(argument))
 
     if emoji is None:
         msg = f"Could not find an emoji with id {argument!r}."
@@ -29,8 +29,8 @@ def _get_emoji(inter: disnake.Interaction, argument: str) -> disnake.Emoji:
     return emoji
 
 
-def _get_sticker(inter: disnake.Interaction, argument: str) -> disnake.Sticker:
-    sticker = inter.bot.get_sticker(int(argument))
+def _get_sticker(source: helpers.BotAware, argument: str) -> disnake.Sticker:
+    sticker = source.bot.get_sticker(int(argument))
 
     if sticker is None:
         msg = f"Could not find an emoji with id {argument!r}."
@@ -42,29 +42,35 @@ def _get_sticker(inter: disnake.Interaction, argument: str) -> disnake.Sticker:
 # GET AND FETCH
 
 
-async def _fetch_emoji(inter: disnake.Interaction, argument: str) -> disnake.Emoji:
-    if inter.guild is None:
+async def _fetch_emoji(
+    source: helpers.BotAndGuildAware,
+    argument: str,
+) -> disnake.Emoji:
+    if source.guild is None:
         msg = (
             "Impossible to fetch an emoji from an"
             " interaction that doesn't come from a guild."
         )
         raise TypeError(msg)
     return (
-        inter.bot.get_emoji(int(argument))
-        or await inter.guild.fetch_emoji(int(argument))
+        source.bot.get_emoji(int(argument))
+        or await source.guild.fetch_emoji(int(argument))
     )  # fmt: skip
 
 
-async def _fetch_sticker(inter: disnake.Interaction, argument: str) -> disnake.Sticker:
-    if inter.guild is None:
+async def _fetch_sticker(
+    source: helpers.BotAndGuildAware,
+    argument: str,
+) -> disnake.Sticker:
+    if source.guild is None:
         msg = (
             "Impossible to fetch a sticker from an"
             " interaction that doesn't come from a guild."
         )
         raise TypeError(msg)
     return (
-        inter.bot.get_sticker(int(argument))
-        or await inter.guild.fetch_sticker(int(argument))
+        source.bot.get_sticker(int(argument))
+        or await source.guild.fetch_sticker(int(argument))
     )  # fmt: skip
 
 

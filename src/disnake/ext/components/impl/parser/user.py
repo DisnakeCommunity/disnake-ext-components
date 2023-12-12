@@ -5,7 +5,7 @@ from __future__ import annotations
 import typing
 
 import disnake
-from disnake.ext.components.impl.parser import base, snowflake
+from disnake.ext.components.impl.parser import base, helpers, snowflake
 
 __all__: typing.Sequence[str] = (
     "GetUserParser",
@@ -15,8 +15,8 @@ __all__: typing.Sequence[str] = (
 )
 
 
-def _get_user(inter: disnake.Interaction, argument: str) -> disnake.User:
-    user = inter.bot.get_user(int(argument))
+def _get_user(source: helpers.BotAware, argument: str) -> disnake.User:
+    user = source.bot.get_user(int(argument))
 
     if user is None:
         msg = f"Could not find a user with id {argument!r}."
@@ -25,14 +25,29 @@ def _get_user(inter: disnake.Interaction, argument: str) -> disnake.User:
     return user
 
 
-def _get_member(inter: disnake.Interaction, argument: str) -> disnake.Member:
-    if inter.guild is None:
+def _get_member(
+    source: typing.Union[
+        helpers.GuildAware,
+        helpers.MessageAware,
+        helpers.ChannelAware,
+    ],
+    argument: str,
+) -> disnake.Member:
+    if isinstance(source, helpers.GuildAware):
+        guild = source.guild
+    elif isinstance(source, helpers.MessageAware):
+        guild = source.message.guild
+    else:
+        guild = getattr(source.channel, "guild", None)
+
+    if guild is None:
         msg = (
-            "Impossible to get a member from an"
+            "Impossible to fetch a role from an"
             " interaction that doesn't come from a guild."
         )
         raise TypeError(msg)
-    member = inter.guild.get_member(int(argument))
+
+    member = guild.get_member(int(argument))
 
     if member is None:
         msg = f"Could not find a member with id {argument!r}."
@@ -51,23 +66,40 @@ GetMemberParser = base.Parser.from_funcs(
 )
 
 
-async def _fetch_user(inter: disnake.Interaction, argument: str) -> disnake.User:
+async def _fetch_user(source: helpers.BotAware, argument: str) -> disnake.User:
+    id_ = int(argument)
     return (
-        inter.bot.get_user(int(argument))
-        or await inter.bot.fetch_user(int(argument))
+        source.bot.get_user(id_)
+        or await source.bot.fetch_user(id_)
     )  # fmt: skip
 
 
-async def _fetch_member(inter: disnake.Interaction, argument: str) -> disnake.Member:
-    if inter.guild is None:
+async def _fetch_member(
+    source: typing.Union[
+        helpers.GuildAware,
+        helpers.MessageAware,
+        helpers.ChannelAware,
+    ],
+    argument: str,
+) -> disnake.Member:
+    if isinstance(source, helpers.GuildAware):
+        guild = source.guild
+    elif isinstance(source, helpers.MessageAware):
+        guild = source.message.guild
+    else:
+        guild = getattr(source.channel, "guild", None)
+
+    if guild is None:
         msg = (
             "Impossible to fetch a member from an"
             " interaction that doesn't come from a guild."
         )
         raise TypeError(msg)
+
+    id_ = int(argument)
     return (
-        inter.guild.get_member(int(argument))
-        or await inter.guild.fetch_member(int(argument))
+        guild.get_member(id_)
+        or await guild.fetch_member(id_)
     )  # fmt: skip
 
 

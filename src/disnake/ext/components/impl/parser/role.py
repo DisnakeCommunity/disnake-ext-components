@@ -5,7 +5,7 @@ from __future__ import annotations
 import typing
 
 import disnake
-from disnake.ext.components.impl.parser import base, snowflake
+from disnake.ext.components.impl.parser import base, helpers, snowflake
 
 __all__: typing.Sequence[str] = (
     "GetRoleParser",
@@ -13,15 +13,29 @@ __all__: typing.Sequence[str] = (
 )
 
 
-def _get_role(inter: disnake.Interaction, argument: str) -> disnake.Role:
-    if inter.guild is None:
+def _get_role(
+    source: typing.Union[
+        helpers.GuildAware,
+        helpers.MessageAware,
+        helpers.ChannelAware,
+    ],
+    argument: str,
+) -> disnake.Role:
+    if isinstance(source, helpers.GuildAware):
+        guild = source.guild
+    elif isinstance(source, helpers.MessageAware):
+        guild = source.message.guild
+    else:
+        guild = getattr(source.channel, "guild", None)
+
+    if guild is None:
         msg = (
             "Impossible to get a role from an"
             " interaction that doesn't come from a guild."
         )
         raise TypeError(msg)
-    role = inter.guild.get_role(int(argument))
 
+    role = guild.get_role(int(argument))
     if role is None:
         msg = f"Could not find a role with id {argument!r}."
         raise LookupError(msg)
@@ -29,16 +43,32 @@ def _get_role(inter: disnake.Interaction, argument: str) -> disnake.Role:
     return role
 
 
-async def _fetch_role(inter: disnake.Interaction, argument: str) -> disnake.Role:
-    if inter.guild is None:
+async def _fetch_role(
+    source: typing.Union[
+        helpers.GuildAware,
+        helpers.MessageAware,
+        helpers.ChannelAware,
+    ],
+    argument: str,
+) -> disnake.Role:
+    if isinstance(source, helpers.GuildAware):
+        guild = source.guild
+    elif isinstance(source, helpers.MessageAware):
+        guild = source.message.guild
+    else:
+        guild = getattr(source.channel, "guild", None)
+
+    if guild is None:
         msg = (
             "Impossible to fetch a role from an"
             " interaction that doesn't come from a guild."
         )
         raise TypeError(msg)
+
+    id_ = int(argument)
     role = (
-        inter.guild.get_role(int(argument))
-        or disnake.utils.get(await inter.guild.fetch_roles(), id=int(argument))
+        guild.get_role(int(argument))
+        or next((role for role in await guild.fetch_roles() if role.id == id_), None)
     )  # fmt: skip
 
     # a role id coming from a custom_id could be of a deleted role object

@@ -117,23 +117,21 @@ class WrappedInteraction(disnake.Interaction):
     def __init__(self, wrapped: disnake.Interaction):
         self._wrapped = wrapped
 
-    def __getattribute__(self, name: str) -> typing.Any:  # noqa: ANN401
-        """Get an attribute of this class or the wrapped interaction."""
-        try:
-            return super().__getattribute__(name)
-        except AttributeError:
-            return getattr(self._wrapped, name)
+    def __getattr__(self, name: str) -> typing.Any:  # noqa: ANN401
+        return getattr(self._wrapped, name)
 
     @disnake.utils.cached_slot_property("_cs_response")
     def response(self) -> WrappedInteractionResponse:
-        # <<docstring inherited from disnake.Interaction>>
+        """Returns an object responsible for handling responding to the interaction.
 
+        A response can only be done once. If secondary messages need to be sent,
+        consider using :attr:`followup` instead.
+        """  # noqa: D401
         return WrappedInteractionResponse(super().response)
 
     @disnake.utils.cached_slot_property("_cs_followup")
     def followup(self) -> disnake.Webhook:
-        # <<docstring inherited from disnake.Interaction>>
-
+        """Returns the follow up webhook for follow up interactions."""  # noqa: D401
         return self._wrapped.followup  # TODO: custom followup object
 
     async def edit_original_response(  # pyright: ignore[reportIncompatibleMethodOverride]  # noqa: E501, PLR0913
@@ -150,8 +148,101 @@ class WrappedInteraction(disnake.Interaction):
         suppress_embeds: bool = MISSING,
         allowed_mentions: typing.Optional[disnake.AllowedMentions] = None,
     ) -> disnake.InteractionMessage:
-        # <<docstring inherited from disnake.Interaction>>
+        """Edit the original, previously sent interaction response message.
 
+        This is a lower level interface to :meth:`InteractionMessage.edit` in
+        case you do not want to fetch the message and save an HTTP request.
+
+        This method is also the only way to edit the original response if
+        the message sent was ephemeral.
+
+        .. note::
+            If the original response message has embeds with images that were created
+            from local files (using the ``file`` parameter with :meth:`Embed.set_image`
+            or :meth:`Embed.set_thumbnail`), those images will be removed if the
+            message's attachments are edited in any way (i.e. by setting ``file``/
+            ``files``/``attachments``, or adding an embed with local files).
+
+        .. versionchanged:: 2.6
+
+            This function was renamed from ``edit_original_message``.
+
+        Parameters
+        ----------
+        content:
+            The content to edit the message with, or :obj:``None`` to clear it.
+        embed:
+            The new embed to replace the original with. This cannot be mixed with the
+            ``embeds`` parameter.
+            Could be :obj:`None` to remove the embed.
+        embeds:
+            The new embeds to replace the original with. Must be a maximum of 10.
+            This cannot be mixed with the ``embed`` parameter.
+            To remove all embeds ``[]`` should be passed.
+        file:
+            The file to upload. This cannot be mixed with the ``files`` parameter.
+            Files will be appended to the message, see the ``attachments`` parameter
+            to remove/replace existing files.
+        files:
+            A list of files to upload. This cannot be mixed with the ``file`` parameter.
+            Files will be appended to the message, see the ``attachments`` parameter
+            to remove/replace existing files.
+        attachments:
+            A list of attachments to keep in the message.
+            If ``[]`` or :obj:`None` is passed then all existing attachments are
+            removed. Keeps existing attachments if not provided.
+
+            .. versionadded:: 2.2
+
+            .. versionchanged:: 2.5
+                Supports passing ``None`` to clear attachments.
+
+        view:
+            The updated view to update this message with. This cannot be mixed with
+            ``components``. If ``None`` is passed then the view is removed.
+        components:
+            A list of components to update this message with. This cannot be mixed with
+            ``view``. If ``None`` is passed then the components are removed.
+
+            .. versionadded:: 2.4
+
+        allowed_mentions:
+            Controls the mentions being processed in this message.
+            See :meth:`.abc.Messageable.send` for more information.
+
+        suppress_embeds:
+            Whether to suppress embeds for the message. This hides
+            all the embeds from the UI if set to ``True``. If set
+            to ``False``, this brings the embeds back if they were
+            suppressed.
+
+            .. versionadded:: 2.7
+
+        flags:
+            The new flags to set for this message. Overrides existing flags.
+            Only :attr:`~MessageFlags.suppress_embeds` is supported.
+
+            If parameter ``suppress_embeds`` is provided,
+            that will override the setting of :attr:`.MessageFlags.suppress_embeds`.
+
+            .. versionadded:: 2.9
+
+        Raises
+        ------
+        disnake.HTTPException
+            Editing the message failed.
+        disnake.Forbidden
+            Edited a message that is not yours.
+        TypeError
+            You specified both ``embed`` and ``embeds`` or ``file`` and ``files``
+        ValueError
+            The length of ``embeds`` was invalid.
+
+        Returns
+        -------
+        :class:`InteractionMessage`
+            The newly edited message.
+        """
         return await self._wrapped.edit_original_response(
             content=content,
             embed=embed,
@@ -218,12 +309,9 @@ class WrappedInteractionResponse(disnake.InteractionResponse):
     def __init__(self, wrapped: disnake.InteractionResponse):
         self._wrapped = wrapped
 
-    def __getattribute__(self, name: str) -> typing.Any:  # noqa: ANN401
+    def __getattr__(self, name: str) -> typing.Any:  # noqa: ANN401
         """Get an attribute of this class or the wrapped interaction."""
-        try:
-            return super().__getattribute__(name)
-        except AttributeError:
-            return getattr(self._wrapped, name)
+        return getattr(self._wrapped, name)
 
     async def send_message(  # pyright: ignore[reportIncompatibleMethodOverride]  # noqa: E501, PLR0913
         self,
@@ -337,11 +425,11 @@ def wrap_interaction(interaction: disnake.Interaction) -> WrappedInteraction:
         :class:`WrappedInteraction`:
 
         - Wrapping a (subclass of) :class:`disnake.MessageInteraction` returns
-        a :class:`MessageInteraction`,
+          a :class:`MessageInteraction`,
         - Wrapping a (subclass of) :class:`disnake.ModalInteraction` returns a
-        :class:`ModalInteraction`,
+          :class:`ModalInteraction`,
         - Wrapping any other interaction class returns a
-        :class:`WrappedInteraction`.
+          :class:`WrappedInteraction`.
 
     """
     if isinstance(interaction, disnake.MessageInteraction):

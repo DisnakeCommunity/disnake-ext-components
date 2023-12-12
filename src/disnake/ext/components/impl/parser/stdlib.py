@@ -17,7 +17,6 @@ if typing.TYPE_CHECKING:
     import disnake
 
 __all__: typing.Sequence[str] = (
-    "NumberParser",
     "FloatParser",
     "IntParser",
     "BoolParser",
@@ -66,7 +65,7 @@ class NoneParser(base.Parser[None], is_default_for=(_NoneType,)):
     def __init__(self, *, strict: bool = True) -> None:
         self.strict = strict
 
-    def loads(self, _inter: disnake.Interaction, argument: str) -> None:  # noqa: D102
+    def loads(self, _source: object, argument: str) -> None:
         # <<docstring inherited from parser_api.Parser>>
         if not argument or not self.strict:
             return None  # noqa: RET501
@@ -74,7 +73,7 @@ class NoneParser(base.Parser[None], is_default_for=(_NoneType,)):
         msg = f"Strict `NoneParser`s can only load the empty string, got {argument!r}."
         raise ValueError(msg)
 
-    def dumps(self, argument: None) -> str:  # noqa: D102
+    def dumps(self, argument: None) -> str:
         # <<docstring inherited from parser_api.Parser>>
         if argument is None or not self.strict:
             return ""
@@ -98,99 +97,23 @@ def dumps_float(number: float) -> str:
     return _removesuffix(str(number), ".0")
 
 
-class NumberParser(base.Parser[_NumberT]):
-    """Base parser type for numbers.
-
-    Defaults to a signed float parser.
-    """
-
-    type: typing.Union[typing.Type[int], typing.Type[float]]
-
-    signed: bool
-    base: int = 10
-
-    @typing.overload
-    def __new__(
-        cls,
-        *,
-        decimal: typing.Literal[True] = True,
-        signed: bool = True,
-        base: int = 10,
-    ) -> FloatParser:
-        ...
-
-    @typing.overload
-    def __new__(
-        cls,
-        *,
-        decimal: typing.Literal[False],
-        signed: bool = True,
-        base: int = 10,
-    ) -> IntParser:
-        ...
-
-    def __new__(  # noqa: D102
-        cls,
-        *,
-        decimal: bool = True,
-        signed: bool = True,
-        base: int = 10,
-    ) -> typing.Union[FloatParser, IntParser]:
-        if decimal and base != 10:
-            msg = "FloatParsers must have base 10."
-            raise TypeError(msg)
-
-        self = super().__new__(FloatParser if decimal else IntParser)
-        self.signed = signed
-        self.base = base
-        return self
-
-    def check_sign(self, value: _NumberT) -> None:
-        """Assert validity of a number for this parser.
-
-        Parameters
-        ----------
-        value:
-            The value to check
-
-        Raises
-        ------
-        TypeError:
-            The entered number was < 0 whereas this parser is for unsigned
-            numbers (thus only numbers >= 0 are valid).
-        """
-        if not self.signed and value < 0:
-            msg = "Unsigned numbers cannot be < 0."
-            raise TypeError(msg)
-
-    def loads(self, _: disnake.Interaction, argument: str) -> _NumberT:  # noqa: D102
-        # <<docstring inherited from parser_api.Parser>>
-
-        raise NotImplementedError
-
-    def dumps(self, argument: _NumberT) -> str:  # noqa: D102
-        # <<docstring inherited from parser_api.Parser>>
-
-        raise NotImplementedError
-
-
-class FloatParser(NumberParser[float], is_default_for=(float,)):
+class FloatParser(base.Parser[float], is_default_for=(float,)):
     """Specialised number parser for floats.
 
     This parser can be either signed or unsigned. The default float parser is
     signed.
     """
 
-    type = float
-
-    def __new__(cls, *, signed: bool = True) -> typing_extensions.Self:  # noqa: D102
-        return super().__new__(cls, decimal=True, signed=signed, base=10)
+    def __init__(self, *, signed: bool = True) -> None:
+        self.signed = signed
 
     def loads(self, _: disnake.Interaction, argument: str) -> float:  # noqa: D102
         # <<docstring inherited from parser_api.Parser>>
 
         result = float(argument)
-        self.check_sign(result)
+        if not self.signed and result < 0:
+            msg = "Unsigned numbers cannot be < 0."
+            raise ValueError(msg)
 
         return result
 
@@ -200,30 +123,24 @@ class FloatParser(NumberParser[float], is_default_for=(float,)):
         return dumps_float(argument)
 
 
-class IntParser(NumberParser[int], is_default_for=(int,)):
+class IntParser(base.Parser[int], is_default_for=(int,)):
     """Specialised number parser for integers.
 
-    This parser can be either signed or unsigned. The default float parser is
+    This parser can be either signed or unsigned. The default integer parser is
     signed.
     """
 
-    type = int
+    def __init__(self, *, signed: bool = True, base: int = 10) -> None:
+        self.signed = signed
+        self.base = base
 
-    base: int
-
-    def __new__(  # noqa: D102
-        cls,
-        *,
-        signed: bool = True,
-        base: int = 10,
-    ) -> typing_extensions.Self:
-        return super().__new__(cls, decimal=False, signed=signed, base=base)
-
-    def loads(self, _: disnake.Interaction, argument: str) -> int:  # noqa: D102
+    def loads(self, _source: object, argument: str) -> int:  # noqa: D102
         # <<docstring inherited from parser_api.Parser>>
 
         result = int(argument, self.base)
-        self.check_sign(result)
+        if not self.signed and result < 0:
+            msg = "Unsigned numbers cannot be < 0."
+            raise ValueError(msg)
 
         return result
 
@@ -251,11 +168,11 @@ class BoolParser(base.Parser[bool], is_default_for=(bool,)):
 
     def __init__(
         self,
-        trues: typing.Collection[str] = ...,
-        falses: typing.Collection[str] = ...,
+        trues: typing.Optional[typing.Collection[str]] = None,
+        falses: typing.Optional[typing.Collection[str]] = None,
     ):
-        self.trues = _DEFAULT_TRUES if trues is Ellipsis else trues
-        self.falses = _DEFAULT_FALSES if falses is Ellipsis else falses
+        self.trues = _DEFAULT_TRUES if trues is None else trues
+        self.falses = _DEFAULT_FALSES if falses is None else falses
 
     def loads(self, _: disnake.Interaction, argument: str) -> bool:  # noqa: D102
         # <<docstring inherited from parser_api.Parser>>
@@ -432,12 +349,15 @@ class TupleParser(
     *inner_parsers: components.Parser[object]
         The parsers to use to parse the items inside the tuple. These define
         the inner types and the allowed number of items in the in the tuple.
+
+        Defaults to a single string parser, i.e. a one-element tuple containing
+        exactly one string.
     sep: str
         The separator to use. Can be any string, though a single character is
         recommended. Defaults to ",".
     """
 
-    inner_parsers: typing.Tuple[base.Parser[typing.Any]]
+    inner_parsers: typing.Tuple[base.Parser[typing.Any], ...]
     sep: str
 
     def __init__(
@@ -445,7 +365,9 @@ class TupleParser(
         *inner_parsers: base.Parser[typing.Any],
         sep: str = ",",
     ) -> None:
-        self.inner_parsers = inner_parsers if inner_parsers else (StringParser(),)
+        self.inner_parsers = (
+            inner_parsers if inner_parsers else (StringParser.default(),)
+        )
         self.sep = sep
 
     async def loads(  # noqa: D102
@@ -538,7 +460,7 @@ class CollectionParser(
             if not part.isspace()
         ]
 
-        return self.collection_type(parsed)  # pyright: ignore
+        return self.collection_type(parsed)
 
     async def dumps(self, argument: _CollectionT) -> str:  # noqa: D102
         # <<docstring inherited from parser_api.Parser>>

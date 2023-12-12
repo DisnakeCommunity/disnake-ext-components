@@ -55,7 +55,7 @@ COLOUR_OPTIONS = [
 
 @manager.register
 class MySelect(components.RichStringSelect):
-    placeholder: str = "Please select a square."
+    placeholder: typing.Optional[str] = "Please select a square."
     options: typing.List[disnake.SelectOption] = SLOT_OPTIONS
 
     slot: str = "0"
