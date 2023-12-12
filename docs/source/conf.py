@@ -39,6 +39,7 @@ extensions = [
     # External.
     "sphinxcontrib_trio",
     "sphinx_inline_tabs",
+    "sphinx_copybutton",
     "hoverxref.extension",
     "sphinx_autodoc_typehints",
     "enum_tools.autoenum",
