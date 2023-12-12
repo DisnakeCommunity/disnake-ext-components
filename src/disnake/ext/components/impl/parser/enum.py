@@ -58,14 +58,10 @@ class EnumParser(
         self.enum_class = enum_class
         self.value_parser = parser_base.get_parser(_get_enum_type(enum_class))
 
-    async def loads(  # noqa: D102
-        self, interaction: disnake.Interaction, argument: str
-    ) -> _EnumT:
+    async def loads(self, source: object, argument: str) -> _EnumT:  # noqa: D102
         # <<docstring inherited from parser_api.Parser>>
 
-        parsed = await aio.eval_maybe_coro(
-            self.value_parser.loads(interaction, argument)
-        )
+        parsed = await aio.eval_maybe_coro(self.value_parser.loads(source, argument))
         return self.enum_class(parsed)
 
     def dumps(self, argument: _EnumT) -> parser_base.MaybeCoroutine[str]:  # noqa: D102

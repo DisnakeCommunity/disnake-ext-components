@@ -6,9 +6,6 @@ import typing
 
 import typing_extensions
 
-if typing.TYPE_CHECKING:
-    import disnake
-
 __all__: typing.Sequence[str] = ("Parser",)
 
 
@@ -33,9 +30,7 @@ class Parser(typing.Protocol[ParserType]):
 
     __slots__: typing.Sequence[str] = ()
 
-    def loads(
-        self, interaction: disnake.Interaction, argument: str, /
-    ) -> MaybeCoroutine[ParserType]:
+    def loads(self, source: object, argument: str, /) -> MaybeCoroutine[ParserType]:
         r"""Load a value from a string and apply the necessary conversion logic.
 
         Any errors raised inside this method remain unmodified, and should be
@@ -46,11 +41,12 @@ class Parser(typing.Protocol[ParserType]):
 
         Parameters
         ----------
-        interaction:
-            The interaction in the context of which the argument should be
-            parsed. For example, parsing a :class:`disnake.Member` could use
-            the interaction to determine the guild from which the member should
-            be derived.
+        source:
+            The source object with which the argument should be parsed. For
+            example, parsing a :class:`disnake.Member` uses the source to
+            determine the guild from which the member should be derived.
+            In this case, the source should be any object that defines
+            ``.guild``.
         argument:
             The argument to parse into the desired type.
 

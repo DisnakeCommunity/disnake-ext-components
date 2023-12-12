@@ -13,7 +13,6 @@ from disnake.ext.components.impl.parser import base as parser_base
 from disnake.ext.components.internal import aio
 
 if typing.TYPE_CHECKING:
-    import disnake
     import typing_extensions
 
 __all__: typing.Sequence[str] = ("ComponentFactory",)
@@ -59,7 +58,7 @@ class ComponentFactory(
 
     async def loads_param(
         self,
-        interaction: disnake.Interaction,
+        source: object,
         param: str,
         value: str,
     ) -> object:
@@ -67,8 +66,8 @@ class ComponentFactory(
 
         Parameters
         ----------
-        interaction:
-            The interaction that caused the component to activate.
+        source:
+            The source object used to parse the custom id parameter.
         param:
             The name of the custom id field that is to be parsed.
         value:
@@ -80,7 +79,7 @@ class ComponentFactory(
             The parsed custom id field value.
         """
         parser = self.parsers[param]
-        result = parser.loads(interaction, value)
+        result = parser.loads(source, value)
         return await aio.eval_maybe_coro(result)
 
     async def dumps_param(
@@ -92,8 +91,6 @@ class ComponentFactory(
 
         Parameters
         ----------
-        interaction:
-            The interaction that caused the component to activate.
         param:
             The name of the custom id field that is to be parsed.
         value:
@@ -110,7 +107,7 @@ class ComponentFactory(
 
     async def load_params(  # noqa: D102
         self,
-        interaction: disnake.Interaction,
+        source: object,
         params: typing.Sequence[str],
     ) -> typing.Mapping[str, object]:
         # <<docstring inherited from api.components.ComponentFactory>>
@@ -125,7 +122,7 @@ class ComponentFactory(
             raise ValueError(message)
 
         return {
-            param: await self.loads_param(interaction, param, value)
+            param: await self.loads_param(source, param, value)
             for param, value in zip(self.parsers, params)
             if value
         }
@@ -140,20 +137,16 @@ class ComponentFactory(
             for field in self.parsers
         }
 
-    async def build_from_interaction(  # noqa: D102
+    async def build_component(  # noqa: D102
         self,
-        interaction: disnake.Interaction,
+        source: object,
         params: typing.Sequence[str],
         component_params: typing.Optional[typing.Mapping[str, object]] = None,
     ) -> component_api.ComponentT:
         # <<docstring inherited from api.components.ComponentFactory>>
 
-        parsed = await self.load_params(interaction, params)
-
-        # HACK: Easiest way I could think of to get around pyright inconsistency.
-        component = self.component.__new__(self.component)
-        component.__init__(**parsed, **(component_params or {}))
-        return component
+        parsed = await self.load_params(source, params)
+        return self.component(**parsed, **(component_params or {}))
 
 
 class NoopFactory(component_api.ComponentFactory[typing.Any]):
@@ -166,9 +159,9 @@ class NoopFactory(component_api.ComponentFactory[typing.Any]):
     """
 
     __slots__: typing.Sequence[str] = ()
-    __instance: typing.ClassVar[typing.Optional[NoopFactory]] = None
+    __instance: typing.ClassVar[typing.Optional[typing_extensions.Self]] = None
 
-    def __new__(cls) -> typing_extensions.Self:  # noqa: D102
+    def __new__(cls) -> typing_extensions.Self:
         if cls.__instance is not None:
             return cls.__instance
 
@@ -176,26 +169,26 @@ class NoopFactory(component_api.ComponentFactory[typing.Any]):
         return self
 
     @classmethod
-    def from_component(  # noqa: D102
+    def from_component(
         cls, _: typing.Type[component_api.RichComponent]
     ) -> typing_extensions.Self:
         # <<docstring inherited from api.components.ComponentFactory>>
 
-        return NoopFactory()
+        return cls()
 
-    async def load_params(self, *_: object) -> typing.NoReturn:  # noqa: D102
+    async def load_params(self, *_: object) -> typing.NoReturn:
         # <<docstring inherited from api.components.ComponentFactory>>
 
         raise NotImplementedError
 
-    async def dump_params(self, *_: object) -> typing.NoReturn:  # noqa: D102
+    async def dump_params(self, *_: object) -> typing.NoReturn:
         # <<docstring inherited from api.components.ComponentFactory>>
 
         raise NotImplementedError
 
-    async def build_from_interaction(  # noqa: D102
+    async def build_component(
         self,
-        interaction: disnake.Interaction,
+        source: object,
         params: typing.Sequence[str],
         component_params: typing.Optional[typing.Mapping[str, object]] = None,
     ) -> typing.NoReturn:

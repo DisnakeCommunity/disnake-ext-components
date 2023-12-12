@@ -5,7 +5,7 @@ from __future__ import annotations
 import typing
 
 import disnake
-from disnake.ext.components.impl.parser import base
+from disnake.ext.components.impl.parser import base, helpers
 
 __all__: typing.Sequence[str] = ("InviteParser",)
 
@@ -27,11 +27,11 @@ class InviteParser(  # noqa: D101
         self.guild_scheduled_event_id = guild_scheduled_event_id
 
     async def loads(  # noqa: D102
-        self, inter: disnake.Interaction, argument: str
+        self, source: helpers.BotAware, argument: str
     ) -> disnake.Invite:
         # <<docstring inherited from parser_api.Parser>>
 
-        return await inter.bot.fetch_invite(
+        return await source.bot.fetch_invite(
             argument,
             with_counts=self.with_counts,
             with_expiration=self.with_expiration,
