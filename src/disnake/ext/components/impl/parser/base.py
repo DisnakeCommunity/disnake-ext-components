@@ -126,10 +126,8 @@ def get_parser(type_: typing.Type[_T]) -> Parser[_T]:  # noqa: D417
     type_args = typing.get_args(type_)
 
     if origin is typing.Union:
-        inner_parsers = [
-            get_parser(arg)  # Explicitly allow None to stay
-            for arg in type_args
-        ]  # fmt: skip
+        # In case of Optional (which is also a Union), we allow None, too.
+        inner_parsers = [get_parser(arg) for arg in type_args]
         return parser_type(*inner_parsers)  # see UnionParser
 
     if issubclass(origin, typing.Tuple):
@@ -137,9 +135,10 @@ def get_parser(type_: typing.Type[_T]) -> Parser[_T]:  # noqa: D417
         return parser_type(*inner_parsers)  # see TupleParser
 
     if issubclass(origin, typing.Collection):
+        # see disnake.ext.components.parser.stdlib.CollectionParser
         inner_type = next(iter(type_args), str)  # Get first element, default to str
         inner_parser = get_parser(inner_type)
-        return parser_type(inner_parser, collection_type=origin)  # see CollectionParser
+        return parser_type(inner_parser, collection_type=origin)  # pyright: ignore
 
     msg = f"Coult not create a parser for type {type_.__name__!r}."
     raise TypeError(msg)

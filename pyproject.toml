@@ -51,7 +51,7 @@ build-backend = "poetry.core.masonry.api"
 
 
 [tool.pyright]
-strict = true
+typeCheckingMode = "strict"
 python-version = 3.8
 reportMissingTypeStubs = false
 
