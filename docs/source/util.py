@@ -21,6 +21,9 @@ __all__ = (
 )
 
 
+NoneType = type(None)
+
+
 def git(*args: str) -> str:
     """Run a git command and return the output."""
     return subprocess.check_output(["git", *args], text=True).strip()
@@ -90,7 +93,7 @@ def make_generic(cls: type) -> None:
     cls.__class_getitem__ = __class_getitem__  # pyright: ignore
 
 
-def format_annotation(  # noqa: PLR0911, PLR0912, PLR0915
+def format_annotation(  # noqa: PLR0911, PLR0912
     annotation: typing.Any, config: sphinx.config.Config  # noqa: ANN401
 ) -> str:
     """Format the annotation."""
@@ -102,7 +105,7 @@ def format_annotation(  # noqa: PLR0911, PLR0912, PLR0915
     # Special cases
     if isinstance(annotation, typing.ForwardRef):
         return annotation.__forward_arg__
-    if annotation is None or annotation is type(None):
+    if annotation in (None, NoneType):
         return ":py:obj:`None`"
     if annotation is Ellipsis:
         return ":py:data:`...<Ellipsis>`"
@@ -147,20 +150,15 @@ def format_annotation(  # noqa: PLR0911, PLR0912, PLR0915
         full_name = annotation.__name__
 
     elif full_name == "typing.Optional":
-        args = tuple(x for x in args if x is not type(None))
+        args = tuple(x for x in args if x is not NoneType)
 
     # NOTE: Modified to always use pipe unions
-    elif full_name in ("typing.Union", "types.UnionType") and type(None) in args:
-        if len(args) == 2:
-            full_name = "typing.Optional"
-            role = "data"
-            args = tuple(x for x in args if x is not type(None))
-
-        elif not getattr(config, "simplify_optional_unions", True):
+    elif full_name in ("typing.Union", "types.UnionType") and NoneType in args:
+        if len(args) == 2 or not getattr(config, "simplify_optional_unions", True):
             full_name = "typing.Optional"
             formatted_args = args_format.format(
                 " | ".join(
-                    format_annotation(x, config) for x in args if x is not type(None)
+                    format_annotation(x, config) for x in args if x is not NoneType
                 )
             )
 

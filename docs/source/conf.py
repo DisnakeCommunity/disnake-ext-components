@@ -130,6 +130,7 @@ simplify_optional_unions = False
 # Customise display for specific types.
 import attrs
 import disnake
+from disnake.ext.components import interaction
 from disnake.ext.components.api import component, parser
 
 util.make_generic(attrs.Attribute)
@@ -140,6 +141,7 @@ aliases: typing.Dict[object, str] = {
     disnake.ButtonStyle: ":class:`~disnake.ButtonStyle`",
     component.ComponentT: ":data:`~.ComponentT`",  # pyright: ignore
     parser.ParserType: ":data:`.ParserType`",  # pyright: ignore
+    interaction.MessageComponents: ":data:`.Components`",
 }
 
 
