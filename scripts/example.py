@@ -21,9 +21,15 @@ def _main() -> typing.NoReturn:
         print("Token not found! Please set 'EXAMPLE_TOKEN' in .env.")
         sys.exit(1)
 
+    choices = [
+        file[:-3]
+        for file in os.listdir(os.path.realpath("examples"))
+        if file.endswith(".py")
+    ]
+
     # Get the passed example using argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("example", type=str)
+    parser.add_argument("example", type=str, choices=choices)
 
     result = parser.parse_args()
     example: str = f"examples.{result.example}"
@@ -41,7 +47,7 @@ def _main() -> typing.NoReturn:
 
     try:
         with subprocess.Popen(
-            args,
+            args,  # noqa: S603
             # Pipe all output to stdout...
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
