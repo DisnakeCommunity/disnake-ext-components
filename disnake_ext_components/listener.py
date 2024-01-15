@@ -619,7 +619,7 @@ class ModalListener(abc.BaseListener[P, T, disnake.ModalInteraction]):
 
         self.params = [params.ParamInfo.from_param(param) for param in listener_params]
         self.modal_params = [params.ParamInfo.from_param(param) for param in special_params]
-        self.field_ids = [f"{self.__name__}{self.sep}{param.name}" for param in special_params]
+        self.field_ids = [param.name for param in special_params]
 
     async def __call__(  # pyright: ignore
         self,
